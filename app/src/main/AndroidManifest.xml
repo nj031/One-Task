@@ -26,7 +26,8 @@
         <service
             android:name=".service.TimerForegroundService"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
+            android:foregroundServiceType="specialUse"
+            android:stopWithTask="false">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps a user-started focus timer counting down accurately, with a persistent notification, while the app is backgrounded or the screen is locked." />

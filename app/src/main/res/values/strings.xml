@@ -97,7 +97,11 @@
     <string name="focus_timer_title">Focus Timer</string>
     <string name="focus_timer_total_format">Total %1$s</string>
     <string name="focus_timer_notification_channel_name">Focus timer</string>
-    <string name="focus_timer_notification_text">%1$s remaining</string>
+    <string name="focus_timer_notification_running_title">One Task — Focus session running</string>
+    <string name="focus_timer_notification_running_text">%1$s · %2$s remaining</string>
+    <string name="focus_timer_notification_complete_channel_name">Focus session complete</string>
+    <string name="focus_timer_notification_complete_title">Focus session complete — %1$s</string>
+    <string name="focus_timer_notification_complete_text">%1$s focus session completed</string>
     <string name="pause">Pause</string>
     <string name="resume">Resume</string>
     <string name="reset">Reset</string>
