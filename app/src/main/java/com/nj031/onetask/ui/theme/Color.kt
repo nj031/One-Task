@@ -25,3 +25,7 @@ val AddTaskContainerLight = Color(0xFFDCEAFB)
 val AddTaskContainerDark = Color(0xFF223A57)
 val OnAddTaskContainerLight = Color(0xFF16294A)
 val OnAddTaskContainerDark = Color(0xFFBFD9FB)
+
+// Unselected chip surface — Date/Repeat/Tag selection controls
+val ChipUnselectedLight = Color(0xFFEDF3FC)
+val ChipUnselectedDark = Color(0xFF1C2836)
