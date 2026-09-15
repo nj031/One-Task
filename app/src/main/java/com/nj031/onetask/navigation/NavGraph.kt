@@ -18,9 +18,23 @@ import com.nj031.onetask.ui.screens.FocusTimerScreen
 import com.nj031.onetask.ui.screens.HomeScreen
 import com.nj031.onetask.ui.screens.JournalScreen
 import com.nj031.onetask.ui.screens.NoteEditorScreen
+import com.nj031.onetask.ui.screens.ProfileScreen
 import com.nj031.onetask.ui.screens.RecycleBinScreen
 import com.nj031.onetask.viewmodel.AuthViewModel
 import com.nj031.onetask.viewmodel.JournalViewModel
+
+/**
+ * Standard "bottom nav" navigation: switching between the Homepage/Journal/Profile tabs
+ * reuses a single saved instance of each rather than stacking a new one on every tap, so
+ * repeatedly tapping between tabs doesn't grow the back stack unbounded.
+ */
+private fun NavHostController.navigateToBottomNavTab(route: String) {
+    navigate(route) {
+        popUpTo(Screen.Home.route) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
 
 @Composable
 fun OneTaskNavHost(navController: NavHostController = rememberNavController()) {
@@ -50,7 +64,8 @@ fun OneTaskNavHost(navController: NavHostController = rememberNavController()) {
         }
         composable(Screen.Home.route) {
             HomeScreen(
-                onNavigateToJournal = { navController.navigate(Screen.Journal.route) },
+                onNavigateToJournal = { navController.navigateToBottomNavTab(Screen.Journal.route) },
+                onNavigateToProfile = { navController.navigateToBottomNavTab(Screen.Profile.route) },
                 onOpenFocusTimer = { taskId ->
                     navController.navigate(Screen.FocusTimer.createRoute(taskId))
                 },
@@ -80,7 +95,15 @@ fun OneTaskNavHost(navController: NavHostController = rememberNavController()) {
                 },
                 onRecycleBinClick = { navController.navigate(Screen.RecycleBin.route) },
                 onArchiveClick = { navController.navigate(Screen.Archive.route) },
-                onSettingsClick = { /* no-op: settings not implemented yet */ }
+                onSettingsClick = { /* no-op: settings not implemented yet */ },
+                onNavigateToTasks = { navController.navigateToBottomNavTab(Screen.Home.route) },
+                onNavigateToProfile = { navController.navigateToBottomNavTab(Screen.Profile.route) }
+            )
+        }
+        composable(Screen.Profile.route) {
+            ProfileScreen(
+                onNavigateToJournal = { navController.navigateToBottomNavTab(Screen.Journal.route) },
+                onNavigateToTasks = { navController.navigateToBottomNavTab(Screen.Home.route) }
             )
         }
         composable(Screen.Archive.route) {

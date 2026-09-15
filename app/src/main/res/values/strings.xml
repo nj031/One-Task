@@ -10,6 +10,7 @@
     <string name="nav_journal">Journal</string>
     <string name="nav_tasks">Tasks</string>
     <string name="nav_profile">Profile</string>
+    <string name="profile_under_construction">SITE UNDER CONSTRUCTION 🚧</string>
     <string name="menu">Menu</string>
     <string name="calendar">Calendar</string>
     <string name="add_task">Add Task</string>
