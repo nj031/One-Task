@@ -21,18 +21,22 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = OnBackgroundDark
 )
 
+// One Task's global light theme: a single, consistent light-blue/navy visual identity
+// shared by every screen (not a per-screen override) - see Color.kt for the token values.
 private val LightColorScheme = lightColorScheme(
-    primary = BluePrimaryLight,
+    primary = OneTaskPrimary,
     onPrimary = Color.White,
-    secondary = LightBlueButtonLight,
-    onSecondary = OnLightBlueButton,
-    secondaryContainer = AddTaskContainerLight,
-    onSecondaryContainer = OnAddTaskContainerLight,
-    surfaceVariant = ChipUnselectedLight,
-    background = BackgroundLight,
-    onBackground = OnBackgroundLight,
-    surface = SurfaceLight,
-    onSurface = OnBackgroundLight
+    secondary = OneTaskLightBlue,
+    onSecondary = OneTaskDarkText,
+    secondaryContainer = OneTaskLightBlue,
+    onSecondaryContainer = OneTaskDarkText,
+    surfaceVariant = OneTaskLightBlue,
+    onSurfaceVariant = OneTaskSecondaryText,
+    background = OneTaskBackground,
+    onBackground = OneTaskDarkText,
+    surface = OneTaskSurface,
+    onSurface = OneTaskDarkText,
+    outline = OneTaskBorder
 )
 
 @Composable
