@@ -8,16 +8,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -68,14 +65,13 @@ import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskStatus
+import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
+import com.nj031.onetask.ui.components.OneTaskBottomNav
 import com.nj031.onetask.ui.components.OneTaskCalendarSheet
 import com.nj031.onetask.ui.theme.OneTaskAddIcon
 import com.nj031.onetask.ui.theme.OneTaskCalendarIcon
 import com.nj031.onetask.ui.theme.OneTaskHamburgerIcon
-import com.nj031.onetask.ui.theme.OneTaskJournalIcon
-import com.nj031.onetask.ui.theme.OneTaskProfileIcon
-import com.nj031.onetask.ui.theme.OneTaskTasksIcon
 import com.nj031.onetask.ui.theme.OneTaskTheme
 import com.nj031.onetask.viewmodel.HomeViewModel
 import java.time.LocalDate
@@ -97,6 +93,7 @@ private val HomeSecondaryText = Color(0xFF6B7C93)
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
     onNavigateToJournal: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
     onOpenFocusTimer: (String) -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
@@ -135,9 +132,11 @@ fun HomeScreen(
                 HomeAddButton(onClick = { showAddTaskSheet = true })
             },
             bottomBar = {
-                HomeBottomNav(
+                OneTaskBottomNav(
+                    activeTab = BottomNavTab.TASKS,
                     onJournalClick = onNavigateToJournal,
-                    onProfileClick = { /* no-op: profile not implemented yet */ }
+                    onTasksClick = {},
+                    onProfileClick = onNavigateToProfile
                 )
             }
         ) { innerPadding ->
@@ -396,76 +395,6 @@ private fun HomeAddButton(onClick: () -> Unit) {
         elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
     ) {
         OneTaskAddIcon(size = 28.dp, drawContainer = false, plusColor = Color.White)
-    }
-}
-
-@Composable
-private fun HomeBottomNav(onJournalClick: () -> Unit, onProfileClick: () -> Unit) {
-    val journalLabel = stringResource(id = R.string.nav_journal)
-    val tasksLabel = stringResource(id = R.string.nav_tasks)
-    val profileLabel = stringResource(id = R.string.nav_profile)
-
-    // The system navigation area (3-button bar or gesture bar) draws on top of app
-    // content since MainActivity opts into edge-to-edge. windowInsetsPadding here keeps
-    // the actual nav items entirely above that area on both navigation modes, while the
-    // white background still extends all the way down behind it.
-    Column(modifier = Modifier.fillMaxWidth().background(HomeCardWhite)) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(MaterialTheme.colorScheme.outline)
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(horizontal = 32.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            HomeBottomNavItem(
-                icon = { OneTaskJournalIcon(tint = HomeSecondaryText, size = 28.dp) },
-                label = journalLabel,
-                onClick = onJournalClick
-            )
-            HomeBottomNavItem(
-                icon = { OneTaskTasksIcon(active = true, size = 28.dp) },
-                label = tasksLabel,
-                onClick = {},
-                selected = true
-            )
-            HomeBottomNavItem(
-                icon = { OneTaskProfileIcon(tint = HomeSecondaryText, size = 28.dp) },
-                label = profileLabel,
-                onClick = onProfileClick
-            )
-        }
-    }
-}
-
-@Composable
-private fun HomeBottomNavItem(
-    icon: @Composable () -> Unit,
-    label: String,
-    onClick: () -> Unit,
-    selected: Boolean = false
-) {
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        icon()
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) HomePrimaryBlue else HomeSecondaryText,
-            modifier = Modifier.padding(top = 4.dp)
-        )
     }
 }
 

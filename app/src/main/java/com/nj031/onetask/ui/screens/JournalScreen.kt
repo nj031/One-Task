@@ -55,7 +55,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.journal.JournalNoteEntity
+import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
+import com.nj031.onetask.ui.components.OneTaskBottomNav
 import com.nj031.onetask.ui.components.OneTaskCalendarSheet
 import com.nj031.onetask.viewmodel.JournalViewModel
 import java.time.Instant
@@ -72,7 +74,9 @@ fun JournalScreen(
     onNoteClick: (String) -> Unit = {},
     onRecycleBinClick: () -> Unit = {},
     onArchiveClick: () -> Unit = {},
-    onSettingsClick: () -> Unit = {}
+    onSettingsClick: () -> Unit = {},
+    onNavigateToTasks: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {}
 ) {
     val selectedDate by viewModel.selectedDate.collectAsState()
     val notes by viewModel.notesForSelectedDate.collectAsState()
@@ -130,6 +134,14 @@ fun JournalScreen(
                         contentDescription = stringResource(id = R.string.add_note)
                     )
                 }
+            },
+            bottomBar = {
+                OneTaskBottomNav(
+                    activeTab = BottomNavTab.JOURNAL,
+                    onJournalClick = {},
+                    onTasksClick = onNavigateToTasks,
+                    onProfileClick = onNavigateToProfile
+                )
             }
         ) { innerPadding ->
             Box(
