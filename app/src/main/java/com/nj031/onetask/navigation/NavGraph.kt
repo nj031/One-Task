@@ -3,9 +3,11 @@ package com.nj031.onetask.navigation
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.nj031.onetask.ui.screens.AuthScreen
 import com.nj031.onetask.ui.screens.HomeScreen
 import com.nj031.onetask.ui.screens.JournalScreen
@@ -36,12 +38,25 @@ fun OneTaskNavHost(navController: NavHostController = rememberNavController()) {
         composable(Screen.Journal.route) {
             JournalScreen(
                 viewModel = journalViewModel,
-                onAddNoteClick = { navController.navigate(Screen.NoteEditor.route) }
+                onAddNoteClick = { navController.navigate(Screen.NoteEditor.createRoute()) },
+                onNoteClick = { noteId ->
+                    navController.navigate(Screen.NoteEditor.createRoute(noteId))
+                }
             )
         }
-        composable(Screen.NoteEditor.route) {
+        composable(
+            route = Screen.NoteEditor.route,
+            arguments = listOf(
+                navArgument("noteId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) { backStackEntry ->
             NoteEditorScreen(
                 viewModel = journalViewModel,
+                noteId = backStackEntry.arguments?.getString("noteId"),
                 onDone = { navController.popBackStack() }
             )
         }
