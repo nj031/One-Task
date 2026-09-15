@@ -43,7 +43,10 @@ fun OneTaskNavHost(navController: NavHostController = rememberNavController()) {
                 onAddNoteClick = { navController.navigate(Screen.NoteEditor.createRoute()) },
                 onNoteClick = { noteId ->
                     navController.navigate(Screen.NoteEditor.createRoute(noteId))
-                }
+                },
+                onRecycleBinClick = { navController.navigate(Screen.RecycleBin.route) },
+                onArchiveClick = { navController.navigate(Screen.Archive.route) },
+                onSettingsClick = { /* no-op: settings not implemented yet */ }
             )
         }
         composable(Screen.Archive.route) {
