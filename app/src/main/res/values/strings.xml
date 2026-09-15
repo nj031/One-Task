@@ -4,5 +4,14 @@
     <string name="log_in">Log In</string>
     <string name="continue_with_google">Continue with Google</string>
     <string name="create_free_account">Create Free Account</string>
-    <string name="home_placeholder">Home Screen — Coming Soon</string>
+
+    <string name="task_list_title">Task List</string>
+    <string name="menu">Menu</string>
+    <string name="calendar">Calendar</string>
+    <string name="add_task">+ Add Task</string>
+    <string name="today">Today</string>
+    <string name="previous_day">Previous day</string>
+    <string name="next_day">Next day</string>
+    <string name="tasks_completed">%1$d / %2$d tasks completed</string>
+    <string name="no_tasks_yet">No tasks yet. Add one above.</string>
 </resources>

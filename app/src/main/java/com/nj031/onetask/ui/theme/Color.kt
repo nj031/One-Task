@@ -19,3 +19,9 @@ val SurfaceDark = Color(0xFF1A2029)
 
 val OnBackgroundLight = Color(0xFF1A1C1E)
 val OnBackgroundDark = Color(0xFFE3E6EA)
+
+// Pale blue "tonal" surface — Add Task button
+val AddTaskContainerLight = Color(0xFFDCEAFB)
+val AddTaskContainerDark = Color(0xFF223A57)
+val OnAddTaskContainerLight = Color(0xFF16294A)
+val OnAddTaskContainerDark = Color(0xFFBFD9FB)
