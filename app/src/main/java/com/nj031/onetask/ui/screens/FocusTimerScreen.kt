@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
+import com.nj031.onetask.data.focus.FocusSessionState
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskStatus
@@ -94,6 +95,16 @@ fun FocusTimerScreen(
     BackHandler(enabled = !showBreakConfirm && !showLeaveFocusConfirm) { showLeaveFocusConfirm = true }
 
     val context = LocalContext.current
+
+    // Marks this task as the open, not-yet-exited Focus Mode session so the app can relaunch
+    // straight back into it after the process is killed in the background (see
+    // FocusSessionState). Only Break, Leave Focus and reaching Done - via exitFocusMode below -
+    // clear it; simply backgrounding the app, locking the screen or losing the process must not.
+    LaunchedEffect(taskId) { FocusSessionState.setActive(context, taskId) }
+    val exitFocusMode: () -> Unit = {
+        FocusSessionState.clearActive(context)
+        onBackToHome()
+    }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { /* No-op: the timer itself is driven by a stored end-timestamp, not by the notification. */ }
@@ -137,7 +148,7 @@ fun FocusTimerScreen(
     // that happened automatically (no subtasks left) or via the completion prompt's "Mark Task
     // Done" button - so leaving Focus Mode is handled in exactly one place for both cases.
     LaunchedEffect(task?.status) {
-        if (task?.status == TaskStatus.COMPLETED) onBackToHome()
+        if (task?.status == TaskStatus.COMPLETED) exitFocusMode()
     }
 
     val hasIncompleteSubtasks = task?.subtasks?.any { !it.completed } ?: false
@@ -208,7 +219,7 @@ fun FocusTimerScreen(
                 onTakeBreak = {
                     viewModel.pauseTimer(currentTask)
                     showBreakConfirm = false
-                    onBackToHome()
+                    exitFocusMode()
                 },
                 onCancel = { showBreakConfirm = false }
             )
@@ -218,7 +229,7 @@ fun FocusTimerScreen(
                 onLeaveFocus = {
                     viewModel.pauseTimer(currentTask)
                     showLeaveFocusConfirm = false
-                    onBackToHome()
+                    exitFocusMode()
                 },
                 onCancel = { showLeaveFocusConfirm = false }
             )
