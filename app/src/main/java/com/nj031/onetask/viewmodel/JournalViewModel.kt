@@ -50,4 +50,16 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
             repository.updateNote(note, title, content)
         }
     }
+
+    fun archiveNote(note: JournalNoteEntity) {
+        viewModelScope.launch {
+            repository.archiveNote(note)
+        }
+    }
+
+    fun trashNote(note: JournalNoteEntity) {
+        viewModelScope.launch {
+            repository.trashNote(note)
+        }
+    }
 }

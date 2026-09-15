@@ -28,4 +28,12 @@ class JournalRepository(private val dao: JournalNoteDao) {
             )
         )
     }
+
+    suspend fun archiveNote(note: JournalNoteEntity) {
+        dao.update(note.copy(status = JournalNoteStatus.ARCHIVED))
+    }
+
+    suspend fun trashNote(note: JournalNoteEntity) {
+        dao.update(note.copy(status = JournalNoteStatus.TRASHED))
+    }
 }
