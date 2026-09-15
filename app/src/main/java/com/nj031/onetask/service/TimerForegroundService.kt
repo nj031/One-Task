@@ -56,7 +56,7 @@ class TimerForegroundService : Service() {
             return START_NOT_STICKY
         }
 
-        startForeground(NOTIFICATION_ID, buildNotification(taskName = "", remainingLabel = "--:--"))
+        startForeground(NOTIFICATION_ID_RUNNING, buildRunningNotification(taskName = "", remainingLabel = "--:--"))
         observeTask(taskId)
         return START_NOT_STICKY
     }
@@ -73,6 +73,14 @@ class TimerForegroundService : Service() {
         observeJob?.cancel()
         observeJob = serviceScope.launch {
             taskRepository.observeTaskById(taskId).collectLatest { task ->
+                // Checked first and unconditionally: this is the one point every path through a
+                // natural completion passes through - whether the service's own countdown below
+                // reached zero, or the UI's tick loop got there first while this row was still
+                // being observed - so it's the single reliable place to fire the one-shot
+                // "session complete" notification, however the app was being used at the time.
+                if (task != null && isJustCompleted(task)) {
+                    postCompletionNotification(task)
+                }
                 if (task == null || task.status != TaskStatus.IN_PROGRESS || task.timerEndAtMillis == null) {
                     stopSelf()
                     return@collectLatest
@@ -82,11 +90,23 @@ class TimerForegroundService : Service() {
         }
     }
 
+    /**
+     * True only for the exact instant a timer has just stopped at zero and is awaiting the
+     * user's completion decision - never for a plain pause/break/reset (remaining > 0) or a
+     * manual mark-done (status flips to COMPLETED), which share some of the same null/zero
+     * fields but aren't a "just finished" event worth alerting about.
+     */
+    private fun isJustCompleted(task: TaskEntity): Boolean =
+        task.timerMinutes != null &&
+            task.timerEndAtMillis == null &&
+            task.timerRemainingMillis == 0L &&
+            task.status == TaskStatus.IN_PROGRESS
+
     private suspend fun runCountdown(task: TaskEntity) {
         val endAtMillis = task.timerEndAtMillis ?: return
         while (true) {
             val remainingMillis = (endAtMillis - System.currentTimeMillis()).coerceAtLeast(0)
-            postNotification(buildNotification(task.name, formatRemaining(remainingMillis)))
+            postNotification(NOTIFICATION_ID_RUNNING, buildRunningNotification(task.name, formatRemaining(remainingMillis)))
             if (remainingMillis <= 0) {
                 taskRepository.finishTimer(task)
                 return
@@ -95,32 +115,38 @@ class TimerForegroundService : Service() {
         }
     }
 
-    private fun postNotification(notification: Notification) {
+    private fun postCompletionNotification(task: TaskEntity) {
+        val durationLabel = task.timerMinutes?.let { getString(R.string.timer_minutes_format, it) }.orEmpty()
+        val notification = NotificationCompat.Builder(this, COMPLETE_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(getString(R.string.focus_timer_notification_complete_title, task.name))
+            .setContentText(getString(R.string.focus_timer_notification_complete_text, durationLabel))
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setContentIntent(buildContentIntent())
+            .build()
+        postNotification(NOTIFICATION_ID_COMPLETE, notification)
+    }
+
+    private fun postNotification(id: Int, notification: Notification) {
         // startForeground()'s own notification (and updates to that same id while the
         // foreground service is active) are exempt from the POST_NOTIFICATIONS runtime check,
         // but guard anyway in case a particular OEM/OS combination disagrees.
         try {
-            NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notification)
+            NotificationManagerCompat.from(this).notify(id, notification)
         } catch (_: SecurityException) {
             // No notification permission - the timer itself keeps running correctly regardless,
             // since it's driven by the stored end timestamp, not by this notification.
         }
     }
 
-    private fun buildNotification(taskName: String, remainingLabel: String): Notification {
-        val contentIntent = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            },
-            PendingIntent.FLAG_IMMUTABLE
-        )
-
+    private fun buildRunningNotification(taskName: String, remainingLabel: String): Notification {
+        val displayName = taskName.ifBlank { getString(R.string.focus_timer_title) }
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(taskName.ifBlank { getString(R.string.focus_timer_title) })
-            .setContentText(getString(R.string.focus_timer_notification_text, remainingLabel))
+            .setContentTitle(getString(R.string.focus_timer_notification_running_title))
+            .setContentText(getString(R.string.focus_timer_notification_running_text, displayName, remainingLabel))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -131,12 +157,27 @@ class TimerForegroundService : Service() {
             // rather than "show it plainly" - there's no other task information here beyond the
             // task name and remaining time, so there's nothing further to redact.
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setContentIntent(contentIntent)
+            .setContentIntent(buildContentIntent())
             .build()
     }
 
+    private fun buildContentIntent(): PendingIntent = PendingIntent.getActivity(
+        this,
+        0,
+        Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        },
+        PendingIntent.FLAG_IMMUTABLE
+    )
+
     private fun createNotificationChannel() {
-        val channel = NotificationChannel(
+        val manager = getSystemService(NotificationManager::class.java)
+        // Drops the old pre-fix channel (a no-op if it was never created on this device) so a
+        // device that already ran an earlier build doesn't end up with two identically-named
+        // "Focus timer" entries under system notification settings.
+        manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
+
+        val runningChannel = NotificationChannel(
             CHANNEL_ID,
             getString(R.string.focus_timer_notification_channel_name),
             NotificationManager.IMPORTANCE_LOW
@@ -148,12 +189,20 @@ class TimerForegroundService : Service() {
             // without lock-screen visibility no matter what this method sets from then on.
             lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
         }
-        val manager = getSystemService(NotificationManager::class.java)
-        // Drops the old pre-fix channel (a no-op if it was never created on this device) so a
-        // device that already ran an earlier build doesn't end up with two identically-named
-        // "Focus timer" entries under system notification settings.
-        manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
-        manager.createNotificationChannel(channel)
+        manager.createNotificationChannel(runningChannel)
+
+        // A separate, normal-importance channel for the one-shot "session complete" alert - it's
+        // a discrete event the user likely wants to actually notice (sound/visual), unlike the
+        // silent, continuously-updating running-session notification above, which deliberately
+        // stays low-importance so it doesn't re-alert on every tick.
+        val completeChannel = NotificationChannel(
+            COMPLETE_CHANNEL_ID,
+            getString(R.string.focus_timer_notification_complete_channel_name),
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
+        }
+        manager.createNotificationChannel(completeChannel)
     }
 
     private fun formatRemaining(remainingMillis: Long): String {
@@ -170,12 +219,17 @@ class TimerForegroundService : Service() {
 
     companion object {
         private const val EXTRA_TASK_ID = "task_id"
-        private const val NOTIFICATION_ID = 4201
+        private const val NOTIFICATION_ID_RUNNING = 4201
+        // Distinct from NOTIFICATION_ID_RUNNING so posting it never replaces/cancels the ongoing
+        // running notification (and vice versa), and so it survives after the running one is
+        // torn down when the foreground service stops.
+        private const val NOTIFICATION_ID_COMPLETE = 4202
         // v2: the channel is now created with explicit lock-screen visibility - see
         // createNotificationChannel(). A new id forces every device (including ones that
         // already ran an earlier build with the un-fixed channel) to get these settings, since
         // a channel's own properties can't be changed once it exists.
         private const val CHANNEL_ID = "focus_timer_channel_v2"
+        private const val COMPLETE_CHANNEL_ID = "focus_timer_complete_channel"
         private const val LEGACY_CHANNEL_ID = "focus_timer_channel"
         private const val TICK_INTERVAL_MILLIS = 1_000L
 
