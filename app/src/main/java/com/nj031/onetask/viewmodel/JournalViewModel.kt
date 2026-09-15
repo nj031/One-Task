@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -35,6 +36,11 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
     val trashedNotes: StateFlow<List<JournalNoteEntity>> =
         repository.observeTrashedNotes()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val activeNoteDates: StateFlow<Set<LocalDate>> =
+        repository.observeActiveNoteDates()
+            .map { dates -> dates.map(LocalDate::ofEpochDay).toSet() }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     fun selectDate(date: LocalDate) {
         _selectedDate.value = date

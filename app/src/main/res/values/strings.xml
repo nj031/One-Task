@@ -71,4 +71,7 @@
     <string name="delete_permanently">Delete Permanently</string>
     <string name="delete_permanently_title">Delete this note permanently?</string>
     <string name="delete_permanently_message">This note will be permanently deleted and can\'t be recovered.</string>
+
+    <string name="previous_month">Previous month</string>
+    <string name="next_month">Next month</string>
 </resources>

@@ -12,6 +12,9 @@ class JournalRepository(private val dao: JournalNoteDao) {
     fun observeTrashedNotes(): Flow<List<JournalNoteEntity>> =
         dao.getByStatus(JournalNoteStatus.TRASHED)
 
+    fun observeActiveNoteDates(): Flow<List<Long>> =
+        dao.getDatesByStatus(JournalNoteStatus.ACTIVE)
+
     suspend fun createNote(title: String, content: String, journalDate: Long) {
         val now = System.currentTimeMillis()
         dao.insert(

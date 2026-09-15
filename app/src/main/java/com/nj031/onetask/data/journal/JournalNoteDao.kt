@@ -27,4 +27,7 @@ interface JournalNoteDao {
 
     @Query("SELECT * FROM journal_notes WHERE status = :status ORDER BY createdAt ASC")
     fun getByStatus(status: JournalNoteStatus): Flow<List<JournalNoteEntity>>
+
+    @Query("SELECT DISTINCT journalDate FROM journal_notes WHERE status = :status")
+    fun getDatesByStatus(status: JournalNoteStatus): Flow<List<Long>>
 }
