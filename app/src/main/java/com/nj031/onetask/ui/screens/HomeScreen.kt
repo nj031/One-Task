@@ -16,16 +16,21 @@ import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,80 +46,97 @@ import com.nj031.onetask.viewmodel.HomeViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     var showAddTaskSheet by remember { mutableStateOf(false) }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
 
-    Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentAlignment = Alignment.TopCenter
-        ) {
-            Column(
-                modifier = Modifier
-                    .widthIn(max = 640.dp)
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp)
-            ) {
-                TaskListTopBar()
-
-                FilledTonalButton(
-                    onClick = { showAddTaskSheet = true },
-                    modifier = Modifier
-                        .padding(top = 20.dp)
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.add_task),
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                DateNavigationRow(modifier = Modifier.padding(top = 28.dp))
-
-                Text(
-                    modifier = Modifier
-                        .padding(top = 16.dp)
-                        .fillMaxWidth(),
-                    text = stringResource(id = R.string.tasks_completed, 0, 0),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.primary,
-                    textAlign = TextAlign.Center
-                )
-
-                Text(
-                    modifier = Modifier
-                        .padding(top = 40.dp)
-                        .fillMaxWidth(),
-                    text = stringResource(id = R.string.no_tasks_yet),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.6f)) {
+                AppDrawerContent(
+                    userEmail = stringResource(id = R.string.sample_user_email),
+                    onJournalingClick = { /* no-op: journaling not implemented yet */ },
+                    onSettingsClick = { /* no-op: settings not implemented yet */ },
+                    onLogoutClick = { /* no-op: logout not implemented yet */ }
                 )
             }
         }
-    }
+    ) {
+        Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Column(
+                    modifier = Modifier
+                        .widthIn(max = 640.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                ) {
+                    TaskListTopBar(onMenuClick = { scope.launch { drawerState.open() } })
 
-    if (showAddTaskSheet) {
-        AddTaskSheet(onDismiss = { showAddTaskSheet = false })
+                    FilledTonalButton(
+                        onClick = { showAddTaskSheet = true },
+                        modifier = Modifier
+                            .padding(top = 20.dp)
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.add_task),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    DateNavigationRow(modifier = Modifier.padding(top = 28.dp))
+
+                    Text(
+                        modifier = Modifier
+                            .padding(top = 16.dp)
+                            .fillMaxWidth(),
+                        text = stringResource(id = R.string.tasks_completed, 0, 0),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Text(
+                        modifier = Modifier
+                            .padding(top = 40.dp)
+                            .fillMaxWidth(),
+                        text = stringResource(id = R.string.no_tasks_yet),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+
+        if (showAddTaskSheet) {
+            AddTaskSheet(onDismiss = { showAddTaskSheet = false })
+        }
     }
 }
 
 @Composable
-private fun TaskListTopBar() {
+private fun TaskListTopBar(onMenuClick: () -> Unit) {
     Box(modifier = Modifier.fillMaxWidth()) {
         IconButton(
-            onClick = { /* no-op: menu not implemented yet */ },
+            onClick = onMenuClick,
             modifier = Modifier.align(Alignment.CenterStart)
         ) {
             Icon(
