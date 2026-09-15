@@ -93,10 +93,10 @@ fun HomeScreen(
     onNavigateToJournal: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onOpenFocusTimer: (String) -> Unit = {},
+    onAddTaskClick: () -> Unit = {},
+    onEditTaskClick: (String) -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
-    var showAddTaskSheet by remember { mutableStateOf(false) }
-    var editingTask by remember { mutableStateOf<TaskEntity?>(null) }
     var actionMenuTask by remember { mutableStateOf<TaskEntity?>(null) }
     var deleteConfirmTask by remember { mutableStateOf<TaskEntity?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -134,7 +134,7 @@ fun HomeScreen(
             containerColor = HomeBackground,
             floatingActionButton = {
                 OneTaskAddButton(
-                    onClick = { showAddTaskSheet = true },
+                    onClick = onAddTaskClick,
                     contentDescription = stringResource(id = R.string.add_task)
                 )
             },
@@ -227,18 +227,6 @@ fun HomeScreen(
                 }
             }
         }
-
-        if (showAddTaskSheet || editingTask != null) {
-            AddTaskSheet(
-                viewModel = viewModel,
-                initialDate = selectedDate,
-                existingTask = editingTask,
-                onDismiss = {
-                    showAddTaskSheet = false
-                    editingTask = null
-                }
-            )
-        }
     }
 
     if (showDatePicker) {
@@ -262,7 +250,7 @@ fun HomeScreen(
             },
             onEditClick = {
                 actionMenuTask = null
-                editingTask = task
+                onEditTaskClick(task.id)
             },
             onDoneClick = {
                 viewModel.markTaskDone(task)
