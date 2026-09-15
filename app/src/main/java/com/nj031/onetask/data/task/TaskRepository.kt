@@ -94,12 +94,6 @@ class TaskRepository(private val dao: TaskDao) {
         CloudBackupRepository.pushTask(updated)
     }
 
-    suspend fun setStatus(task: TaskEntity, status: TaskStatus) {
-        val updated = task.copy(status = status, updatedAt = System.currentTimeMillis())
-        dao.update(updated)
-        CloudBackupRepository.pushTask(updated)
-    }
-
     suspend fun toggleSubtask(task: TaskEntity, subtaskId: String) {
         val updatedSubtasks = task.subtasks.map { subtask ->
             if (subtask.id == subtaskId) subtask.copy(completed = !subtask.completed) else subtask
@@ -165,9 +159,11 @@ class TaskRepository(private val dao: TaskDao) {
         CloudBackupRepository.pushTask(updated)
     }
 
+    /** Restores the task's full configured duration, un-started and stopped. */
     suspend fun resetTimer(task: TaskEntity) {
         val totalMillis = (task.timerMinutes ?: 0) * MILLIS_PER_MINUTE
         val updated = task.copy(
+            status = TaskStatus.NOT_STARTED,
             timerEndAtMillis = null,
             timerRemainingMillis = totalMillis,
             updatedAt = System.currentTimeMillis()
@@ -183,6 +179,39 @@ class TaskRepository(private val dao: TaskDao) {
             timerRemainingMillis = 0L,
             updatedAt = System.currentTimeMillis()
         )
+        dao.update(updated)
+        CloudBackupRepository.pushTask(updated)
+    }
+
+    /**
+     * Stops the timer at 0 when the countdown naturally reaches zero, WITHOUT deciding the
+     * task's completion for the user: the task's status is left as-is (still IN_PROGRESS) so
+     * Focus Mode can offer "Mark Task Done" / "Continue Task" rather than assuming every
+     * finished session means every subtask is done too. Safe to call more than once (e.g. from
+     * both the foreground service and the UI's own tick loop) - it always converges on the same
+     * stopped-at-zero state.
+     */
+    suspend fun finishTimer(task: TaskEntity) {
+        val updated = task.copy(
+            timerEndAtMillis = null,
+            timerRemainingMillis = 0L,
+            updatedAt = System.currentTimeMillis()
+        )
+        dao.update(updated)
+        CloudBackupRepository.pushTask(updated)
+    }
+
+    /**
+     * Restores a task that was manually marked Done back to its active section. A timed task
+     * that had genuine progress (started at least once) resumes as a paused IN_PROGRESS timer
+     * with its preserved remaining time, rather than being wiped back to a fresh Not Started
+     * state; a task with no timer, or a timer that was never started, simply returns to Not
+     * Started. Never auto-starts the timer either way.
+     */
+    suspend fun uncompleteTask(task: TaskEntity) {
+        val hasPreservedTimerProgress = task.timerMinutes != null && task.timerRemainingMillis != null
+        val newStatus = if (hasPreservedTimerProgress) TaskStatus.IN_PROGRESS else TaskStatus.NOT_STARTED
+        val updated = task.copy(status = newStatus, updatedAt = System.currentTimeMillis())
         dao.update(updated)
         CloudBackupRepository.pushTask(updated)
     }
