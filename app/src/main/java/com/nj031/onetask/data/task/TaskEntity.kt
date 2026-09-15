@@ -12,7 +12,7 @@ enum class TaskRepeat { NONE, DAILY, WEEKLY, MONTHLY }
 data class TaskEntity(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
     val name: String,
-    val subtasks: List<String> = emptyList(),
+    val subtasks: List<Subtask> = emptyList(),
     val timerMinutes: Int? = null,
     val date: Long,
     val repeat: TaskRepeat = TaskRepeat.NONE,

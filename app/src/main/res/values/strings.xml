@@ -23,6 +23,10 @@
     <string name="timer_minutes_format">%1$d min</string>
     <string name="custom_timer_minutes_hint">Minutes</string>
     <string name="remove">Remove</string>
+    <string name="edit">Edit</string>
+    <string name="task_action_start">Start</string>
+    <string name="task_action_continue">Continue</string>
+    <string name="task_action_done">Done</string>
 
     <string name="add_task_title">Add Task</string>
     <string name="task_name_label">Task name</string>
@@ -92,6 +96,7 @@
     <string name="break_label">Break</string>
     <string name="task_label">TASK</string>
     <string name="times_up">Time\'s Up!</string>
+    <string name="subtasks_section_label">SUBTASKS</string>
     <string name="break_confirm_title">Are you sure you want to take a break?</string>
     <string name="break_confirm_message">Your timer will be paused and you\'ll return to your task list.</string>
     <string name="take_a_break">Take a Break</string>

@@ -11,7 +11,7 @@ class TaskRepository(private val dao: TaskDao) {
 
     suspend fun createTask(
         name: String,
-        subtasks: List<String>,
+        subtasks: List<Subtask>,
         timerMinutes: Int?,
         date: Long,
         repeat: TaskRepeat,
@@ -37,7 +37,7 @@ class TaskRepository(private val dao: TaskDao) {
     suspend fun updateTask(
         task: TaskEntity,
         name: String,
-        subtasks: List<String>,
+        subtasks: List<Subtask>,
         timerMinutes: Int?,
         date: Long,
         repeat: TaskRepeat,
@@ -60,6 +60,32 @@ class TaskRepository(private val dao: TaskDao) {
 
     suspend fun setStatus(task: TaskEntity, status: TaskStatus) {
         dao.update(task.copy(status = status, updatedAt = System.currentTimeMillis()))
+    }
+
+    suspend fun toggleSubtask(task: TaskEntity, subtaskId: String) {
+        val updatedSubtasks = task.subtasks.map { subtask ->
+            if (subtask.id == subtaskId) subtask.copy(completed = !subtask.completed) else subtask
+        }
+        dao.update(task.copy(subtasks = updatedSubtasks, updatedAt = System.currentTimeMillis()))
+    }
+
+    /** Marks the task Done, pausing (not resetting) any active timer so its progress is preserved. */
+    suspend fun markTaskDone(task: TaskEntity) {
+        val now = System.currentTimeMillis()
+        val remainingMillis = task.timerEndAtMillis?.let { (it - now).coerceAtLeast(0) }
+            ?: task.timerRemainingMillis
+        dao.update(
+            task.copy(
+                status = TaskStatus.COMPLETED,
+                timerEndAtMillis = null,
+                timerRemainingMillis = remainingMillis,
+                updatedAt = now
+            )
+        )
+    }
+
+    suspend fun deleteTask(task: TaskEntity) {
+        dao.delete(task)
     }
 
     suspend fun addCustomTag(name: String) {

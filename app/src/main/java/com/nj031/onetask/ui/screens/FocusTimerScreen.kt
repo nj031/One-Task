@@ -1,6 +1,8 @@
 package com.nj031.onetask.ui.screens
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
@@ -40,6 +43,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
@@ -47,9 +51,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
+import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.viewmodel.HomeViewModel
@@ -144,6 +150,7 @@ fun FocusTimerScreen(
                             },
                             onReset = { viewModel.resetTimer(currentTask) },
                             onBreak = { showBreakConfirm = true },
+                            onToggleSubtask = { subtaskId -> viewModel.toggleSubtask(currentTask, subtaskId) },
                             modifier = Modifier.padding(top = 20.dp)
                         )
                     }
@@ -196,6 +203,7 @@ private fun FocusTimerCard(
     onPauseOrResume: () -> Unit,
     onReset: () -> Unit,
     onBreak: () -> Unit,
+    onToggleSubtask: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val totalMillis = (task.timerMinutes ?: 0) * MILLIS_PER_MINUTE
@@ -292,7 +300,65 @@ private fun FocusTimerCard(
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(top = 4.dp)
             )
+
+            if (task.subtasks.isNotEmpty()) {
+                Text(
+                    text = stringResource(id = R.string.subtasks_section_label),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 28.dp)
+                )
+                Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                    task.subtasks.forEach { subtask ->
+                        FocusSubtaskRow(
+                            subtask = subtask,
+                            onToggle = { onToggleSubtask(subtask.id) }
+                        )
+                    }
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun FocusSubtaskRow(subtask: Subtask, onToggle: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(20.dp)
+                .clip(CircleShape)
+                .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            if (subtask.completed) {
+                Text(
+                    text = "✓",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+        Text(
+            text = subtask.name,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (subtask.completed) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.onBackground
+            },
+            textDecoration = if (subtask.completed) TextDecoration.LineThrough else TextDecoration.None,
+            modifier = Modifier.padding(start = 10.dp)
+        )
     }
 }
 
