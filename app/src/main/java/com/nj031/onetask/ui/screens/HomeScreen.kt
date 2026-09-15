@@ -59,6 +59,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
+import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskStatus
@@ -85,7 +86,8 @@ private val HomeSecondaryText = Color(0xFF6B7C93)
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
     onNavigateToJournal: () -> Unit = {},
-    onOpenFocusTimer: (String) -> Unit = {}
+    onOpenFocusTimer: (String) -> Unit = {},
+    onLogout: () -> Unit = {}
 ) {
     var showAddTaskSheet by remember { mutableStateOf(false) }
     var editingTask by remember { mutableStateOf<TaskEntity?>(null) }
@@ -104,13 +106,14 @@ fun HomeScreen(
         drawerContent = {
             ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.6f)) {
                 AppDrawerContent(
-                    userEmail = stringResource(id = R.string.sample_user_email),
+                    userEmail = AuthRepository.currentUser?.email
+                        ?: stringResource(id = R.string.sample_user_email),
                     onJournalingClick = {
                         scope.launch { drawerState.close() }
                         onNavigateToJournal()
                     },
                     onSettingsClick = { /* no-op: settings not implemented yet */ },
-                    onLogoutClick = { /* no-op: logout not implemented yet */ }
+                    onLogoutClick = onLogout
                 )
             }
         }

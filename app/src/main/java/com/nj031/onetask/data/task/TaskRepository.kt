@@ -1,5 +1,6 @@
 package com.nj031.onetask.data.task
 
+import com.nj031.onetask.data.sync.CloudBackupRepository
 import kotlinx.coroutines.flow.Flow
 
 class TaskRepository(private val dao: TaskDao) {
@@ -19,19 +20,19 @@ class TaskRepository(private val dao: TaskDao) {
         postponeIfIncomplete: Boolean
     ) {
         val now = System.currentTimeMillis()
-        dao.insert(
-            TaskEntity(
-                name = name,
-                subtasks = subtasks,
-                timerMinutes = timerMinutes,
-                date = date,
-                repeat = repeat,
-                tag = tag,
-                postponeIfIncomplete = postponeIfIncomplete,
-                createdAt = now,
-                updatedAt = now
-            )
+        val task = TaskEntity(
+            name = name,
+            subtasks = subtasks,
+            timerMinutes = timerMinutes,
+            date = date,
+            repeat = repeat,
+            tag = tag,
+            postponeIfIncomplete = postponeIfIncomplete,
+            createdAt = now,
+            updatedAt = now
         )
+        dao.insert(task)
+        CloudBackupRepository.pushTask(task)
     }
 
     suspend fun updateTask(
@@ -77,31 +78,35 @@ class TaskRepository(private val dao: TaskDao) {
             }
         }
 
-        dao.update(
-            task.copy(
-                name = name,
-                subtasks = subtasks,
-                timerMinutes = timerMinutes,
-                date = date,
-                repeat = repeat,
-                tag = tag,
-                postponeIfIncomplete = postponeIfIncomplete,
-                timerEndAtMillis = newTimerEndAtMillis,
-                timerRemainingMillis = newTimerRemainingMillis,
-                updatedAt = now
-            )
+        val updated = task.copy(
+            name = name,
+            subtasks = subtasks,
+            timerMinutes = timerMinutes,
+            date = date,
+            repeat = repeat,
+            tag = tag,
+            postponeIfIncomplete = postponeIfIncomplete,
+            timerEndAtMillis = newTimerEndAtMillis,
+            timerRemainingMillis = newTimerRemainingMillis,
+            updatedAt = now
         )
+        dao.update(updated)
+        CloudBackupRepository.pushTask(updated)
     }
 
     suspend fun setStatus(task: TaskEntity, status: TaskStatus) {
-        dao.update(task.copy(status = status, updatedAt = System.currentTimeMillis()))
+        val updated = task.copy(status = status, updatedAt = System.currentTimeMillis())
+        dao.update(updated)
+        CloudBackupRepository.pushTask(updated)
     }
 
     suspend fun toggleSubtask(task: TaskEntity, subtaskId: String) {
         val updatedSubtasks = task.subtasks.map { subtask ->
             if (subtask.id == subtaskId) subtask.copy(completed = !subtask.completed) else subtask
         }
-        dao.update(task.copy(subtasks = updatedSubtasks, updatedAt = System.currentTimeMillis()))
+        val updated = task.copy(subtasks = updatedSubtasks, updatedAt = System.currentTimeMillis())
+        dao.update(updated)
+        CloudBackupRepository.pushTask(updated)
     }
 
     /** Marks the task Done, pausing (not resetting) any active timer so its progress is preserved. */
@@ -109,18 +114,19 @@ class TaskRepository(private val dao: TaskDao) {
         val now = System.currentTimeMillis()
         val remainingMillis = task.timerEndAtMillis?.let { (it - now).coerceAtLeast(0) }
             ?: task.timerRemainingMillis
-        dao.update(
-            task.copy(
-                status = TaskStatus.COMPLETED,
-                timerEndAtMillis = null,
-                timerRemainingMillis = remainingMillis,
-                updatedAt = now
-            )
+        val updated = task.copy(
+            status = TaskStatus.COMPLETED,
+            timerEndAtMillis = null,
+            timerRemainingMillis = remainingMillis,
+            updatedAt = now
         )
+        dao.update(updated)
+        CloudBackupRepository.pushTask(updated)
     }
 
     suspend fun deleteTask(task: TaskEntity) {
         dao.delete(task)
+        CloudBackupRepository.deleteTask(task.id)
     }
 
     suspend fun addCustomTag(name: String) {
@@ -135,14 +141,14 @@ class TaskRepository(private val dao: TaskDao) {
     suspend fun startTimer(task: TaskEntity) {
         val now = System.currentTimeMillis()
         val remainingMillis = task.timerRemainingMillis ?: ((task.timerMinutes ?: 0) * MILLIS_PER_MINUTE)
-        dao.update(
-            task.copy(
-                status = TaskStatus.IN_PROGRESS,
-                timerEndAtMillis = now + remainingMillis,
-                timerRemainingMillis = null,
-                updatedAt = now
-            )
+        val updated = task.copy(
+            status = TaskStatus.IN_PROGRESS,
+            timerEndAtMillis = now + remainingMillis,
+            timerRemainingMillis = null,
+            updatedAt = now
         )
+        dao.update(updated)
+        CloudBackupRepository.pushTask(updated)
     }
 
     suspend fun pauseTimer(task: TaskEntity) {
@@ -150,35 +156,35 @@ class TaskRepository(private val dao: TaskDao) {
         val remainingMillis = task.timerEndAtMillis?.let { (it - now).coerceAtLeast(0) }
             ?: task.timerRemainingMillis
             ?: 0L
-        dao.update(
-            task.copy(
-                timerEndAtMillis = null,
-                timerRemainingMillis = remainingMillis,
-                updatedAt = now
-            )
+        val updated = task.copy(
+            timerEndAtMillis = null,
+            timerRemainingMillis = remainingMillis,
+            updatedAt = now
         )
+        dao.update(updated)
+        CloudBackupRepository.pushTask(updated)
     }
 
     suspend fun resetTimer(task: TaskEntity) {
         val totalMillis = (task.timerMinutes ?: 0) * MILLIS_PER_MINUTE
-        dao.update(
-            task.copy(
-                timerEndAtMillis = null,
-                timerRemainingMillis = totalMillis,
-                updatedAt = System.currentTimeMillis()
-            )
+        val updated = task.copy(
+            timerEndAtMillis = null,
+            timerRemainingMillis = totalMillis,
+            updatedAt = System.currentTimeMillis()
         )
+        dao.update(updated)
+        CloudBackupRepository.pushTask(updated)
     }
 
     suspend fun completeTimer(task: TaskEntity) {
-        dao.update(
-            task.copy(
-                status = TaskStatus.COMPLETED,
-                timerEndAtMillis = null,
-                timerRemainingMillis = 0L,
-                updatedAt = System.currentTimeMillis()
-            )
+        val updated = task.copy(
+            status = TaskStatus.COMPLETED,
+            timerEndAtMillis = null,
+            timerRemainingMillis = 0L,
+            updatedAt = System.currentTimeMillis()
         )
+        dao.update(updated)
+        CloudBackupRepository.pushTask(updated)
     }
 
     private companion object {

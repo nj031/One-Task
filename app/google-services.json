@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "166008912361",
+    "project_id": "one-task-at-a-time-ad2e6",
+    "storage_bucket": "one-task-at-a-time-ad2e6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:166008912361:android:4874c7e757d6c6c142b378",
+        "android_client_info": {
+          "package_name": "com.nj031.onetask"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "166008912361-li91va4qh654k43a3akl5rqv8di9539v.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBCQjw3jbXa_Ukf4AumNStfawGbq7C1ZAU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "166008912361-li91va4qh654k43a3akl5rqv8di9539v.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

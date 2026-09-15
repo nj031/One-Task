@@ -25,6 +25,9 @@ interface JournalNoteDao {
     @Query("SELECT * FROM journal_notes")
     fun getAll(): Flow<List<JournalNoteEntity>>
 
+    @Query("SELECT * FROM journal_notes")
+    suspend fun getAllOnce(): List<JournalNoteEntity>
+
     @Query("SELECT * FROM journal_notes WHERE status = :status ORDER BY createdAt ASC")
     fun getByStatus(status: JournalNoteStatus): Flow<List<JournalNoteEntity>>
 
