@@ -28,6 +28,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -65,8 +67,12 @@ import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.ui.components.OneTaskCalendarSheet
+import com.nj031.onetask.ui.theme.OneTaskAddIcon
 import com.nj031.onetask.ui.theme.OneTaskCalendarIcon
 import com.nj031.onetask.ui.theme.OneTaskHamburgerIcon
+import com.nj031.onetask.ui.theme.OneTaskJournalIcon
+import com.nj031.onetask.ui.theme.OneTaskProfileIcon
+import com.nj031.onetask.ui.theme.OneTaskTasksIcon
 import com.nj031.onetask.ui.theme.OneTaskTheme
 import com.nj031.onetask.viewmodel.HomeViewModel
 import java.time.LocalDate
@@ -120,7 +126,18 @@ fun HomeScreen(
             }
         }
     ) {
-        Scaffold(containerColor = HomeBackground) { innerPadding ->
+        Scaffold(
+            containerColor = HomeBackground,
+            floatingActionButton = {
+                HomeAddButton(onClick = { showAddTaskSheet = true })
+            },
+            bottomBar = {
+                HomeBottomNav(
+                    onJournalClick = onNavigateToJournal,
+                    onProfileClick = { /* no-op: profile not implemented yet */ }
+                )
+            }
+        ) { innerPadding ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -145,28 +162,10 @@ fun HomeScreen(
                         modifier = Modifier.padding(top = 24.dp)
                     )
 
-                    FilledTonalButton(
-                        onClick = { showAddTaskSheet = true },
-                        modifier = Modifier
-                            .padding(top = 20.dp)
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = HomeButtonLight,
-                            contentColor = HomeDarkText
-                        )
-                    ) {
-                        Text(
-                            text = stringResource(id = R.string.add_task),
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
                     val completedCount = tasks.count { it.status == TaskStatus.COMPLETED }
                     Text(
                         modifier = Modifier
-                            .padding(top = 16.dp)
+                            .padding(top = 20.dp)
                             .fillMaxWidth(),
                         text = stringResource(id = R.string.tasks_completed, completedCount, tasks.size),
                         style = MaterialTheme.typography.bodyMedium,
@@ -176,15 +175,7 @@ fun HomeScreen(
                     )
 
                     if (tasks.isEmpty()) {
-                        Text(
-                            modifier = Modifier
-                                .padding(top = 40.dp)
-                                .fillMaxWidth(),
-                            text = stringResource(id = R.string.no_tasks_yet),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = HomeSecondaryText,
-                            textAlign = TextAlign.Center
-                        )
+                        HomeEmptyState(modifier = Modifier.padding(top = 40.dp))
                     } else {
                         LazyColumn(
                             modifier = Modifier
@@ -387,6 +378,109 @@ private fun DateNavigationRow(
                 tint = HomePrimaryBlue
             )
         }
+    }
+}
+
+@Composable
+private fun HomeAddButton(onClick: () -> Unit) {
+    val description = stringResource(id = R.string.add_task)
+    FloatingActionButton(
+        onClick = onClick,
+        modifier = Modifier.semantics { contentDescription = description },
+        shape = CircleShape,
+        containerColor = HomePrimaryBlue,
+        contentColor = Color.White,
+        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
+    ) {
+        OneTaskAddIcon(size = 28.dp, drawContainer = false, plusColor = Color.White)
+    }
+}
+
+@Composable
+private fun HomeBottomNav(onJournalClick: () -> Unit, onProfileClick: () -> Unit) {
+    val journalLabel = stringResource(id = R.string.nav_journal)
+    val tasksLabel = stringResource(id = R.string.nav_tasks)
+    val profileLabel = stringResource(id = R.string.nav_profile)
+
+    Column(modifier = Modifier.fillMaxWidth().background(HomeCardWhite)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(MaterialTheme.colorScheme.outline)
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            HomeBottomNavItem(
+                icon = { OneTaskJournalIcon(tint = HomeSecondaryText) },
+                label = journalLabel,
+                onClick = onJournalClick
+            )
+            HomeBottomNavItem(
+                icon = { OneTaskTasksIcon(active = true) },
+                label = tasksLabel,
+                onClick = {},
+                selected = true
+            )
+            HomeBottomNavItem(
+                icon = { OneTaskProfileIcon(tint = HomeSecondaryText) },
+                label = profileLabel,
+                onClick = onProfileClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeBottomNavItem(
+    icon: @Composable () -> Unit,
+    label: String,
+    onClick: () -> Unit,
+    selected: Boolean = false
+) {
+    Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        icon()
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) HomePrimaryBlue else HomeSecondaryText,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun HomeEmptyState(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = stringResource(id = R.string.home_empty_title),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = HomeDarkText,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            text = stringResource(id = R.string.home_empty_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = HomeSecondaryText,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 8.dp)
+        )
     }
 }
 
