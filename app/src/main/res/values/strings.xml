@@ -1,4 +1,8 @@
 <resources>
     <string name="app_name">One Task</string>
-    <string name="hello_one_task">Hello One Task</string>
+    <string name="auth_subtitle">Sign in to keep your tasks safe</string>
+    <string name="log_in">Log In</string>
+    <string name="continue_with_google">Continue with Google</string>
+    <string name="create_free_account">Create Free Account</string>
+    <string name="home_placeholder">Home Screen — Coming Soon</string>
 </resources>
