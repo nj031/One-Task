@@ -9,6 +9,7 @@ import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskRepeat
 import com.nj031.onetask.data.task.TaskRepository
 import com.nj031.onetask.data.task.TaskStatus
+import com.nj031.onetask.service.TimerForegroundService
 import java.time.LocalDate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -101,13 +102,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         selectDate(date)
     }
 
+    /**
+     * The checkbox's toggle. Completing reuses markTaskDone's pause-and-preserve logic (so
+     * checking off a running timer isn't treated any differently from the action-sheet "Done"
+     * button); un-completing restores a paused, resumable timer if the task had genuine
+     * progress, or a plain Not Started state otherwise - never auto-starting either way.
+     */
     fun toggleTaskStatus(task: TaskEntity) {
-        val newStatus = if (task.status == TaskStatus.COMPLETED) {
-            TaskStatus.NOT_STARTED
-        } else {
-            TaskStatus.COMPLETED
+        viewModelScope.launch {
+            if (task.status == TaskStatus.COMPLETED) {
+                repository.uncompleteTask(task)
+            } else {
+                repository.markTaskDone(task)
+            }
         }
-        viewModelScope.launch { repository.setStatus(task, newStatus) }
     }
 
     fun addCustomTag(name: String) {
@@ -129,7 +137,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun observeTask(id: String): Flow<TaskEntity?> = repository.observeTaskById(id)
 
     fun startTimer(task: TaskEntity) {
-        viewModelScope.launch { repository.startTimer(task) }
+        viewModelScope.launch {
+            // Must land in Room before the service starts observing this task's row, or the
+            // service's very first read could still see the pre-start (not-running) state and
+            // immediately stop itself before the real write ever arrives.
+            repository.startTimer(task)
+            // The foreground service is what keeps the countdown correct and notified while the
+            // app is backgrounded or the screen is locked; it observes the task's Room row
+            // itself, so this is a fire-and-forget kick-off, not a handle that needs to be told
+            // to stop later.
+            TimerForegroundService.start(getApplication<Application>(), task.id)
+        }
     }
 
     fun pauseTimer(task: TaskEntity) {
@@ -142,5 +160,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun completeTimer(task: TaskEntity) {
         viewModelScope.launch { repository.completeTimer(task) }
+    }
+
+    fun finishTimer(task: TaskEntity) {
+        viewModelScope.launch { repository.finishTimer(task) }
     }
 }
