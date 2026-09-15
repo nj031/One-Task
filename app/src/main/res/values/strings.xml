@@ -56,4 +56,9 @@
     <string name="note_content_placeholder">Write your note…</string>
     <string name="save">Save</string>
     <string name="back">Back</string>
+
+    <string name="archive">Archive</string>
+    <string name="delete">Delete</string>
+    <string name="delete_note_title">Delete this note?</string>
+    <string name="delete_note_message">This action can\'t be undone.</string>
 </resources>

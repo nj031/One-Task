@@ -1,5 +1,8 @@
 package com.nj031.onetask.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
@@ -27,16 +31,19 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +62,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 @Composable
 fun JournalScreen(
@@ -65,6 +73,8 @@ fun JournalScreen(
     val selectedDate by viewModel.selectedDate.collectAsState()
     val notes by viewModel.notesForSelectedDate.collectAsState()
     var showDatePicker by remember { mutableStateOf(false) }
+    var actionMenuNote by remember { mutableStateOf<JournalNoteEntity?>(null) }
+    var pendingDeleteNote by remember { mutableStateOf<JournalNoteEntity?>(null) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -125,7 +135,11 @@ fun JournalScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(notes, key = { it.id }) { note ->
-                            JournalNoteCard(note = note, onClick = { onNoteClick(note.id) })
+                            JournalNoteCard(
+                                note = note,
+                                onClick = { onNoteClick(note.id) },
+                                onLongClick = { actionMenuNote = note }
+                            )
                         }
                     }
                 }
@@ -138,6 +152,30 @@ fun JournalScreen(
             initialDate = selectedDate,
             onDateSelected = { viewModel.selectDate(it) },
             onDismiss = { showDatePicker = false }
+        )
+    }
+
+    actionMenuNote?.let { note ->
+        JournalNoteActionSheet(
+            onArchiveClick = {
+                viewModel.archiveNote(note)
+                actionMenuNote = null
+            },
+            onDeleteClick = {
+                actionMenuNote = null
+                pendingDeleteNote = note
+            },
+            onDismiss = { actionMenuNote = null }
+        )
+    }
+
+    pendingDeleteNote?.let { note ->
+        DeleteNoteConfirmationDialog(
+            onConfirm = {
+                viewModel.trashNote(note)
+                pendingDeleteNote = null
+            },
+            onDismiss = { pendingDeleteNote = null }
         )
     }
 }
@@ -218,11 +256,17 @@ private fun JournalDatePickerDialog(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun JournalNoteCard(note: JournalNoteEntity, onClick: () -> Unit) {
+private fun JournalNoteCard(
+    note: JournalNoteEntity,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
     Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
@@ -261,6 +305,76 @@ private fun JournalNoteCard(note: JournalNoteEntity, onClick: () -> Unit) {
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun JournalNoteActionSheet(
+    onArchiveClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
+    fun dismissThen(action: () -> Unit) {
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            if (!sheetState.isVisible) action()
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(modifier = Modifier.padding(bottom = 16.dp)) {
+            JournalActionSheetItem(
+                text = stringResource(id = R.string.archive),
+                onClick = { dismissThen(onArchiveClick) }
+            )
+            JournalActionSheetItem(
+                text = stringResource(id = R.string.delete),
+                onClick = { dismissThen(onDeleteClick) }
+            )
+            JournalActionSheetItem(
+                text = stringResource(id = R.string.cancel),
+                onClick = { dismissThen(onDismiss) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun JournalActionSheetItem(text: String, onClick: () -> Unit) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onBackground,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 24.dp, vertical = 16.dp)
+    )
+}
+
+@Composable
+private fun DeleteNoteConfirmationDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(id = R.string.delete_note_title)) },
+        text = { Text(stringResource(id = R.string.delete_note_message)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(id = R.string.delete))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(id = R.string.cancel))
+            }
+        }
+    )
 }
 
 private val journalDateFormatter: DateTimeFormatter =
