@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
@@ -45,7 +47,8 @@ fun NoteEditorScreen(
 ) {
     val existingNote = remember(noteId) { viewModel.getNoteById(noteId) }
     var title by remember { mutableStateOf(existingNote?.title.orEmpty()) }
-    var content by remember { mutableStateOf(existingNote?.content.orEmpty()) }
+    var contentValue by remember { mutableStateOf(TextFieldValue(existingNote?.content.orEmpty())) }
+    val content = contentValue.text
 
     fun saveIfChanged() {
         val note = existingNote
@@ -78,11 +81,26 @@ fun NoteEditorScreen(
                 .imePadding(),
             contentAlignment = Alignment.TopCenter
         ) {
+            val contentScrollState = rememberScrollState()
+
+            // The content TextField's built-in cursor-follow behavior handles keeping the
+            // active line visible on every keystroke except the very first time the note
+            // grows past the visible viewport, where its internal bring-into-view calculation
+            // can run before imePadding()'s own animation has settled. This is a deterministic
+            // backstop: whenever the cursor is collapsed at the exact end of the text (i.e. the
+            // user is actively typing forward, not editing mid-note), force-scroll to the true
+            // bottom. It never fires during mid-note edits or manual scrolling elsewhere.
+            LaunchedEffect(contentValue) {
+                if (contentValue.selection.collapsed && contentValue.selection.end == contentValue.text.length) {
+                    contentScrollState.animateScrollTo(contentScrollState.maxValue)
+                }
+            }
+
             Column(
                 modifier = Modifier
                     .widthIn(max = 640.dp)
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(contentScrollState)
                     .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
                 NoteEditorTopBar(
@@ -123,8 +141,8 @@ fun NoteEditorScreen(
                 )
 
                 TextField(
-                    value = content,
-                    onValueChange = { content = it },
+                    value = contentValue,
+                    onValueChange = { contentValue = it },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 4.dp),
