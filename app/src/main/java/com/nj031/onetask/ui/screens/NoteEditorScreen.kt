@@ -1,5 +1,6 @@
 package com.nj031.onetask.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -45,6 +46,22 @@ fun NoteEditorScreen(
     var title by remember { mutableStateOf(existingNote?.title.orEmpty()) }
     var content by remember { mutableStateOf(existingNote?.content.orEmpty()) }
 
+    fun saveIfChanged() {
+        val note = existingNote
+        if (note != null) {
+            if (title != note.title || content != note.content) {
+                viewModel.updateNote(note = note, title = title, content = content)
+            }
+        } else if (title.isNotBlank() || content.isNotBlank()) {
+            viewModel.createNote(title = title, content = content)
+        }
+    }
+
+    BackHandler {
+        saveIfChanged()
+        onDone()
+    }
+
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
         Box(
             modifier = Modifier
@@ -60,7 +77,10 @@ fun NoteEditorScreen(
                     .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
                 NoteEditorTopBar(
-                    onBackClick = onDone,
+                    onBackClick = {
+                        saveIfChanged()
+                        onDone()
+                    },
                     onSaveClick = {
                         val note = existingNote
                         if (note != null) {
