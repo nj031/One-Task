@@ -39,4 +39,10 @@
     <string name="add_tag">+ Add Tag</string>
     <string name="postpone_if_incomplete">Postpone if incomplete</string>
     <string name="cancel">Cancel</string>
+
+    <string name="drawer_journaling">Journaling</string>
+    <string name="drawer_settings">Settings</string>
+    <string name="logged_in_as">Logged in as</string>
+    <string name="log_out">Log out</string>
+    <string name="sample_user_email">spideysince97@gmail.com</string>
 </resources>
