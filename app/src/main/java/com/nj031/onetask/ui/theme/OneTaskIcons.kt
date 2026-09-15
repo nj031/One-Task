@@ -115,11 +115,14 @@ fun OneTaskAddIcon(
     modifier: Modifier = Modifier,
     containerColor: Color = MaterialTheme.colorScheme.primary,
     plusColor: Color = Color.White,
-    size: Dp = 24.dp
+    size: Dp = 24.dp,
+    drawContainer: Boolean = true
 ) {
     Canvas(modifier = modifier.size(size)) {
         val strokeWidth = this.size.minDimension * 0.09f
-        drawCircle(color = containerColor, radius = this.size.minDimension / 2f)
+        if (drawContainer) {
+            drawCircle(color = containerColor, radius = this.size.minDimension / 2f)
+        }
 
         val inset = this.size.minDimension * 0.28f
         val centerX = this.size.width / 2f
