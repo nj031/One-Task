@@ -30,6 +30,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -39,7 +40,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -144,11 +148,15 @@ private fun AddTaskSheetContent(
     ) -> Unit
 ) {
     val today = remember { LocalDate.now() }
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     var taskName by remember { mutableStateOf(existingTask?.name.orEmpty()) }
+    val taskNameFocusRequester = remember { FocusRequester() }
     val subtasks = remember {
         mutableStateListOf<Subtask>().apply { addAll(existingTask?.subtasks ?: emptyList()) }
     }
+    val subtaskFocusRequesters = remember { mutableMapOf<String, FocusRequester>() }
+    var pendingFocusSubtaskId by remember { mutableStateOf<String?>(null) }
     var timerMinutes by remember { mutableStateOf(existingTask?.timerMinutes) }
     var selectedTaskDate by remember {
         mutableStateOf(existingTask?.date?.let(LocalDate::ofEpochDay) ?: initialDate)
@@ -165,6 +173,18 @@ private fun AddTaskSheetContent(
 
     val formattedTaskDate = remember(selectedTaskDate) {
         selectedTaskDate.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault()))
+    }
+
+    LaunchedEffect(Unit) {
+        taskNameFocusRequester.requestFocus()
+        keyboardController?.show()
+    }
+
+    LaunchedEffect(pendingFocusSubtaskId) {
+        val id = pendingFocusSubtaskId ?: return@LaunchedEffect
+        subtaskFocusRequesters[id]?.requestFocus()
+        keyboardController?.show()
+        pendingFocusSubtaskId = null
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -187,7 +207,8 @@ private fun AddTaskSheetContent(
             onValueChange = { taskName = it },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 6.dp),
+                .padding(top = 6.dp)
+                .focusRequester(taskNameFocusRequester),
             singleLine = true,
             shape = RoundedCornerShape(12.dp),
             textStyle = MaterialTheme.typography.bodyMedium,
@@ -210,7 +231,11 @@ private fun AddTaskSheetContent(
                 TextField(
                     value = subtask.name,
                     onValueChange = { subtasks[index] = subtask.copy(name = it) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(
+                            subtaskFocusRequesters.getOrPut(subtask.id) { FocusRequester() }
+                        ),
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     textStyle = MaterialTheme.typography.bodyMedium,
@@ -235,7 +260,11 @@ private fun AddTaskSheetContent(
         }
         CompactActionButton(
             text = stringResource(id = R.string.add_subtask),
-            onClick = { subtasks.add(Subtask(name = "")) },
+            onClick = {
+                val newSubtask = Subtask(name = "")
+                subtasks.add(newSubtask)
+                pendingFocusSubtaskId = newSubtask.id
+            },
             modifier = Modifier.padding(top = 6.dp)
         )
 
@@ -445,13 +474,22 @@ private fun AddTaskSheetContent(
 private fun TimerPickerSheet(onSelect: (Int) -> Unit, onDismiss: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
+    val keyboardController = LocalSoftwareKeyboardController.current
     var showCustomInput by remember { mutableStateOf(false) }
     var customMinutesText by remember { mutableStateOf("") }
     val customMinutes = customMinutesText.toIntOrNull()
+    val customMinutesFocusRequester = remember { FocusRequester() }
 
     fun dismissThen(action: () -> Unit) {
         scope.launch { sheetState.hide() }.invokeOnCompletion {
             if (!sheetState.isVisible) action()
+        }
+    }
+
+    LaunchedEffect(showCustomInput) {
+        if (showCustomInput) {
+            customMinutesFocusRequester.requestFocus()
+            keyboardController?.show()
         }
     }
 
@@ -507,7 +545,9 @@ private fun TimerPickerSheet(onSelect: (Int) -> Unit, onDismiss: () -> Unit) {
                         unfocusedIndicatorColor = Color.Transparent,
                         focusedIndicatorColor = Color.Transparent
                     ),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(customMinutesFocusRequester)
                 )
                 CompactActionButton(
                     text = stringResource(id = R.string.set_timer),

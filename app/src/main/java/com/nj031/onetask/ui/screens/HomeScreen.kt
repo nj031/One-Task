@@ -28,8 +28,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -67,9 +65,9 @@ import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
+import com.nj031.onetask.ui.components.OneTaskAddButton
 import com.nj031.onetask.ui.components.OneTaskBottomNav
 import com.nj031.onetask.ui.components.OneTaskCalendarSheet
-import com.nj031.onetask.ui.theme.OneTaskAddIcon
 import com.nj031.onetask.ui.theme.OneTaskCalendarIcon
 import com.nj031.onetask.ui.theme.OneTaskHamburgerIcon
 import com.nj031.onetask.ui.theme.OneTaskTheme
@@ -135,7 +133,10 @@ fun HomeScreen(
         Scaffold(
             containerColor = HomeBackground,
             floatingActionButton = {
-                HomeAddButton(onClick = { showAddTaskSheet = true })
+                OneTaskAddButton(
+                    onClick = { showAddTaskSheet = true },
+                    contentDescription = stringResource(id = R.string.add_task)
+                )
             },
             bottomBar = {
                 OneTaskBottomNav(
@@ -403,21 +404,6 @@ private fun DateNavigationRow(
                 tint = HomePrimaryBlue
             )
         }
-    }
-}
-
-@Composable
-private fun HomeAddButton(onClick: () -> Unit) {
-    val description = stringResource(id = R.string.add_task)
-    FloatingActionButton(
-        onClick = onClick,
-        modifier = Modifier.semantics { contentDescription = description },
-        shape = CircleShape,
-        containerColor = HomePrimaryBlue,
-        contentColor = Color.White,
-        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
-    ) {
-        OneTaskAddIcon(size = 28.dp, drawContainer = false, plusColor = Color.White)
     }
 }
 
