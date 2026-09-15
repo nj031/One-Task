@@ -2,7 +2,6 @@ package com.nj031.onetask.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -10,33 +9,27 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
@@ -61,11 +54,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.journal.JournalNoteEntity
+import com.nj031.onetask.ui.components.CompactBottomSheet
+import com.nj031.onetask.ui.components.OneTaskCalendarSheet
 import com.nj031.onetask.viewmodel.JournalViewModel
-import java.text.DateFormatSymbols
 import java.time.Instant
 import java.time.LocalDate
-import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -199,9 +192,10 @@ fun JournalScreen(
     }
 
     if (showDatePicker) {
-        JournalCalendarDialog(
+        OneTaskCalendarSheet(
             initialDate = selectedDate,
-            activeDates = activeNoteDates,
+            markedDates = activeNoteDates,
+            maxSelectableDate = LocalDate.now(),
             onDateSelected = { viewModel.selectDate(it) },
             onDismiss = { showDatePicker = false }
         )
@@ -263,214 +257,6 @@ private fun JournalTopBar(onMenuClick: () -> Unit, onCalendarClick: () -> Unit) 
                 contentDescription = stringResource(id = R.string.calendar),
                 tint = MaterialTheme.colorScheme.primary
             )
-        }
-    }
-}
-
-@Composable
-private fun JournalCalendarDialog(
-    initialDate: LocalDate,
-    activeDates: Set<LocalDate>,
-    onDateSelected: (LocalDate) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val today = remember { LocalDate.now() }
-    var visibleMonth by remember { mutableStateOf(YearMonth.from(initialDate)) }
-    var pickedDate by remember { mutableStateOf(initialDate) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                CalendarMonthHeader(
-                    visibleMonth = visibleMonth,
-                    onPreviousMonth = { visibleMonth = visibleMonth.minusMonths(1) },
-                    onNextMonth = { visibleMonth = visibleMonth.plusMonths(1) },
-                    canGoNext = visibleMonth.isBefore(YearMonth.from(today))
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                CalendarWeekdayHeader()
-                CalendarMonthGrid(
-                    visibleMonth = visibleMonth,
-                    selectedDate = pickedDate,
-                    today = today,
-                    activeDates = activeDates,
-                    onDayClick = { pickedDate = it }
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                onDateSelected(pickedDate)
-                onDismiss()
-            }) {
-                Text(stringResource(id = R.string.date_picker_ok))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(id = R.string.cancel))
-            }
-        }
-    )
-}
-
-@Composable
-private fun CalendarMonthHeader(
-    visibleMonth: YearMonth,
-    onPreviousMonth: () -> Unit,
-    onNextMonth: () -> Unit,
-    canGoNext: Boolean
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        IconButton(onClick = onPreviousMonth) {
-            Icon(
-                imageVector = Icons.Filled.KeyboardArrowLeft,
-                contentDescription = stringResource(id = R.string.previous_month)
-            )
-        }
-        Text(
-            text = visibleMonth.format(monthYearFormatter),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        IconButton(onClick = onNextMonth, enabled = canGoNext) {
-            Icon(
-                imageVector = Icons.Filled.KeyboardArrowRight,
-                contentDescription = stringResource(id = R.string.next_month),
-                tint = if (canGoNext) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                }
-            )
-        }
-    }
-}
-
-@Composable
-private fun CalendarWeekdayHeader() {
-    val labels = remember {
-        val symbols = DateFormatSymbols(Locale.getDefault()).shortWeekdays
-        (1..7).map { symbols[it].take(1) }
-    }
-    Row(modifier = Modifier.fillMaxWidth()) {
-        labels.forEach { label ->
-            Text(
-                text = label,
-                modifier = Modifier.weight(1f),
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun CalendarMonthGrid(
-    visibleMonth: YearMonth,
-    selectedDate: LocalDate,
-    today: LocalDate,
-    activeDates: Set<LocalDate>,
-    onDayClick: (LocalDate) -> Unit
-) {
-    val daysInMonth = visibleMonth.lengthOfMonth()
-    val firstDayOffset = visibleMonth.atDay(1).dayOfWeek.value % 7
-    val totalWeeks = (firstDayOffset + daysInMonth + 6) / 7
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        for (week in 0 until totalWeeks) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                for (dayOfWeek in 0 until 7) {
-                    val dayNumber = week * 7 + dayOfWeek - firstDayOffset + 1
-                    val date = if (dayNumber in 1..daysInMonth) visibleMonth.atDay(dayNumber) else null
-                    CalendarDayCell(
-                        date = date,
-                        isSelected = date == selectedDate,
-                        isFuture = date != null && date.isAfter(today),
-                        hasActiveNote = date != null && activeDates.contains(date),
-                        onClick = { date?.let(onDayClick) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CalendarDayCell(
-    date: LocalDate?,
-    isSelected: Boolean,
-    isFuture: Boolean,
-    hasActiveNote: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .aspectRatio(1f)
-            .padding(2.dp)
-            .then(
-                if (date != null && !isFuture) Modifier.clickable(onClick = onClick) else Modifier
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        if (date != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .then(
-                        if (isSelected) {
-                            Modifier
-                                .padding(2.dp)
-                                .background(
-                                    color = MaterialTheme.colorScheme.primary,
-                                    shape = CircleShape
-                                )
-                        } else {
-                            Modifier
-                        }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = date.dayOfMonth.toString(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = when {
-                            isSelected -> MaterialTheme.colorScheme.onPrimary
-                            isFuture -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                            else -> MaterialTheme.colorScheme.onSurface
-                        }
-                    )
-                    Box(
-                        modifier = Modifier
-                            .padding(top = 2.dp)
-                            .size(4.dp)
-                            .then(
-                                if (hasActiveNote) {
-                                    Modifier.background(
-                                        color = if (isSelected) {
-                                            MaterialTheme.colorScheme.onPrimary
-                                        } else {
-                                            MaterialTheme.colorScheme.primary
-                                        },
-                                        shape = CircleShape
-                                    )
-                                } else {
-                                    Modifier
-                                }
-                            )
-                    )
-                }
-            }
         }
     }
 }
@@ -542,12 +328,12 @@ private fun JournalNoteActionSheet(
         }
     }
 
-    ModalBottomSheet(
+    CompactBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surface
     ) {
-        Column(modifier = Modifier.padding(bottom = 16.dp)) {
+        Column(modifier = Modifier.padding(vertical = 8.dp)) {
             JournalActionSheetItem(
                 text = stringResource(id = R.string.archive),
                 onClick = { dismissThen(onArchiveClick) }
@@ -568,39 +354,77 @@ private fun JournalNoteActionSheet(
 private fun JournalActionSheetItem(text: String, onClick: () -> Unit) {
     Text(
         text = text,
-        style = MaterialTheme.typography.bodyLarge,
+        style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onBackground,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 16.dp)
+            .padding(horizontal = 20.dp, vertical = 12.dp)
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DeleteNoteConfirmationDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
+    fun dismissThen(action: () -> Unit) {
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            if (!sheetState.isVisible) action()
+        }
+    }
+
+    CompactBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(id = R.string.delete_note_title)) },
-        text = { Text(stringResource(id = R.string.delete_note_message)) },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(stringResource(id = R.string.delete))
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = stringResource(id = R.string.delete_note_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = stringResource(id = R.string.delete_note_message),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            FilledTonalButton(
+                onClick = { dismissThen(onConfirm) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .padding(top = 16.dp)
+            ) {
+                Text(stringResource(id = R.string.delete), style = MaterialTheme.typography.bodyMedium)
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(id = R.string.cancel))
+            TextButton(
+                onClick = { dismissThen(onDismiss) },
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                Text(
+                    text = stringResource(id = R.string.cancel),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
-    )
+    }
 }
 
 private val journalDateFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.getDefault())
-
-private val monthYearFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
 
 private val noteTimeFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())

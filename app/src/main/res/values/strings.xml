@@ -34,6 +34,8 @@
     <string name="add_subtask">+ Add Subtask</string>
     <string name="timer_label">Timer</string>
     <string name="add_timer">+ Add a Timer</string>
+    <string name="study_timer_title">Study Timer</string>
+    <string name="set_timer">Set Timer</string>
     <string name="date_label">Date</string>
     <string name="date_tomorrow">Tomorrow</string>
     <string name="date_choose">Choose date</string>

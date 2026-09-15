@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -30,21 +29,17 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -69,13 +64,11 @@ import com.nj031.onetask.R
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskStatus
+import com.nj031.onetask.ui.components.CompactBottomSheet
+import com.nj031.onetask.ui.components.OneTaskCalendarSheet
 import com.nj031.onetask.ui.theme.OneTaskTheme
 import com.nj031.onetask.viewmodel.HomeViewModel
-import java.text.DateFormatSymbols
-import java.time.Instant
 import java.time.LocalDate
-import java.time.YearMonth
-import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -260,7 +253,7 @@ fun HomeScreen(
     }
 
     if (showDatePicker) {
-        HomeCalendarSheet(
+        OneTaskCalendarSheet(
             initialDate = selectedDate,
             onDateSelected = { viewModel.selectDate(it) },
             onDismiss = { showDatePicker = false }
@@ -392,213 +385,6 @@ private fun DateNavigationRow(
                 contentDescription = stringResource(id = R.string.next_day),
                 tint = HomePrimaryBlue
             )
-        }
-    }
-}
-
-/**
- * Used only by AddTaskSheet's "Choose date" chip — the standard Material date
- * picker dialog. The Homepage's own calendar icon uses [HomeCalendarSheet] instead.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun TaskCalendarDialog(
-    initialDate: LocalDate,
-    onDateSelected: (LocalDate) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = initialDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-    )
-
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = {
-                datePickerState.selectedDateMillis?.let { millis ->
-                    onDateSelected(
-                        Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
-                    )
-                }
-                onDismiss()
-            }) {
-                Text(stringResource(id = R.string.date_picker_ok))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(id = R.string.cancel))
-            }
-        }
-    ) {
-        DatePicker(state = datePickerState)
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun HomeCalendarSheet(
-    initialDate: LocalDate,
-    onDateSelected: (LocalDate) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    var visibleMonth by remember { mutableStateOf(YearMonth.from(initialDate)) }
-
-    fun dismiss() {
-        scope.launch { sheetState.hide() }.invokeOnCompletion {
-            if (!sheetState.isVisible) onDismiss()
-        }
-    }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = HomeCardWhite,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 20.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { visibleMonth = visibleMonth.minusMonths(1) }) {
-                    Icon(
-                        imageVector = Icons.Filled.KeyboardArrowLeft,
-                        contentDescription = stringResource(id = R.string.previous_month),
-                        tint = HomePrimaryBlue
-                    )
-                }
-                Text(
-                    text = visibleMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = HomePrimaryBlue
-                )
-                IconButton(onClick = { visibleMonth = visibleMonth.plusMonths(1) }) {
-                    Icon(
-                        imageVector = Icons.Filled.KeyboardArrowRight,
-                        contentDescription = stringResource(id = R.string.next_month),
-                        tint = HomePrimaryBlue
-                    )
-                }
-            }
-
-            HomeCalendarWeekdayHeader()
-
-            HomeCalendarMonthGrid(
-                visibleMonth = visibleMonth,
-                selectedDate = initialDate,
-                onDayClick = { date ->
-                    onDateSelected(date)
-                    dismiss()
-                }
-            )
-
-            TextButton(
-                onClick = ::dismiss,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp)
-            ) {
-                Text(stringResource(id = R.string.close), color = HomeSecondaryText)
-            }
-        }
-    }
-}
-
-@Composable
-private fun HomeCalendarWeekdayHeader() {
-    val labels = remember {
-        val symbols = DateFormatSymbols(Locale.getDefault()).shortWeekdays
-        (1..7).map { symbols[it].take(1) }
-    }
-    Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
-        labels.forEach { label ->
-            Text(
-                text = label,
-                modifier = Modifier.weight(1f),
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.labelSmall,
-                color = HomeSecondaryText
-            )
-        }
-    }
-}
-
-@Composable
-private fun HomeCalendarMonthGrid(
-    visibleMonth: YearMonth,
-    selectedDate: LocalDate,
-    onDayClick: (LocalDate) -> Unit
-) {
-    val daysInMonth = visibleMonth.lengthOfMonth()
-    val firstDayOffset = visibleMonth.atDay(1).dayOfWeek.value % 7
-    val totalWeeks = (firstDayOffset + daysInMonth + 6) / 7
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        for (week in 0 until totalWeeks) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                for (dayOfWeek in 0 until 7) {
-                    val dayNumber = week * 7 + dayOfWeek - firstDayOffset + 1
-                    val date = if (dayNumber in 1..daysInMonth) visibleMonth.atDay(dayNumber) else null
-                    HomeCalendarDayCell(
-                        date = date,
-                        isSelected = date == selectedDate,
-                        onClick = { date?.let(onDayClick) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun HomeCalendarDayCell(
-    date: LocalDate?,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .aspectRatio(1f)
-            .padding(2.dp)
-            .then(if (date != null) Modifier.clickable(onClick = onClick) else Modifier),
-        contentAlignment = Alignment.Center
-    ) {
-        if (date != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(2.dp)
-                    .then(
-                        if (isSelected) {
-                            Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(HomeButtonLight)
-                                .border(1.5.dp, HomePrimaryBlue, RoundedCornerShape(10.dp))
-                        } else {
-                            Modifier
-                        }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = date.dayOfMonth.toString(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    color = if (isSelected) HomePrimaryBlue else HomeDarkText
-                )
-            }
         }
     }
 }
@@ -796,26 +582,24 @@ private fun TaskActionSheet(
         }
     }
 
-    ModalBottomSheet(
+    CompactBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = HomeCardWhite,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        containerColor = HomeCardWhite
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 20.dp),
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = task.name,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = HomePrimaryBlue,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             )
 
             if (task.timerMinutes != null) {
@@ -829,32 +613,36 @@ private fun TaskActionSheet(
                 TaskActionButton(
                     text = "↻  " + stringResource(id = R.string.reset),
                     onClick = { dismissThen(onResetClick) },
-                    modifier = Modifier.padding(top = 10.dp)
+                    modifier = Modifier.padding(top = 8.dp)
                 )
             }
 
             TaskActionButton(
                 text = "✎  " + stringResource(id = R.string.edit),
                 onClick = { dismissThen(onEditClick) },
-                modifier = Modifier.padding(top = 10.dp)
+                modifier = Modifier.padding(top = 8.dp)
             )
             TaskActionButton(
                 text = "✓  " + stringResource(id = R.string.task_action_done),
                 onClick = { dismissThen(onDoneClick) },
-                modifier = Modifier.padding(top = 10.dp)
+                modifier = Modifier.padding(top = 8.dp)
             )
             TaskActionButton(
                 text = "🗑  " + stringResource(id = R.string.delete),
                 onClick = { dismissThen(onDeleteClick) },
                 isDestructive = true,
-                modifier = Modifier.padding(top = 10.dp)
+                modifier = Modifier.padding(top = 8.dp)
             )
 
             TextButton(
                 onClick = { dismissThen(onDismiss) },
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 4.dp)
             ) {
-                Text(stringResource(id = R.string.cancel), color = HomeSecondaryText)
+                Text(
+                    stringResource(id = R.string.cancel),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = HomeSecondaryText
+                )
             }
         }
     }
@@ -871,8 +659,8 @@ private fun TaskActionButton(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp),
-        shape = RoundedCornerShape(14.dp),
+            .height(44.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = if (isDestructive) {
             ButtonDefaults.filledTonalButtonColors(
                 containerColor = MaterialTheme.colorScheme.error,
@@ -885,7 +673,7 @@ private fun TaskActionButton(
             )
         }
     ) {
-        Text(text, fontWeight = FontWeight.SemiBold)
+        Text(text, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
     }
 }
 

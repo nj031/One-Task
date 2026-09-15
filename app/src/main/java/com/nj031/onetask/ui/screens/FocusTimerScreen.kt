@@ -9,28 +9,20 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -58,6 +50,7 @@ import com.nj031.onetask.R
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskStatus
+import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.viewmodel.HomeViewModel
 import kotlin.math.cos
 import kotlin.math.sin
@@ -71,13 +64,10 @@ private const val TICK_INTERVAL_MILLIS = 250L
 fun FocusTimerScreen(
     viewModel: HomeViewModel = viewModel(),
     taskId: String,
-    onNavigateToJournal: () -> Unit = {},
     onBackToHome: () -> Unit = {}
 ) {
     val task by remember(taskId) { viewModel.observeTask(taskId) }
         .collectAsState(initial = null)
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
     var showBreakConfirm by remember { mutableStateOf(false) }
 
     // A fresh task (never opened before) enters In Progress and starts counting
@@ -106,86 +96,58 @@ fun FocusTimerScreen(
         }
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.6f)) {
-                AppDrawerContent(
-                    userEmail = stringResource(id = R.string.sample_user_email),
-                    onJournalingClick = {
-                        scope.launch { drawerState.close() }
-                        onNavigateToJournal()
-                    },
-                    onSettingsClick = { /* no-op: settings not implemented yet */ },
-                    onLogoutClick = { /* no-op: logout not implemented yet */ }
-                )
-            }
-        }
-    ) {
-        Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
-            Box(
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.TopCenter
+                    .widthIn(max = 640.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .widthIn(max = 640.dp)
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp)
-                ) {
-                    FocusTimerTopBar(onMenuClick = { scope.launch { drawerState.open() } })
+                FocusTimerTopBar()
 
-                    task?.let { currentTask ->
-                        FocusTimerCard(
-                            task = currentTask,
-                            nowMillis = nowMillis,
-                            onPauseOrResume = {
-                                if (currentTask.timerEndAtMillis != null) {
-                                    viewModel.pauseTimer(currentTask)
-                                } else {
-                                    viewModel.startTimer(currentTask)
-                                }
-                            },
-                            onReset = { viewModel.resetTimer(currentTask) },
-                            onBreak = { showBreakConfirm = true },
-                            onToggleSubtask = { subtaskId -> viewModel.toggleSubtask(currentTask, subtaskId) },
-                            modifier = Modifier.padding(top = 20.dp)
-                        )
-                    }
+                task?.let { currentTask ->
+                    FocusTimerCard(
+                        task = currentTask,
+                        nowMillis = nowMillis,
+                        onPauseOrResume = {
+                            if (currentTask.timerEndAtMillis != null) {
+                                viewModel.pauseTimer(currentTask)
+                            } else {
+                                viewModel.startTimer(currentTask)
+                            }
+                        },
+                        onReset = { viewModel.resetTimer(currentTask) },
+                        onBreak = { showBreakConfirm = true },
+                        onToggleSubtask = { subtaskId -> viewModel.toggleSubtask(currentTask, subtaskId) },
+                        modifier = Modifier.padding(top = 20.dp)
+                    )
                 }
             }
+        }
 
-            val currentTask = task
-            if (showBreakConfirm && currentTask != null) {
-                BreakConfirmationSheet(
-                    onTakeBreak = {
-                        viewModel.pauseTimer(currentTask)
-                        showBreakConfirm = false
-                        onBackToHome()
-                    },
-                    onCancel = { showBreakConfirm = false }
-                )
-            }
+        val currentTask = task
+        if (showBreakConfirm && currentTask != null) {
+            BreakConfirmationSheet(
+                onTakeBreak = {
+                    viewModel.pauseTimer(currentTask)
+                    showBreakConfirm = false
+                    onBackToHome()
+                },
+                onCancel = { showBreakConfirm = false }
+            )
         }
     }
 }
 
 @Composable
-private fun FocusTimerTopBar(onMenuClick: () -> Unit) {
+private fun FocusTimerTopBar() {
     Box(modifier = Modifier.fillMaxWidth()) {
-        IconButton(
-            onClick = onMenuClick,
-            modifier = Modifier.align(Alignment.CenterStart)
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Menu,
-                contentDescription = stringResource(id = R.string.menu),
-                tint = MaterialTheme.colorScheme.primary
-            )
-        }
-
         Text(
             text = stringResource(id = R.string.focus_timer_title),
             style = MaterialTheme.typography.headlineSmall,
@@ -435,46 +397,55 @@ private fun BreakConfirmationSheet(
     onCancel: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    val scope = rememberCoroutineScope()
+
+    fun dismissThen(action: () -> Unit) {
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            if (!sheetState.isVisible) action()
+        }
+    }
+
+    CompactBottomSheet(
         onDismissRequest = onCancel,
         sheetState = sheetState,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         containerColor = MaterialTheme.colorScheme.surface
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 8.dp),
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = stringResource(id = R.string.break_confirm_title),
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center
             )
             Text(
                 text = stringResource(id = R.string.break_confirm_message),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 12.dp)
+                modifier = Modifier.padding(top = 10.dp)
             )
             FilledTonalButton(
-                onClick = onTakeBreak,
+                onClick = { dismissThen(onTakeBreak) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 24.dp)
+                    .height(44.dp)
+                    .padding(top = 18.dp)
             ) {
-                Text(stringResource(id = R.string.take_a_break))
+                Text(stringResource(id = R.string.take_a_break), style = MaterialTheme.typography.bodyMedium)
             }
             TextButton(
-                onClick = onCancel,
-                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                onClick = { dismissThen(onCancel) },
+                modifier = Modifier.padding(top = 4.dp)
             ) {
                 Text(
                     text = stringResource(id = R.string.cancel),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

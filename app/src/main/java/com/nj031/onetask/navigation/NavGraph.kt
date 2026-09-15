@@ -47,7 +47,6 @@ fun OneTaskNavHost(navController: NavHostController = rememberNavController()) {
         ) { backStackEntry ->
             FocusTimerScreen(
                 taskId = backStackEntry.arguments?.getString("taskId").orEmpty(),
-                onNavigateToJournal = { navController.navigate(Screen.Journal.route) },
                 onBackToHome = { navController.popBackStack() }
             )
         }

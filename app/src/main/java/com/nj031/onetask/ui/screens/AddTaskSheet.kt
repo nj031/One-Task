@@ -8,19 +8,21 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,7 +50,8 @@ import com.nj031.onetask.R
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskRepeat
-import com.nj031.onetask.ui.components.TonalActionButton
+import com.nj031.onetask.ui.components.CompactBottomSheet
+import com.nj031.onetask.ui.components.OneTaskCalendarSheet
 import com.nj031.onetask.viewmodel.HomeViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -77,16 +80,17 @@ fun AddTaskSheet(
         }
     }
 
-    ModalBottomSheet(
+    CompactBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surface
     ) {
         AddTaskSheetContent(
             modifier = Modifier
+                .heightIn(max = 560.dp)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 24.dp),
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
             initialDate = initialDate,
             existingTask = existingTask,
             customTags = customTags,
@@ -155,9 +159,9 @@ private fun AddTaskSheetContent(
         mutableStateOf(existingTask?.postponeIfIncomplete ?: true)
     }
 
-    var showTimerDialog by remember { mutableStateOf(false) }
-    var showDatePickerDialog by remember { mutableStateOf(false) }
-    var showAddTagDialog by remember { mutableStateOf(false) }
+    var showTimerSheet by remember { mutableStateOf(false) }
+    var showDatePickerSheet by remember { mutableStateOf(false) }
+    var showAddTagSheet by remember { mutableStateOf(false) }
 
     val formattedTaskDate = remember(selectedTaskDate) {
         selectedTaskDate.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault()))
@@ -168,12 +172,12 @@ private fun AddTaskSheetContent(
             text = stringResource(
                 id = if (existingTask != null) R.string.save else R.string.add_task_title
             ),
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp),
+                .padding(top = 4.dp),
             textAlign = TextAlign.Center
         )
 
@@ -183,9 +187,10 @@ private fun AddTaskSheetContent(
             onValueChange = { taskName = it },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp),
+                .padding(top = 6.dp),
             singleLine = true,
             shape = RoundedCornerShape(12.dp),
+            textStyle = MaterialTheme.typography.bodyMedium,
             colors = TextFieldDefaults.colors(
                 unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -194,12 +199,12 @@ private fun AddTaskSheetContent(
             )
         )
 
-        SectionLabel(text = stringResource(id = R.string.subtasks_label), topPadding = 20.dp)
+        SectionLabel(text = stringResource(id = R.string.subtasks_label), topPadding = 14.dp)
         subtasks.forEachIndexed { index, subtask ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
+                    .padding(top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextField(
@@ -208,6 +213,7 @@ private fun AddTaskSheetContent(
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
+                    textStyle = MaterialTheme.typography.bodyMedium,
                     colors = TextFieldDefaults.colors(
                         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                         focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -217,47 +223,47 @@ private fun AddTaskSheetContent(
                 )
                 Text(
                     text = "×",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
-                        .padding(start = 12.dp)
+                        .padding(start = 10.dp)
                         .clickable(onClickLabel = stringResource(id = R.string.remove)) {
                             subtasks.removeAt(index)
                         }
                 )
             }
         }
-        TonalActionButton(
+        CompactActionButton(
             text = stringResource(id = R.string.add_subtask),
             onClick = { subtasks.add(Subtask(name = "")) },
-            modifier = Modifier.padding(top = 8.dp)
+            modifier = Modifier.padding(top = 6.dp)
         )
 
-        SectionLabel(text = stringResource(id = R.string.timer_label), topPadding = 20.dp)
+        SectionLabel(text = stringResource(id = R.string.timer_label), topPadding = 14.dp)
         if (timerMinutes == null) {
-            TonalActionButton(
+            CompactActionButton(
                 text = stringResource(id = R.string.add_timer),
-                onClick = { showTimerDialog = true },
-                modifier = Modifier.padding(top = 8.dp)
+                onClick = { showTimerSheet = true },
+                modifier = Modifier.padding(top = 6.dp)
             )
         } else {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
+                    .padding(top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TonalActionButton(
+                CompactActionButton(
                     text = stringResource(id = R.string.timer_minutes_format, timerMinutes ?: 0),
-                    onClick = { showTimerDialog = true },
+                    onClick = { showTimerSheet = true },
                     modifier = Modifier.weight(1f)
                 )
                 Text(
                     text = "×",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
-                        .padding(start = 12.dp)
+                        .padding(start = 10.dp)
                         .clickable(onClickLabel = stringResource(id = R.string.remove)) {
                             timerMinutes = null
                         }
@@ -265,11 +271,11 @@ private fun AddTaskSheetContent(
             }
         }
 
-        SectionLabel(text = stringResource(id = R.string.date_label), topPadding = 20.dp)
+        SectionLabel(text = stringResource(id = R.string.date_label), topPadding = 14.dp)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp),
+                .padding(top = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             SelectionChip(
@@ -287,25 +293,25 @@ private fun AddTaskSheetContent(
             SelectionChip(
                 text = stringResource(id = R.string.date_choose),
                 selected = selectedTaskDate != today && selectedTaskDate != today.plusDays(1),
-                onClick = { showDatePickerDialog = true },
+                onClick = { showDatePickerSheet = true },
                 modifier = Modifier.weight(1f)
             )
         }
         Text(
             text = stringResource(id = R.string.task_will_be_added_to, formattedTaskDate),
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp),
+                .padding(top = 6.dp),
             textAlign = TextAlign.Center
         )
 
-        SectionLabel(text = stringResource(id = R.string.repeat_label), topPadding = 20.dp)
+        SectionLabel(text = stringResource(id = R.string.repeat_label), topPadding = 14.dp)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp),
+                .padding(top = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             SelectionChip(
@@ -324,7 +330,7 @@ private fun AddTaskSheetContent(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp),
+                .padding(top = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             SelectionChip(
@@ -341,27 +347,27 @@ private fun AddTaskSheetContent(
             )
         }
 
-        SectionLabel(text = stringResource(id = R.string.tag_label), topPadding = 20.dp)
+        SectionLabel(text = stringResource(id = R.string.tag_label), topPadding = 14.dp)
         TagsRow(
             customTags = customTags,
             selectedTag = selectedTag,
             onToggleTag = { tag ->
                 selectedTag = if (selectedTag == tag) null else tag
             },
-            onAddTagClick = { showAddTagDialog = true },
-            modifier = Modifier.padding(top = 8.dp)
+            onAddTagClick = { showAddTagSheet = true },
+            modifier = Modifier.padding(top = 6.dp)
         )
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 24.dp),
+                .padding(top = 18.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = stringResource(id = R.string.postpone_if_incomplete),
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Switch(
@@ -370,7 +376,7 @@ private fun AddTaskSheetContent(
             )
         }
 
-        TonalActionButton(
+        CompactActionButton(
             text = stringResource(
                 id = if (existingTask != null) R.string.save else R.string.add_task_title
             ),
@@ -385,155 +391,248 @@ private fun AddTaskSheetContent(
                     postponeIfIncomplete
                 )
             },
-            modifier = Modifier.padding(top = 24.dp),
+            modifier = Modifier.padding(top = 18.dp),
             enabled = taskName.isNotBlank(),
-            fontWeight = FontWeight.Bold
+            emphasized = true
         )
 
         TextButton(
             onClick = onCancel,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 4.dp)
+                .padding(top = 2.dp)
         ) {
             Text(
                 text = stringResource(id = R.string.cancel),
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
 
-    if (showTimerDialog) {
-        TimerPickerDialog(
+    if (showTimerSheet) {
+        TimerPickerSheet(
             onSelect = { minutes ->
                 timerMinutes = minutes
-                showTimerDialog = false
+                showTimerSheet = false
             },
-            onDismiss = { showTimerDialog = false }
+            onDismiss = { showTimerSheet = false }
         )
     }
 
-    if (showDatePickerDialog) {
-        TaskCalendarDialog(
+    if (showDatePickerSheet) {
+        OneTaskCalendarSheet(
             initialDate = selectedTaskDate,
             onDateSelected = { selectedTaskDate = it },
-            onDismiss = { showDatePickerDialog = false }
+            onDismiss = { showDatePickerSheet = false }
         )
     }
 
-    if (showAddTagDialog) {
-        AddTagDialog(
+    if (showAddTagSheet) {
+        AddTagSheet(
             onAdd = { name ->
                 onAddCustomTag(name)
                 selectedTag = name
-                showAddTagDialog = false
+                showAddTagSheet = false
             },
-            onDismiss = { showAddTagDialog = false }
+            onDismiss = { showAddTagSheet = false }
         )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TimerPickerDialog(onSelect: (Int) -> Unit, onDismiss: () -> Unit) {
+private fun TimerPickerSheet(onSelect: (Int) -> Unit, onDismiss: () -> Unit) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
     var showCustomInput by remember { mutableStateOf(false) }
     var customMinutesText by remember { mutableStateOf("") }
     val customMinutes = customMinutesText.toIntOrNull()
 
-    AlertDialog(
+    fun dismissThen(action: () -> Unit) {
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            if (!sheetState.isVisible) action()
+        }
+    }
+
+    CompactBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(id = R.string.timer_label)) },
-        text = {
-            Column {
-                listOf(TIMER_25_MIN, TIMER_45_MIN, TIMER_60_MIN).forEach { minutes ->
-                    Text(
-                        text = stringResource(id = R.string.timer_minutes_format, minutes),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(minutes) }
-                            .padding(vertical = 12.dp)
-                    )
-                }
-                if (showCustomInput) {
-                    TextField(
-                        value = customMinutesText,
-                        onValueChange = { customMinutesText = it.filter(Char::isDigit) },
-                        placeholder = { Text(stringResource(id = R.string.custom_timer_minutes_hint)) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp)
-                    )
-                } else {
-                    Text(
-                        text = stringResource(id = R.string.repeat_custom),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showCustomInput = true }
-                            .padding(vertical = 12.dp)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            if (showCustomInput) {
-                TextButton(
-                    onClick = { customMinutes?.let(onSelect) },
-                    enabled = customMinutes != null && customMinutes > 0
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = stringResource(id = R.string.study_timer_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 14.dp)
+            )
+
+            if (!showCustomInput) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(stringResource(id = R.string.date_picker_ok))
+                    listOf(TIMER_25_MIN, TIMER_45_MIN, TIMER_60_MIN).forEach { minutes ->
+                        CompactActionButton(
+                            text = stringResource(id = R.string.timer_minutes_format, minutes),
+                            onClick = { dismissThen { onSelect(minutes) } },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
+                CompactActionButton(
+                    text = stringResource(id = R.string.repeat_custom),
+                    onClick = { showCustomInput = true },
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            } else {
+                TextField(
+                    value = customMinutesText,
+                    onValueChange = { customMinutesText = it.filter(Char::isDigit) },
+                    placeholder = { Text(stringResource(id = R.string.custom_timer_minutes_hint)) },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = TextFieldDefaults.colors(
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                CompactActionButton(
+                    text = stringResource(id = R.string.set_timer),
+                    onClick = { customMinutes?.let { minutes -> dismissThen { onSelect(minutes) } } },
+                    enabled = customMinutes != null && customMinutes > 0,
+                    emphasized = true,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(id = R.string.cancel))
+
+            TextButton(
+                onClick = { dismissThen(onDismiss) },
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                Text(
+                    text = stringResource(id = R.string.cancel),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
-    )
+    }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddTagDialog(onAdd: (String) -> Unit, onDismiss: () -> Unit) {
+private fun AddTagSheet(onAdd: (String) -> Unit, onDismiss: () -> Unit) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
     var tagName by remember { mutableStateOf("") }
 
-    AlertDialog(
+    fun dismissThen(action: () -> Unit) {
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            if (!sheetState.isVisible) action()
+        }
+    }
+
+    CompactBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(id = R.string.add_tag)) },
-        text = {
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+            Text(
+                text = stringResource(id = R.string.add_tag),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                textAlign = TextAlign.Center
+            )
             TextField(
                 value = tagName,
                 onValueChange = { tagName = it },
                 placeholder = { Text(stringResource(id = R.string.tag_label)) },
                 singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium,
+                shape = RoundedCornerShape(12.dp),
+                colors = TextFieldDefaults.colors(
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent
+                ),
                 modifier = Modifier.fillMaxWidth()
             )
-        },
-        confirmButton = {
+            CompactActionButton(
+                text = stringResource(id = R.string.date_picker_ok),
+                onClick = { dismissThen { onAdd(tagName.trim()) } },
+                enabled = tagName.isNotBlank(),
+                emphasized = true,
+                modifier = Modifier.padding(top = 10.dp)
+            )
             TextButton(
-                onClick = { onAdd(tagName.trim()) },
-                enabled = tagName.isNotBlank()
+                onClick = { dismissThen(onDismiss) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp)
             ) {
-                Text(stringResource(id = R.string.date_picker_ok))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(id = R.string.cancel))
+                Text(
+                    text = stringResource(id = R.string.cancel),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
-    )
+    }
+}
+
+/** A compact tonal button used only within these panels - shorter than the app's shared button. */
+@Composable
+private fun CompactActionButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    emphasized: Boolean = false
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(44.dp),
+        enabled = enabled,
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        )
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (emphasized) FontWeight.Bold else FontWeight.SemiBold
+        )
+    }
 }
 
 @Composable
 private fun SectionLabel(text: String, topPadding: Dp = 0.dp) {
     Text(
         text = text,
-        style = MaterialTheme.typography.bodyMedium,
+        style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = topPadding)
     )
@@ -552,6 +651,7 @@ private fun RowScope.SelectionChip(
         label = {
             Text(
                 text = text,
+                style = MaterialTheme.typography.bodySmall,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 1
             )
@@ -600,6 +700,7 @@ private fun TagsRow(
                 label = {
                     Text(
                         text = tag,
+                        style = MaterialTheme.typography.bodySmall,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
                     )
                 },
@@ -616,7 +717,12 @@ private fun TagsRow(
 
         AssistChip(
             onClick = onAddTagClick,
-            label = { Text(text = stringResource(id = R.string.add_tag)) },
+            label = {
+                Text(
+                    text = stringResource(id = R.string.add_tag),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            },
             shape = RoundedCornerShape(50),
             border = null,
             colors = AssistChipDefaults.assistChipColors(
