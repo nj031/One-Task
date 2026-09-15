@@ -32,6 +32,10 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         repository.observeArchivedNotes()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val trashedNotes: StateFlow<List<JournalNoteEntity>> =
+        repository.observeTrashedNotes()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun selectDate(date: LocalDate) {
         _selectedDate.value = date
     }
@@ -70,6 +74,12 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
     fun restoreNote(note: JournalNoteEntity) {
         viewModelScope.launch {
             repository.restoreNote(note)
+        }
+    }
+
+    fun deleteNotePermanently(note: JournalNoteEntity) {
+        viewModelScope.launch {
+            repository.deleteNotePermanently(note)
         }
     }
 }

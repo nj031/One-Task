@@ -13,6 +13,7 @@ import com.nj031.onetask.ui.screens.AuthScreen
 import com.nj031.onetask.ui.screens.HomeScreen
 import com.nj031.onetask.ui.screens.JournalScreen
 import com.nj031.onetask.ui.screens.NoteEditorScreen
+import com.nj031.onetask.ui.screens.RecycleBinScreen
 import com.nj031.onetask.viewmodel.JournalViewModel
 
 @Composable
@@ -47,6 +48,12 @@ fun OneTaskNavHost(navController: NavHostController = rememberNavController()) {
         }
         composable(Screen.Archive.route) {
             ArchiveScreen(
+                viewModel = journalViewModel,
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.RecycleBin.route) {
+            RecycleBinScreen(
                 viewModel = journalViewModel,
                 onBackClick = { navController.popBackStack() }
             )

@@ -65,4 +65,10 @@
     <string name="archive_title">Archive</string>
     <string name="no_archived_notes">No archived notes.</string>
     <string name="restore">Restore</string>
+
+    <string name="recycle_bin_title">Recycle Bin</string>
+    <string name="no_trashed_notes">Recycle bin is empty.</string>
+    <string name="delete_permanently">Delete Permanently</string>
+    <string name="delete_permanently_title">Delete this note permanently?</string>
+    <string name="delete_permanently_message">This note will be permanently deleted and can\'t be recovered.</string>
 </resources>
