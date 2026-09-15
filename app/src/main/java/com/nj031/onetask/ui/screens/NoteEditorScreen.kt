@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -66,7 +67,15 @@ fun NoteEditorScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(innerPadding)
+                // Scaffold's own content insets don't include the IME by default (so text
+                // fields aren't force-pushed up on every screen, even ones with no input).
+                // Consuming it here shrinks this Box's visible height as the keyboard
+                // animates in, which - combined with the Column's own verticalScroll below -
+                // is what lets it actually scroll far enough to reach lower content, and lets
+                // each TextField's built-in cursor-follow behavior bring the current line back
+                // above the keyboard as the user types, without any extra scroll plumbing.
+                .imePadding(),
             contentAlignment = Alignment.TopCenter
         ) {
             Column(

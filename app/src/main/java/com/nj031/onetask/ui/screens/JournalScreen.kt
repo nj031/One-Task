@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
+import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
@@ -76,7 +77,8 @@ fun JournalScreen(
     onArchiveClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onNavigateToTasks: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {}
+    onNavigateToProfile: () -> Unit = {},
+    onLogout: () -> Unit = {}
 ) {
     val selectedDate by viewModel.selectedDate.collectAsState()
     val notes by viewModel.notesForSelectedDate.collectAsState()
@@ -103,20 +105,28 @@ fun JournalScreen(
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.6f)) {
-                JournalDrawerContent(
-                    onRecycleBinClick = {
+            ModalDrawerSheet(
+                modifier = Modifier.fillMaxWidth(0.6f),
+                drawerContainerColor = MaterialTheme.colorScheme.surface
+            ) {
+                OneTaskDrawerContent(
+                    userEmail = AuthRepository.currentUser?.email
+                        ?: stringResource(id = R.string.sample_user_email),
+                    onSettingsClick = {
                         scope.launch { drawerState.close() }
-                        onRecycleBinClick()
+                        onSettingsClick()
                     },
+                    onHelpFeedbackClick = { /* no-op: help & feedback not implemented yet */ },
+                    onRateAppClick = { /* no-op: not published yet */ },
                     onArchiveClick = {
                         scope.launch { drawerState.close() }
                         onArchiveClick()
                     },
-                    onSettingsClick = {
+                    onRecycleBinClick = {
                         scope.launch { drawerState.close() }
-                        onSettingsClick()
-                    }
+                        onRecycleBinClick()
+                    },
+                    onLogoutClick = onLogout
                 )
             }
         }

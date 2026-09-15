@@ -113,8 +113,11 @@ fun HomeScreen(
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.6f)) {
-                AppDrawerContent(
+            ModalDrawerSheet(
+                modifier = Modifier.fillMaxWidth(0.6f),
+                drawerContainerColor = MaterialTheme.colorScheme.surface
+            ) {
+                OneTaskDrawerContent(
                     userEmail = AuthRepository.currentUser?.email
                         ?: stringResource(id = R.string.sample_user_email),
                     onJournalingClick = {
@@ -122,6 +125,8 @@ fun HomeScreen(
                         onNavigateToJournal()
                     },
                     onSettingsClick = { /* no-op: settings not implemented yet */ },
+                    onHelpFeedbackClick = { /* no-op: help & feedback not implemented yet */ },
+                    onRateAppClick = { /* no-op: not published yet */ },
                     onLogoutClick = onLogout
                 )
             }
