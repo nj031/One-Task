@@ -2,30 +2,25 @@ package com.nj031.onetask.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Bold blue — title text, outlined button, links
-val BluePrimaryLight = Color(0xFF1957C2)
-val BluePrimaryDark = Color(0xFF7FB0FF)
+// One Task global light theme palette. This is the single source of truth for the
+// app's light-mode visual identity - every screen should read colors from
+// MaterialTheme.colorScheme (wired up in Theme.kt) rather than redefining these.
+val OneTaskBackground = Color(0xFFF4F7FC)
+val OneTaskPrimary = Color(0xFF2F6FD6)
+val OneTaskLightBlue = Color(0xFFDBEBFA)
+val OneTaskDarkText = Color(0xFF17365D)
+val OneTaskSecondaryText = Color(0xFF6B7C93)
+val OneTaskSurface = Color(0xFFFFFFFF)
+val OneTaskBorder = Color(0xFFD5E1EE)
 
-// Light blue — filled button
-val LightBlueButtonLight = Color(0xFF4FA3F7)
+// Dark theme palette (unchanged pre-existing values, kept separate from the light
+// theme above).
+val BluePrimaryDark = Color(0xFF7FB0FF)
 val LightBlueButtonDark = Color(0xFF3D7DC9)
 val OnLightBlueButton = Color(0xFF0B1220)
-
-// Light gray-blue background / white surface card
-val BackgroundLight = Color(0xFFEFF3FA)
 val BackgroundDark = Color(0xFF10141C)
-val SurfaceLight = Color(0xFFFFFFFF)
 val SurfaceDark = Color(0xFF1A2029)
-
-val OnBackgroundLight = Color(0xFF1A1C1E)
 val OnBackgroundDark = Color(0xFFE3E6EA)
-
-// Pale blue "tonal" surface — Add Task button
-val AddTaskContainerLight = Color(0xFFDCEAFB)
 val AddTaskContainerDark = Color(0xFF223A57)
-val OnAddTaskContainerLight = Color(0xFF16294A)
 val OnAddTaskContainerDark = Color(0xFFBFD9FB)
-
-// Unselected chip surface — Date/Repeat/Tag selection controls
-val ChipUnselectedLight = Color(0xFFEDF3FC)
 val ChipUnselectedDark = Color(0xFF1C2836)
