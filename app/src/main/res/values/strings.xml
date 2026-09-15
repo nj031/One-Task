@@ -60,7 +60,7 @@
     <string name="archive">Archive</string>
     <string name="delete">Delete</string>
     <string name="delete_note_title">Delete this note?</string>
-    <string name="delete_note_message">This action can\'t be undone.</string>
+    <string name="delete_note_message">This note will be moved to Recycle Bin.</string>
 
     <string name="archive_title">Archive</string>
     <string name="no_archived_notes">No archived notes.</string>
