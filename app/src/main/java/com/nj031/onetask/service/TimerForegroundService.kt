@@ -124,6 +124,13 @@ class TimerForegroundService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            // Explicit per-notification visibility: on API 26+ the CHANNEL's own lockscreen
+            // visibility (set below) is what Android actually honors, but this also keeps any
+            // legacy/OEM path that still reads the notification-level flag from defaulting to
+            // VISIBILITY_PRIVATE, which some lock screens treat as "redact to a generic entry"
+            // rather than "show it plainly" - there's no other task information here beyond the
+            // task name and remaining time, so there's nothing further to redact.
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(contentIntent)
             .build()
     }
@@ -133,8 +140,19 @@ class TimerForegroundService : Service() {
             CHANNEL_ID,
             getString(R.string.focus_timer_notification_channel_name),
             NotificationManager.IMPORTANCE_LOW
-        )
+        ).apply {
+            // A channel's settings are frozen the first time it's created on a given device -
+            // recreating it with the same id later (e.g. a previous build's install) has no
+            // effect, which is why CHANNEL_ID below was bumped alongside this fix: without a
+            // fresh channel id, a device that already ran an earlier build would stay stuck
+            // without lock-screen visibility no matter what this method sets from then on.
+            lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
+        }
         val manager = getSystemService(NotificationManager::class.java)
+        // Drops the old pre-fix channel (a no-op if it was never created on this device) so a
+        // device that already ran an earlier build doesn't end up with two identically-named
+        // "Focus timer" entries under system notification settings.
+        manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
         manager.createNotificationChannel(channel)
     }
 
@@ -153,7 +171,12 @@ class TimerForegroundService : Service() {
     companion object {
         private const val EXTRA_TASK_ID = "task_id"
         private const val NOTIFICATION_ID = 4201
-        private const val CHANNEL_ID = "focus_timer_channel"
+        // v2: the channel is now created with explicit lock-screen visibility - see
+        // createNotificationChannel(). A new id forces every device (including ones that
+        // already ran an earlier build with the un-fixed channel) to get these settings, since
+        // a channel's own properties can't be changed once it exists.
+        private const val CHANNEL_ID = "focus_timer_channel_v2"
+        private const val LEGACY_CHANNEL_ID = "focus_timer_channel"
         private const val TICK_INTERVAL_MILLIS = 1_000L
 
         fun start(context: Context, taskId: String) {

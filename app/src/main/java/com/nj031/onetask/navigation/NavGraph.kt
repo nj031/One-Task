@@ -37,9 +37,16 @@ private fun NavHostController.navigateToBottomNavTab(route: String) {
 }
 
 @Composable
-fun OneTaskNavHost(navController: NavHostController = rememberNavController()) {
+fun OneTaskNavHost(
+    navController: NavHostController = rememberNavController(),
+    activeFocusTaskId: String? = null
+) {
     val journalViewModel: JournalViewModel = viewModel()
-    val startDestination = if (AuthRepository.currentUser != null) Screen.Home.route else Screen.Auth.route
+    val startDestination = when {
+        AuthRepository.currentUser == null -> Screen.Auth.route
+        activeFocusTaskId != null -> Screen.FocusTimer.createRoute(activeFocusTaskId)
+        else -> Screen.Home.route
+    }
 
     NavHost(
         navController = navController,
