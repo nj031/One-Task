@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -84,7 +85,7 @@ fun OneTaskCalendarSheet(
         sheetState = sheetState,
         containerColor = CalendarCardWhite
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -123,9 +124,8 @@ fun OneTaskCalendarSheet(
 
             TextButton(
                 onClick = ::dismiss,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 2.dp)
+                contentPadding = PaddingValues(vertical = 6.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     text = stringResource(id = R.string.close),
@@ -172,7 +172,7 @@ private fun CalendarWeekdayHeader() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 6.dp)
+            .padding(top = 4.dp)
     ) {
         labels.forEach { label ->
             Text(
@@ -230,7 +230,11 @@ private fun CalendarDayCell(
 ) {
     Box(
         modifier = modifier
-            .aspectRatio(1f)
+            // Slightly wider than tall: the touch-target WIDTH (and the date number's own
+            // size) stays exactly what it was, but each row takes noticeably less vertical
+            // space - this is the main lever for the grid's overall height, since there's no
+            // separate per-row gap to trim (cells already sit edge-to-edge).
+            .aspectRatio(1.3f)
             .padding(1.dp)
             .then(if (date != null && !isDisabled) Modifier.clickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center

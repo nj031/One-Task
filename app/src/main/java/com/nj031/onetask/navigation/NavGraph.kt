@@ -122,7 +122,13 @@ fun OneTaskNavHost(
                 onArchiveClick = { navController.navigate(Screen.Archive.route) },
                 onSettingsClick = { /* no-op: settings not implemented yet */ },
                 onNavigateToTasks = { navController.navigateToBottomNavTab(Screen.Home.route) },
-                onNavigateToProfile = { navController.navigateToBottomNavTab(Screen.Profile.route) }
+                onNavigateToProfile = { navController.navigateToBottomNavTab(Screen.Profile.route) },
+                onLogout = {
+                    AuthRepository.signOut()
+                    navController.navigate(Screen.Auth.route) {
+                        popUpTo(0)
+                    }
+                }
             )
         }
         composable(Screen.Profile.route) {
