@@ -108,4 +108,13 @@
     <string name="break_confirm_title">Are you sure you want to take a break?</string>
     <string name="break_confirm_message">Your timer will be paused and you\'ll return to your task list.</string>
     <string name="take_a_break">Take a Break</string>
+    <string name="leave_focus_confirm_title">Are you sure you want to leave focus mode?</string>
+    <string name="leave_focus_confirm_message">Your timer will be paused and you\'ll return to your task list.</string>
+    <string name="leave_focus">Leave Focus</string>
+    <string name="focus_session_complete_title">Focus session complete</string>
+    <string name="focus_session_remaining_subtasks">%1$d subtask(s) still remaining</string>
+    <string name="mark_task_done">Mark Task Done</string>
+    <string name="continue_task">Continue Task</string>
+    <string name="delete_task_confirm_title">Delete this task?</string>
+    <string name="delete_task_confirm_message">This will stop the current focus session and delete the task.</string>
 </resources>
