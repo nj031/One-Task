@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -112,21 +113,27 @@ fun FocusTimerScreen(
                 FocusTimerTopBar()
 
                 task?.let { currentTask ->
-                    FocusTimerCard(
-                        task = currentTask,
-                        nowMillis = nowMillis,
-                        onPauseOrResume = {
-                            if (currentTask.timerEndAtMillis != null) {
-                                viewModel.pauseTimer(currentTask)
-                            } else {
-                                viewModel.startTimer(currentTask)
-                            }
-                        },
-                        onReset = { viewModel.resetTimer(currentTask) },
-                        onBreak = { showBreakConfirm = true },
-                        onToggleSubtask = { subtaskId -> viewModel.toggleSubtask(currentTask, subtaskId) },
-                        modifier = Modifier.padding(top = 20.dp)
-                    )
+                    // Keyed on the task's id AND its currently configured timer duration: if the
+                    // user edits the duration (e.g. while paused on a break), this forces the ring
+                    // to be fully torn down and redrawn from the new duration, rather than risking
+                    // any stale draw state carried over from the previous duration.
+                    key(currentTask.id, currentTask.timerMinutes) {
+                        FocusTimerCard(
+                            task = currentTask,
+                            nowMillis = nowMillis,
+                            onPauseOrResume = {
+                                if (currentTask.timerEndAtMillis != null) {
+                                    viewModel.pauseTimer(currentTask)
+                                } else {
+                                    viewModel.startTimer(currentTask)
+                                }
+                            },
+                            onReset = { viewModel.resetTimer(currentTask) },
+                            onBreak = { showBreakConfirm = true },
+                            onToggleSubtask = { subtaskId -> viewModel.toggleSubtask(currentTask, subtaskId) },
+                            modifier = Modifier.padding(top = 20.dp)
+                        )
+                    }
                 }
             }
         }
@@ -168,6 +175,11 @@ private fun FocusTimerCard(
     onToggleSubtask: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // totalMillis always reflects the task's CURRENTLY configured duration (task.timerMinutes),
+    // never a duration captured at some earlier point. remainingMillis is always an absolute
+    // duration (preserved verbatim across pause/resume/edit). Recomputing progress as their ratio
+    // on every recomposition means editing the configured duration - even while paused on a break
+    // - is reflected in the ring immediately, without carrying over the previous duration's ratio.
     val totalMillis = (task.timerMinutes ?: 0) * MILLIS_PER_MINUTE
     val remainingMillis = when {
         task.timerEndAtMillis != null -> (task.timerEndAtMillis - nowMillis).coerceAtLeast(0)
@@ -433,9 +445,9 @@ private fun BreakConfirmationSheet(
             FilledTonalButton(
                 onClick = { dismissThen(onTakeBreak) },
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
                     .padding(top = 18.dp)
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
             ) {
                 Text(stringResource(id = R.string.take_a_break), style = MaterialTheme.typography.bodyMedium)
             }
