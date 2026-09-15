@@ -53,8 +53,6 @@ import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.viewmodel.HomeViewModel
-import kotlin.math.cos
-import kotlin.math.sin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -177,9 +175,7 @@ private fun FocusTimerCard(
 ) {
     // totalMillis always reflects the task's CURRENTLY configured duration (task.timerMinutes),
     // never a duration captured at some earlier point. remainingMillis is always an absolute
-    // duration (preserved verbatim across pause/resume/edit). Recomputing progress as their ratio
-    // on every recomposition means editing the configured duration - even while paused on a break
-    // - is reflected in the ring immediately, without carrying over the previous duration's ratio.
+    // duration (preserved verbatim across pause/resume/edit).
     val totalMillis = (task.timerMinutes ?: 0) * MILLIS_PER_MINUTE
     val remainingMillis = when {
         task.timerEndAtMillis != null -> (task.timerEndAtMillis - nowMillis).coerceAtLeast(0)
@@ -188,11 +184,6 @@ private fun FocusTimerCard(
     }
     val isRunning = task.timerEndAtMillis != null
     val isCompleted = task.status == TaskStatus.COMPLETED
-    val progress = if (totalMillis > 0) {
-        (remainingMillis.toFloat() / totalMillis.toFloat()).coerceIn(0f, 1f)
-    } else {
-        0f
-    }
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -207,7 +198,6 @@ private fun FocusTimerCard(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             FocusTimerRing(
-                progress = progress,
                 remainingLabel = formatHms(remainingMillis),
                 modifier = Modifier.size(220.dp)
             )
@@ -337,17 +327,14 @@ private fun FocusSubtaskRow(subtask: Subtask, onToggle: () -> Unit) {
 }
 
 /**
- * A circular timer ring whose blue progress arc sweeps anti-clockwise from the top as time
- * elapses, with a dot drawn exactly at the arc's endpoint so the two never fall out of sync.
+ * A plain static circle outline around the remaining-time label (no progress arc or dot).
  */
 @Composable
 private fun FocusTimerRing(
-    progress: Float,
     remainingLabel: String,
     modifier: Modifier = Modifier
 ) {
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
-    val progressColor = MaterialTheme.colorScheme.primary
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -365,33 +352,6 @@ private fun FocusTimerRing(
                 size = arcSize,
                 style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
             )
-
-            val clampedProgress = progress.coerceIn(0f, 1f)
-            val sweepAngle = -360f * clampedProgress
-            drawArc(
-                color = progressColor,
-                startAngle = -90f,
-                sweepAngle = sweepAngle,
-                useCenter = false,
-                topLeft = topLeft,
-                size = arcSize,
-                style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
-            )
-
-            if (clampedProgress > 0.001f) {
-                val endAngleRadians = Math.toRadians((-90f + sweepAngle).toDouble())
-                val radius = diameter / 2f
-                val center = Offset(size.width / 2f, size.height / 2f)
-                val dotCenter = Offset(
-                    x = center.x + radius * cos(endAngleRadians).toFloat(),
-                    y = center.y + radius * sin(endAngleRadians).toFloat()
-                )
-                drawCircle(
-                    color = progressColor,
-                    radius = strokeWidthPx * 0.85f,
-                    center = dotCenter
-                )
-            }
         }
         Text(
             text = remainingLabel,
