@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -35,6 +36,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
@@ -42,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -65,13 +68,24 @@ import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.ui.theme.OneTaskTheme
 import com.nj031.onetask.viewmodel.HomeViewModel
+import java.text.DateFormatSymbols
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlinx.coroutines.launch
+
+// Homepage-only palette (see design reference). Scoped to this file so Journal,
+// Auth, and the Add Task sheet keep their existing theme colors untouched.
+private val HomeBackground = Color(0xFFF4F7FC)
+private val HomeButtonLight = Color(0xFFDBEBFA)
+private val HomeCardWhite = Color(0xFFFFFFFF)
+private val HomePrimaryBlue = Color(0xFF2F6FD6)
+private val HomeDarkText = Color(0xFF17365D)
+private val HomeSecondaryText = Color(0xFF6B7C93)
 
 @Composable
 fun HomeScreen(
@@ -87,6 +101,8 @@ fun HomeScreen(
 
     val selectedDate by viewModel.selectedDate.collectAsState()
     val tasks by viewModel.tasksForSelectedDate.collectAsState()
+    val activeTasks = tasks.filter { it.status != TaskStatus.COMPLETED }
+    val doneTasks = tasks.filter { it.status == TaskStatus.COMPLETED }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -104,7 +120,7 @@ fun HomeScreen(
             }
         }
     ) {
-        Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
+        Scaffold(containerColor = HomeBackground) { innerPadding ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -130,8 +146,8 @@ fun HomeScreen(
                             .height(56.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            containerColor = HomeButtonLight,
+                            contentColor = HomeDarkText
                         )
                     ) {
                         Text(
@@ -155,7 +171,7 @@ fun HomeScreen(
                         text = stringResource(id = R.string.tasks_completed, completedCount, tasks.size),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = HomePrimaryBlue,
                         textAlign = TextAlign.Center
                     )
 
@@ -166,7 +182,7 @@ fun HomeScreen(
                                 .fillMaxWidth(),
                             text = stringResource(id = R.string.no_tasks_yet),
                             style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = HomeSecondaryText,
                             textAlign = TextAlign.Center
                         )
                     } else {
@@ -177,18 +193,44 @@ fun HomeScreen(
                                 .padding(top = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(tasks, key = { it.id }) { task ->
-                                TaskCard(
-                                    task = task,
-                                    onToggleStatus = { viewModel.toggleTaskStatus(task) },
-                                    onClick = {
-                                        if (task.timerMinutes != null) {
-                                            onOpenFocusTimer(task.id)
-                                        } else {
-                                            editingTask = task
+                            if (activeTasks.isNotEmpty()) {
+                                item(key = "section_in_progress") {
+                                    SectionHeader(text = stringResource(id = R.string.status_in_progress))
+                                }
+                                items(activeTasks, key = { it.id }) { task ->
+                                    TaskCard(
+                                        task = task,
+                                        onToggleStatus = { viewModel.toggleTaskStatus(task) },
+                                        onClick = {
+                                            if (task.timerMinutes != null) {
+                                                onOpenFocusTimer(task.id)
+                                            } else {
+                                                editingTask = task
+                                            }
                                         }
-                                    }
-                                )
+                                    )
+                                }
+                            }
+                            if (doneTasks.isNotEmpty()) {
+                                item(key = "section_done") {
+                                    SectionHeader(
+                                        text = stringResource(id = R.string.section_done),
+                                        modifier = Modifier.padding(top = if (activeTasks.isNotEmpty()) 8.dp else 0.dp)
+                                    )
+                                }
+                                items(doneTasks, key = { it.id }) { task ->
+                                    TaskCard(
+                                        task = task,
+                                        onToggleStatus = { viewModel.toggleTaskStatus(task) },
+                                        onClick = {
+                                            if (task.timerMinutes != null) {
+                                                onOpenFocusTimer(task.id)
+                                            } else {
+                                                editingTask = task
+                                            }
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -210,12 +252,23 @@ fun HomeScreen(
     }
 
     if (showDatePicker) {
-        TaskCalendarDialog(
+        HomeCalendarSheet(
             initialDate = selectedDate,
             onDateSelected = { viewModel.selectDate(it) },
             onDismiss = { showDatePicker = false }
         )
     }
+}
+
+@Composable
+private fun SectionHeader(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+        color = HomePrimaryBlue,
+        modifier = modifier.padding(bottom = 4.dp)
+    )
 }
 
 @Composable
@@ -228,7 +281,7 @@ private fun TaskListTopBar(onMenuClick: () -> Unit, onCalendarClick: () -> Unit)
             Icon(
                 imageVector = Icons.Filled.Menu,
                 contentDescription = stringResource(id = R.string.menu),
-                tint = MaterialTheme.colorScheme.primary
+                tint = HomePrimaryBlue
             )
         }
 
@@ -236,7 +289,7 @@ private fun TaskListTopBar(onMenuClick: () -> Unit, onCalendarClick: () -> Unit)
             text = stringResource(id = R.string.task_list_title),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
+            color = HomePrimaryBlue,
             modifier = Modifier.align(Alignment.Center)
         )
 
@@ -247,7 +300,7 @@ private fun TaskListTopBar(onMenuClick: () -> Unit, onCalendarClick: () -> Unit)
             Icon(
                 imageVector = Icons.Filled.DateRange,
                 contentDescription = stringResource(id = R.string.calendar),
-                tint = MaterialTheme.colorScheme.primary
+                tint = HomePrimaryBlue
             )
         }
     }
@@ -280,7 +333,7 @@ private fun DateNavigationRow(
             Icon(
                 imageVector = Icons.Filled.KeyboardArrowLeft,
                 contentDescription = stringResource(id = R.string.previous_day),
-                tint = MaterialTheme.colorScheme.primary
+                tint = HomePrimaryBlue
             )
         }
 
@@ -289,12 +342,12 @@ private fun DateNavigationRow(
                 text = relativeLabel,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
+                color = HomeDarkText
             )
             Text(
                 text = formattedDate,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = HomeSecondaryText
             )
         }
 
@@ -302,12 +355,16 @@ private fun DateNavigationRow(
             Icon(
                 imageVector = Icons.Filled.KeyboardArrowRight,
                 contentDescription = stringResource(id = R.string.next_day),
-                tint = MaterialTheme.colorScheme.primary
+                tint = HomePrimaryBlue
             )
         }
     }
 }
 
+/**
+ * Used only by AddTaskSheet's "Choose date" chip — the standard Material date
+ * picker dialog. The Homepage's own calendar icon uses [HomeCalendarSheet] instead.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TaskCalendarDialog(
@@ -343,6 +400,174 @@ internal fun TaskCalendarDialog(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HomeCalendarSheet(
+    initialDate: LocalDate,
+    onDateSelected: (LocalDate) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    var visibleMonth by remember { mutableStateOf(YearMonth.from(initialDate)) }
+
+    fun dismiss() {
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            if (!sheetState.isVisible) onDismiss()
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = HomeCardWhite,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { visibleMonth = visibleMonth.minusMonths(1) }) {
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowLeft,
+                        contentDescription = stringResource(id = R.string.previous_month),
+                        tint = HomePrimaryBlue
+                    )
+                }
+                Text(
+                    text = visibleMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = HomePrimaryBlue
+                )
+                IconButton(onClick = { visibleMonth = visibleMonth.plusMonths(1) }) {
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowRight,
+                        contentDescription = stringResource(id = R.string.next_month),
+                        tint = HomePrimaryBlue
+                    )
+                }
+            }
+
+            HomeCalendarWeekdayHeader()
+
+            HomeCalendarMonthGrid(
+                visibleMonth = visibleMonth,
+                selectedDate = initialDate,
+                onDayClick = { date ->
+                    onDateSelected(date)
+                    dismiss()
+                }
+            )
+
+            TextButton(
+                onClick = ::dismiss,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+            ) {
+                Text(stringResource(id = R.string.close), color = HomeSecondaryText)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeCalendarWeekdayHeader() {
+    val labels = remember {
+        val symbols = DateFormatSymbols(Locale.getDefault()).shortWeekdays
+        (1..7).map { symbols[it].take(1) }
+    }
+    Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+        labels.forEach { label ->
+            Text(
+                text = label,
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.labelSmall,
+                color = HomeSecondaryText
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeCalendarMonthGrid(
+    visibleMonth: YearMonth,
+    selectedDate: LocalDate,
+    onDayClick: (LocalDate) -> Unit
+) {
+    val daysInMonth = visibleMonth.lengthOfMonth()
+    val firstDayOffset = visibleMonth.atDay(1).dayOfWeek.value % 7
+    val totalWeeks = (firstDayOffset + daysInMonth + 6) / 7
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        for (week in 0 until totalWeeks) {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                for (dayOfWeek in 0 until 7) {
+                    val dayNumber = week * 7 + dayOfWeek - firstDayOffset + 1
+                    val date = if (dayNumber in 1..daysInMonth) visibleMonth.atDay(dayNumber) else null
+                    HomeCalendarDayCell(
+                        date = date,
+                        isSelected = date == selectedDate,
+                        onClick = { date?.let(onDayClick) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeCalendarDayCell(
+    date: LocalDate?,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .aspectRatio(1f)
+            .padding(2.dp)
+            .then(if (date != null) Modifier.clickable(onClick = onClick) else Modifier),
+        contentAlignment = Alignment.Center
+    ) {
+        if (date != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(2.dp)
+                    .then(
+                        if (isSelected) {
+                            Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(HomeButtonLight)
+                                .border(1.5.dp, HomePrimaryBlue, RoundedCornerShape(10.dp))
+                        } else {
+                            Modifier
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = date.dayOfMonth.toString(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isSelected) HomePrimaryBlue else HomeDarkText
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun TaskCard(
     task: TaskEntity,
@@ -356,7 +581,7 @@ private fun TaskCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = HomeCardWhite),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -365,7 +590,7 @@ private fun TaskCard(
                     text = task.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    color = if (isCompleted) HomeSecondaryText else HomeDarkText,
                     textDecoration = if (isCompleted) TextDecoration.LineThrough else TextDecoration.None,
                     modifier = Modifier.weight(1f)
                 )
@@ -392,7 +617,7 @@ private fun TaskCard(
                         }
                     ),
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = HomeSecondaryText
                 )
 
                 task.timerMinutes?.let { minutes ->
@@ -400,7 +625,7 @@ private fun TaskCard(
                     Text(
                         text = stringResource(id = R.string.timer_minutes_format, minutes),
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = HomeSecondaryText
                     )
                 }
 
@@ -409,7 +634,7 @@ private fun TaskCard(
                     Text(
                         text = stringResource(id = R.string.subtasks_label),
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = HomePrimaryBlue,
                         textDecoration = TextDecoration.Underline,
                         modifier = Modifier.clickable { subtasksExpanded = !subtasksExpanded }
                     )
@@ -422,7 +647,7 @@ private fun TaskCard(
                         Text(
                             text = "• $subtask",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = HomeSecondaryText,
                             modifier = Modifier.padding(vertical = 2.dp)
                         )
                     }
@@ -437,13 +662,13 @@ private fun TagPill(text: String, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .border(1.dp, HomePrimaryBlue, RoundedCornerShape(50))
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSecondaryContainer
+            color = HomePrimaryBlue
         )
     }
 }
@@ -458,10 +683,19 @@ private fun CircularTaskCheckbox(
         modifier = modifier
             .size(24.dp)
             .clip(CircleShape)
-            .background(if (checked) MaterialTheme.colorScheme.primary else Color.Transparent)
-            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-            .clickable(onClick = onToggle)
-    )
+            .border(2.dp, HomePrimaryBlue, CircleShape)
+            .clickable(onClick = onToggle),
+        contentAlignment = Alignment.Center
+    ) {
+        if (checked) {
+            Text(
+                text = "✓",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = HomePrimaryBlue
+            )
+        }
+    }
 }
 
 @Preview(showBackground = true)
