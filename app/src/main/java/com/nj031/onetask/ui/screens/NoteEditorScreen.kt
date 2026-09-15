@@ -38,10 +38,12 @@ import com.nj031.onetask.viewmodel.JournalViewModel
 @Composable
 fun NoteEditorScreen(
     viewModel: JournalViewModel = viewModel(),
+    noteId: String? = null,
     onDone: () -> Unit
 ) {
-    var title by remember { mutableStateOf("") }
-    var content by remember { mutableStateOf("") }
+    val existingNote = remember(noteId) { viewModel.getNoteById(noteId) }
+    var title by remember { mutableStateOf(existingNote?.title.orEmpty()) }
+    var content by remember { mutableStateOf(existingNote?.content.orEmpty()) }
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
         Box(
@@ -60,7 +62,12 @@ fun NoteEditorScreen(
                 NoteEditorTopBar(
                     onBackClick = onDone,
                     onSaveClick = {
-                        viewModel.createNote(title = title, content = content)
+                        val note = existingNote
+                        if (note != null) {
+                            viewModel.updateNote(note = note, title = title, content = content)
+                        } else {
+                            viewModel.createNote(title = title, content = content)
+                        }
                         onDone()
                     }
                 )

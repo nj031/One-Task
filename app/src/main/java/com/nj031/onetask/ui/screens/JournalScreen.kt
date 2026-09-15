@@ -59,7 +59,8 @@ import java.util.Locale
 @Composable
 fun JournalScreen(
     viewModel: JournalViewModel = viewModel(),
-    onAddNoteClick: () -> Unit = {}
+    onAddNoteClick: () -> Unit = {},
+    onNoteClick: (String) -> Unit = {}
 ) {
     val selectedDate by viewModel.selectedDate.collectAsState()
     val notes by viewModel.notesForSelectedDate.collectAsState()
@@ -124,7 +125,7 @@ fun JournalScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(notes, key = { it.id }) { note ->
-                            JournalNoteCard(note = note)
+                            JournalNoteCard(note = note, onClick = { onNoteClick(note.id) })
                         }
                     }
                 }
@@ -218,8 +219,9 @@ private fun JournalDatePickerDialog(
 }
 
 @Composable
-private fun JournalNoteCard(note: JournalNoteEntity) {
+private fun JournalNoteCard(note: JournalNoteEntity, onClick: () -> Unit) {
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),

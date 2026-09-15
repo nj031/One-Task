@@ -18,4 +18,14 @@ class JournalRepository(private val dao: JournalNoteDao) {
             )
         )
     }
+
+    suspend fun updateNote(note: JournalNoteEntity, title: String, content: String) {
+        dao.update(
+            note.copy(
+                title = title,
+                content = content,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
+    }
 }

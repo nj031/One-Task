@@ -41,4 +41,13 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
             )
         }
     }
+
+    fun getNoteById(id: String?): JournalNoteEntity? =
+        id?.let { targetId -> notesForSelectedDate.value.find { it.id == targetId } }
+
+    fun updateNote(note: JournalNoteEntity, title: String, content: String) {
+        viewModelScope.launch {
+            repository.updateNote(note, title, content)
+        }
+    }
 }
