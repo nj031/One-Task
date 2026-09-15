@@ -9,6 +9,9 @@ class JournalRepository(private val dao: JournalNoteDao) {
     fun observeArchivedNotes(): Flow<List<JournalNoteEntity>> =
         dao.getByStatus(JournalNoteStatus.ARCHIVED)
 
+    fun observeTrashedNotes(): Flow<List<JournalNoteEntity>> =
+        dao.getByStatus(JournalNoteStatus.TRASHED)
+
     suspend fun createNote(title: String, content: String, journalDate: Long) {
         val now = System.currentTimeMillis()
         dao.insert(
@@ -42,5 +45,9 @@ class JournalRepository(private val dao: JournalNoteDao) {
 
     suspend fun restoreNote(note: JournalNoteEntity) {
         dao.update(note.copy(status = JournalNoteStatus.ACTIVE))
+    }
+
+    suspend fun deleteNotePermanently(note: JournalNoteEntity) {
+        dao.delete(note)
     }
 }
