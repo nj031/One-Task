@@ -50,4 +50,10 @@
     <string name="add_note">Add note</string>
     <string name="no_notes_yet">No notes yet. Tap + to add one.</string>
     <string name="date_picker_ok">OK</string>
+
+    <string name="note_editor_title">Note</string>
+    <string name="note_title_placeholder">Title</string>
+    <string name="note_content_placeholder">Write your note…</string>
+    <string name="save">Save</string>
+    <string name="back">Back</string>
 </resources>

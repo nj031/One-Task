@@ -8,6 +8,7 @@ import androidx.navigation.compose.rememberNavController
 import com.nj031.onetask.ui.screens.AuthScreen
 import com.nj031.onetask.ui.screens.HomeScreen
 import com.nj031.onetask.ui.screens.JournalScreen
+import com.nj031.onetask.ui.screens.NoteEditorScreen
 
 @Composable
 fun OneTaskNavHost(navController: NavHostController = rememberNavController()) {
@@ -29,7 +30,12 @@ fun OneTaskNavHost(navController: NavHostController = rememberNavController()) {
             )
         }
         composable(Screen.Journal.route) {
-            JournalScreen()
+            JournalScreen(
+                onAddNoteClick = { navController.navigate(Screen.NoteEditor.route) }
+            )
+        }
+        composable(Screen.NoteEditor.route) {
+            NoteEditorScreen(onDone = { navController.popBackStack() })
         }
     }
 }
