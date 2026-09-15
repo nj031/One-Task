@@ -8,7 +8,7 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 import com.nj031.onetask.R
@@ -53,12 +53,16 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun requestGoogleIdToken(context: Context): String {
         val credentialManager = CredentialManager.create(context)
-        val googleIdOption = GetGoogleIdOption.Builder()
-            .setFilterByAuthorizedAccounts(false)
-            .setServerClientId(context.getString(R.string.default_web_client_id))
+        // GetSignInWithGoogleOption (rather than GetGoogleIdOption) is the API Google's docs
+        // call for when the user explicitly tapped a "Sign in with Google" button: it always
+        // shows the account picker, unlike GetGoogleIdOption's filterByAuthorizedAccounts=true
+        // path, which only offers accounts already authorized for this app and throws
+        // NoCredentialException for a first-time signer with none yet.
+        val signInWithGoogleOption = GetSignInWithGoogleOption
+            .Builder(context.getString(R.string.default_web_client_id))
             .build()
         val request = GetCredentialRequest.Builder()
-            .addCredentialOption(googleIdOption)
+            .addCredentialOption(signInWithGoogleOption)
             .build()
         val result = credentialManager.getCredential(context, request)
         val credential = result.credential
