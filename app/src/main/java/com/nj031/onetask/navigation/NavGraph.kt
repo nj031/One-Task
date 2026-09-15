@@ -12,6 +12,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.nj031.onetask.data.auth.AuthRepository
+import com.nj031.onetask.ui.screens.AddTaskScreen
 import com.nj031.onetask.ui.screens.ArchiveScreen
 import com.nj031.onetask.ui.screens.AuthScreen
 import com.nj031.onetask.ui.screens.FocusTimerScreen
@@ -21,6 +22,7 @@ import com.nj031.onetask.ui.screens.NoteEditorScreen
 import com.nj031.onetask.ui.screens.ProfileScreen
 import com.nj031.onetask.ui.screens.RecycleBinScreen
 import com.nj031.onetask.viewmodel.AuthViewModel
+import com.nj031.onetask.viewmodel.HomeViewModel
 import com.nj031.onetask.viewmodel.JournalViewModel
 
 /**
@@ -42,6 +44,7 @@ fun OneTaskNavHost(
     activeFocusTaskId: String? = null
 ) {
     val journalViewModel: JournalViewModel = viewModel()
+    val homeViewModel: HomeViewModel = viewModel()
     val startDestination = when {
         AuthRepository.currentUser == null -> Screen.Auth.route
         activeFocusTaskId != null -> Screen.FocusTimer.createRoute(activeFocusTaskId)
@@ -71,10 +74,15 @@ fun OneTaskNavHost(
         }
         composable(Screen.Home.route) {
             HomeScreen(
+                viewModel = homeViewModel,
                 onNavigateToJournal = { navController.navigateToBottomNavTab(Screen.Journal.route) },
                 onNavigateToProfile = { navController.navigateToBottomNavTab(Screen.Profile.route) },
                 onOpenFocusTimer = { taskId ->
                     navController.navigate(Screen.FocusTimer.createRoute(taskId))
+                },
+                onAddTaskClick = { navController.navigate(Screen.AddTask.createRoute()) },
+                onEditTaskClick = { taskId ->
+                    navController.navigate(Screen.AddTask.createRoute(taskId))
                 },
                 onLogout = {
                     AuthRepository.signOut()
@@ -82,6 +90,22 @@ fun OneTaskNavHost(
                         popUpTo(0)
                     }
                 }
+            )
+        }
+        composable(
+            route = Screen.AddTask.route,
+            arguments = listOf(
+                navArgument("taskId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) { backStackEntry ->
+            AddTaskScreen(
+                viewModel = homeViewModel,
+                taskId = backStackEntry.arguments?.getString("taskId"),
+                onDone = { navController.popBackStack() }
             )
         }
         composable(

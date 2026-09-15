@@ -14,4 +14,8 @@ sealed class Screen(val route: String) {
     data object FocusTimer : Screen("focus_timer/{taskId}") {
         fun createRoute(taskId: String): String = "focus_timer/$taskId"
     }
+    data object AddTask : Screen("add_task?taskId={taskId}") {
+        fun createRoute(taskId: String? = null): String =
+            if (taskId != null) "add_task?taskId=$taskId" else "add_task"
+    }
 }
