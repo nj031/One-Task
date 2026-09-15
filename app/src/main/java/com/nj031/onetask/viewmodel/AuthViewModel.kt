@@ -40,11 +40,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 syncAfterSignIn()
                 onSignedIn()
             } catch (e: GetCredentialException) {
-                _errorMessage.value = "Google sign-in was cancelled or failed"
+                _errorMessage.value = "Sign-in failed: ${e::class.simpleName}: ${e.message}"
             } catch (e: GoogleIdTokenParsingException) {
-                _errorMessage.value = "Couldn't verify the Google account, please try again"
+                _errorMessage.value = "Couldn't verify the Google account: ${e.message}"
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Sign-in failed, please try again"
+                _errorMessage.value = "Sign-in failed: ${e::class.simpleName}: ${e.message}"
             } finally {
                 _isLoading.value = false
             }
