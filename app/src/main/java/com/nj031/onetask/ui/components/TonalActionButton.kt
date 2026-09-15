@@ -17,6 +17,7 @@ fun TonalActionButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     fontWeight: FontWeight = FontWeight.SemiBold
 ) {
     FilledTonalButton(
@@ -24,6 +25,7 @@ fun TonalActionButton(
         modifier = modifier
             .fillMaxWidth()
             .height(52.dp),
+        enabled = enabled,
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.filledTonalButtonColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
