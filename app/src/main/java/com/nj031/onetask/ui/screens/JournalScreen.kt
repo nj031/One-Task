@@ -1,5 +1,6 @@
 package com.nj031.onetask.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -87,6 +88,19 @@ fun JournalScreen(
     var pendingDeleteNote by remember { mutableStateOf<JournalNoteEntity?>(null) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    // System back priority: drawer > long-press action menu > delete confirmation dialog
+    // > (default) return to the previous screen. Only one of these is ever open at a
+    // time in practice, so registration order among them doesn't matter.
+    BackHandler(enabled = drawerState.isOpen) {
+        scope.launch { drawerState.close() }
+    }
+    BackHandler(enabled = actionMenuNote != null) {
+        actionMenuNote = null
+    }
+    BackHandler(enabled = pendingDeleteNote != null) {
+        pendingDeleteNote = null
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
