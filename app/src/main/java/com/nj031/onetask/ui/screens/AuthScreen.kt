@@ -1,22 +1,21 @@
 package com.nj031.onetask.ui.screens
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,9 +29,9 @@ import com.nj031.onetask.ui.theme.OneTaskTheme
 
 @Composable
 fun AuthScreen(
-    onLogIn: () -> Unit,
-    onContinueWithGoogle: () -> Unit,
-    onCreateAccount: () -> Unit
+    isLoading: Boolean,
+    errorMessage: String?,
+    onSignInWithGoogle: () -> Unit
 ) {
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
         Box(
@@ -75,36 +74,32 @@ fun AuthScreen(
                         modifier = Modifier
                             .padding(top = 32.dp)
                             .fillMaxWidth(),
-                        onClick = onLogIn,
+                        onClick = onSignInWithGoogle,
+                        enabled = !isLoading,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.secondary,
                             contentColor = MaterialTheme.colorScheme.onSecondary
                         )
                     ) {
-                        Text(stringResource(id = R.string.log_in))
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onSecondary
+                            )
+                        } else {
+                            Text(stringResource(id = R.string.sign_in_with_google))
+                        }
                     }
 
-                    TextButton(
-                        modifier = Modifier.padding(top = 16.dp),
-                        onClick = onContinueWithGoogle
-                    ) {
+                    if (errorMessage != null) {
                         Text(
-                            text = stringResource(id = R.string.continue_with_google),
-                            color = MaterialTheme.colorScheme.primary
+                            text = errorMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 12.dp)
                         )
-                    }
-
-                    OutlinedButton(
-                        modifier = Modifier
-                            .padding(top = 16.dp)
-                            .fillMaxWidth(),
-                        onClick = onCreateAccount,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Text(stringResource(id = R.string.create_free_account))
                     }
                 }
             }
@@ -116,7 +111,7 @@ fun AuthScreen(
 @Composable
 private fun AuthScreenLightPreview() {
     OneTaskTheme(darkTheme = false) {
-        AuthScreen(onLogIn = {}, onContinueWithGoogle = {}, onCreateAccount = {})
+        AuthScreen(isLoading = false, errorMessage = null, onSignInWithGoogle = {})
     }
 }
 
@@ -124,6 +119,6 @@ private fun AuthScreenLightPreview() {
 @Composable
 private fun AuthScreenDarkPreview() {
     OneTaskTheme(darkTheme = true) {
-        AuthScreen(onLogIn = {}, onContinueWithGoogle = {}, onCreateAccount = {})
+        AuthScreen(isLoading = false, errorMessage = null, onSignInWithGoogle = {})
     }
 }

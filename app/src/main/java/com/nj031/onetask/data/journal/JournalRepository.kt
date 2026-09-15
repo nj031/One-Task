@@ -1,5 +1,6 @@
 package com.nj031.onetask.data.journal
 
+import com.nj031.onetask.data.sync.CloudBackupRepository
 import kotlinx.coroutines.flow.Flow
 
 class JournalRepository(private val dao: JournalNoteDao) {
@@ -17,40 +18,47 @@ class JournalRepository(private val dao: JournalNoteDao) {
 
     suspend fun createNote(title: String, content: String, journalDate: Long) {
         val now = System.currentTimeMillis()
-        dao.insert(
-            JournalNoteEntity(
-                title = title,
-                content = content,
-                journalDate = journalDate,
-                createdAt = now,
-                updatedAt = now
-            )
+        val note = JournalNoteEntity(
+            title = title,
+            content = content,
+            journalDate = journalDate,
+            createdAt = now,
+            updatedAt = now
         )
+        dao.insert(note)
+        CloudBackupRepository.pushNote(note)
     }
 
     suspend fun updateNote(note: JournalNoteEntity, title: String, content: String) {
-        dao.update(
-            note.copy(
-                title = title,
-                content = content,
-                updatedAt = System.currentTimeMillis()
-            )
+        val updated = note.copy(
+            title = title,
+            content = content,
+            updatedAt = System.currentTimeMillis()
         )
+        dao.update(updated)
+        CloudBackupRepository.pushNote(updated)
     }
 
     suspend fun archiveNote(note: JournalNoteEntity) {
-        dao.update(note.copy(status = JournalNoteStatus.ARCHIVED))
+        val updated = note.copy(status = JournalNoteStatus.ARCHIVED)
+        dao.update(updated)
+        CloudBackupRepository.pushNote(updated)
     }
 
     suspend fun trashNote(note: JournalNoteEntity) {
-        dao.update(note.copy(status = JournalNoteStatus.TRASHED))
+        val updated = note.copy(status = JournalNoteStatus.TRASHED)
+        dao.update(updated)
+        CloudBackupRepository.pushNote(updated)
     }
 
     suspend fun restoreNote(note: JournalNoteEntity) {
-        dao.update(note.copy(status = JournalNoteStatus.ACTIVE))
+        val updated = note.copy(status = JournalNoteStatus.ACTIVE)
+        dao.update(updated)
+        CloudBackupRepository.pushNote(updated)
     }
 
     suspend fun deleteNotePermanently(note: JournalNoteEntity) {
         dao.delete(note)
+        CloudBackupRepository.deleteNote(note.id)
     }
 }
