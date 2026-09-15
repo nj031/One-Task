@@ -61,4 +61,8 @@
     <string name="delete">Delete</string>
     <string name="delete_note_title">Delete this note?</string>
     <string name="delete_note_message">This action can\'t be undone.</string>
+
+    <string name="archive_title">Archive</string>
+    <string name="no_archived_notes">No archived notes.</string>
+    <string name="restore">Restore</string>
 </resources>

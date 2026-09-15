@@ -28,6 +28,10 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
             notes.filter { it.journalDate == date.toEpochDay() }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val archivedNotes: StateFlow<List<JournalNoteEntity>> =
+        repository.observeArchivedNotes()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun selectDate(date: LocalDate) {
         _selectedDate.value = date
     }
@@ -60,6 +64,12 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
     fun trashNote(note: JournalNoteEntity) {
         viewModelScope.launch {
             repository.trashNote(note)
+        }
+    }
+
+    fun restoreNote(note: JournalNoteEntity) {
+        viewModelScope.launch {
+            repository.restoreNote(note)
         }
     }
 }
