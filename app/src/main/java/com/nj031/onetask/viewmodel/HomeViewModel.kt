@@ -10,6 +10,7 @@ import com.nj031.onetask.data.task.TaskRepository
 import com.nj031.onetask.data.task.TaskStatus
 import java.time.LocalDate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -110,5 +111,23 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addCustomTag(name: String) {
         viewModelScope.launch { repository.addCustomTag(name) }
+    }
+
+    fun observeTask(id: String): Flow<TaskEntity?> = repository.observeTaskById(id)
+
+    fun startTimer(task: TaskEntity) {
+        viewModelScope.launch { repository.startTimer(task) }
+    }
+
+    fun pauseTimer(task: TaskEntity) {
+        viewModelScope.launch { repository.pauseTimer(task) }
+    }
+
+    fun resetTimer(task: TaskEntity) {
+        viewModelScope.launch { repository.resetTimer(task) }
+    }
+
+    fun completeTimer(task: TaskEntity) {
+        viewModelScope.launch { repository.completeTimer(task) }
     }
 }

@@ -5,6 +5,8 @@ import kotlinx.coroutines.flow.Flow
 class TaskRepository(private val dao: TaskDao) {
     fun observeTasksByDate(date: Long): Flow<List<TaskEntity>> = dao.getByDate(date)
 
+    fun observeTaskById(id: String): Flow<TaskEntity?> = dao.getById(id)
+
     fun observeCustomTags(): Flow<List<String>> = dao.getCustomTags()
 
     suspend fun createTask(
@@ -66,5 +68,59 @@ class TaskRepository(private val dao: TaskDao) {
 
     suspend fun postponeOverdueTasks(today: Long) {
         dao.postponeOverdueTasks(today, System.currentTimeMillis())
+    }
+
+    /** Starts a fresh timer, or resumes one from its frozen remaining duration. */
+    suspend fun startTimer(task: TaskEntity) {
+        val now = System.currentTimeMillis()
+        val remainingMillis = task.timerRemainingMillis ?: ((task.timerMinutes ?: 0) * MILLIS_PER_MINUTE)
+        dao.update(
+            task.copy(
+                status = TaskStatus.IN_PROGRESS,
+                timerEndAtMillis = now + remainingMillis,
+                timerRemainingMillis = null,
+                updatedAt = now
+            )
+        )
+    }
+
+    suspend fun pauseTimer(task: TaskEntity) {
+        val now = System.currentTimeMillis()
+        val remainingMillis = task.timerEndAtMillis?.let { (it - now).coerceAtLeast(0) }
+            ?: task.timerRemainingMillis
+            ?: 0L
+        dao.update(
+            task.copy(
+                timerEndAtMillis = null,
+                timerRemainingMillis = remainingMillis,
+                updatedAt = now
+            )
+        )
+    }
+
+    suspend fun resetTimer(task: TaskEntity) {
+        val totalMillis = (task.timerMinutes ?: 0) * MILLIS_PER_MINUTE
+        dao.update(
+            task.copy(
+                timerEndAtMillis = null,
+                timerRemainingMillis = totalMillis,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
+    }
+
+    suspend fun completeTimer(task: TaskEntity) {
+        dao.update(
+            task.copy(
+                status = TaskStatus.COMPLETED,
+                timerEndAtMillis = null,
+                timerRemainingMillis = 0L,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
+    }
+
+    private companion object {
+        const val MILLIS_PER_MINUTE = 60_000L
     }
 }

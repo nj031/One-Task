@@ -10,4 +10,7 @@ sealed class Screen(val route: String) {
         fun createRoute(noteId: String? = null): String =
             if (noteId != null) "note_editor?noteId=$noteId" else "note_editor"
     }
+    data object FocusTimer : Screen("focus_timer/{taskId}") {
+        fun createRoute(taskId: String): String = "focus_timer/$taskId"
+    }
 }

@@ -16,6 +16,7 @@
     <string name="tasks_completed">%1$d / %2$d tasks completed</string>
     <string name="no_tasks_yet">No tasks yet. Add one above.</string>
     <string name="status_not_started">Not Started</string>
+    <string name="status_in_progress">In Progress</string>
     <string name="status_completed">Completed</string>
     <string name="timer_minutes_format">%1$d min</string>
     <string name="custom_timer_minutes_hint">Minutes</string>
@@ -80,4 +81,13 @@
 
     <string name="previous_month">Previous month</string>
     <string name="next_month">Next month</string>
+
+    <string name="focus_timer_title">Focus Timer</string>
+    <string name="focus_timer_total_format">Total %1$s</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
+    <string name="reset">Reset</string>
+    <string name="break_label">Break</string>
+    <string name="task_label">TASK</string>
+    <string name="times_up">Time\'s Up!</string>
 </resources>

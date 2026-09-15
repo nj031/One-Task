@@ -10,6 +10,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.nj031.onetask.ui.screens.ArchiveScreen
 import com.nj031.onetask.ui.screens.AuthScreen
+import com.nj031.onetask.ui.screens.FocusTimerScreen
 import com.nj031.onetask.ui.screens.HomeScreen
 import com.nj031.onetask.ui.screens.JournalScreen
 import com.nj031.onetask.ui.screens.NoteEditorScreen
@@ -34,6 +35,18 @@ fun OneTaskNavHost(navController: NavHostController = rememberNavController()) {
         }
         composable(Screen.Home.route) {
             HomeScreen(
+                onNavigateToJournal = { navController.navigate(Screen.Journal.route) },
+                onOpenFocusTimer = { taskId ->
+                    navController.navigate(Screen.FocusTimer.createRoute(taskId))
+                }
+            )
+        }
+        composable(
+            route = Screen.FocusTimer.route,
+            arguments = listOf(navArgument("taskId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            FocusTimerScreen(
+                taskId = backStackEntry.arguments?.getString("taskId").orEmpty(),
                 onNavigateToJournal = { navController.navigate(Screen.Journal.route) }
             )
         }
