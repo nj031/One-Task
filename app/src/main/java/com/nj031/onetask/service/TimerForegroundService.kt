@@ -78,7 +78,7 @@ class TimerForegroundService : Service() {
                 // reached zero, or the UI's tick loop got there first while this row was still
                 // being observed - so it's the single reliable place to fire the one-shot
                 // "session complete" notification, however the app was being used at the time.
-                if (isJustCompleted(task)) {
+                if (task != null && isJustCompleted(task)) {
                     postCompletionNotification(task)
                 }
                 if (task == null || task.status != TaskStatus.IN_PROGRESS || task.timerEndAtMillis == null) {
@@ -96,9 +96,8 @@ class TimerForegroundService : Service() {
      * manual mark-done (status flips to COMPLETED), which share some of the same null/zero
      * fields but aren't a "just finished" event worth alerting about.
      */
-    private fun isJustCompleted(task: TaskEntity?): Boolean =
-        task != null &&
-            task.timerMinutes != null &&
+    private fun isJustCompleted(task: TaskEntity): Boolean =
+        task.timerMinutes != null &&
             task.timerEndAtMillis == null &&
             task.timerRemainingMillis == 0L &&
             task.status == TaskStatus.IN_PROGRESS
