@@ -90,7 +90,25 @@ fun OneTaskNavHost(
         ) { backStackEntry ->
             FocusTimerScreen(
                 taskId = backStackEntry.arguments?.getString("taskId").orEmpty(),
-                onBackToHome = { navController.popBackStack() }
+                onBackToHome = {
+                    // A plain popBackStack() only works when Home is actually sitting somewhere
+                    // below Focus Mode in the back stack - true for the normal Homepage-opened-
+                    // Focus-Mode flow, but NOT when Focus Mode was restored as the app's cold
+                    // start destination (an active session surviving a killed process): there,
+                    // Focus Mode IS the graph's root entry, so there's nothing beneath it to pop
+                    // to and popBackStack() would silently do nothing, leaving the user stuck on
+                    // a screen (Break/Leave Focus) that's supposed to have just closed. Try the
+                    // normal pop first - it preserves the existing Home instance's state - and
+                    // only fall back to a fresh, fully-reset navigation to Home if there was
+                    // nothing to pop to.
+                    val poppedToHome = navController.popBackStack(Screen.Home.route, false)
+                    if (!poppedToHome) {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(0) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
             )
         }
         composable(Screen.Journal.route) {

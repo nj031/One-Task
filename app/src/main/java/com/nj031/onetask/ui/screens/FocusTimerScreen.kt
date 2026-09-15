@@ -117,11 +117,18 @@ fun FocusTimerScreen(
         }
     }
 
-    // A fresh task (never opened before) enters In Progress and starts counting
-    // down the moment this screen is shown.
+    // A task that has NEVER been started enters In Progress and starts counting down the
+    // moment this screen is shown - but only that exact case. A task that was explicitly
+    // Reset is ALSO Not Started (Reset restores the full duration and sets status back to Not
+    // Started so the user must explicitly press Start again), and the two are otherwise
+    // indistinguishable from status alone: timerRemainingMillis is the deciding field - it's
+    // null only for a task that has truly never been touched, since Reset always writes the
+    // full configured duration into it. Without this check, a Reset would immediately (and
+    // silently) restart the very timer it just stopped, since status flips back to Not Started
+    // as part of the reset itself.
     LaunchedEffect(task?.id, task?.status) {
         val current = task
-        if (current != null && current.status == TaskStatus.NOT_STARTED) {
+        if (current != null && current.status == TaskStatus.NOT_STARTED && current.timerRemainingMillis == null) {
             viewModel.startTimer(current)
         }
     }
@@ -193,6 +200,7 @@ fun FocusTimerScreen(
                         FocusTimerCard(
                             task = currentTask,
                             nowMillis = nowMillis,
+                            isSessionComplete = isSessionComplete,
                             showCompletionPrompt = isSessionComplete && hasIncompleteSubtasks && !completionAcknowledged,
                             onPauseOrResume = {
                                 if (currentTask.timerEndAtMillis != null) {
@@ -254,6 +262,7 @@ private fun FocusTimerTopBar() {
 private fun FocusTimerCard(
     task: TaskEntity,
     nowMillis: Long,
+    isSessionComplete: Boolean,
     showCompletionPrompt: Boolean,
     onPauseOrResume: () -> Unit,
     onReset: () -> Unit,
@@ -336,18 +345,28 @@ private fun FocusTimerCard(
                     modifier = Modifier.padding(top = 28.dp)
                 )
             } else {
+                // Once a session has naturally run out (isSessionComplete), there is no
+                // countdown left to pause or resume - remainingMillis is pinned at 0 - so
+                // Pause/Resume is dropped entirely rather than offering a "Resume" that would
+                // start a zero-length timer and immediately re-trigger completion. This covers
+                // both while the completion prompt would normally show (all subtasks already
+                // done, so it's skipped) and after the user has dismissed it via Continue Task.
+                // Reset (to genuinely start over) and Break (to just step away) both still make
+                // sense here and stay available.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 28.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    FilledTonalButton(
-                        onClick = onPauseOrResume,
-                        enabled = !isCompleted,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(text = stringResource(id = primaryButtonLabelRes))
+                    if (!isSessionComplete) {
+                        FilledTonalButton(
+                            onClick = onPauseOrResume,
+                            enabled = !isCompleted,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(text = stringResource(id = primaryButtonLabelRes))
+                        }
                     }
                     FilledTonalButton(
                         onClick = onReset,
