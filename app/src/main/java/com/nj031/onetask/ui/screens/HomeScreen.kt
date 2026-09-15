@@ -20,10 +20,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -52,6 +50,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -65,6 +65,8 @@ import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.ui.components.OneTaskCalendarSheet
+import com.nj031.onetask.ui.theme.OneTaskCalendarIcon
+import com.nj031.onetask.ui.theme.OneTaskHamburgerIcon
 import com.nj031.onetask.ui.theme.OneTaskTheme
 import com.nj031.onetask.viewmodel.HomeViewModel
 import java.time.LocalDate
@@ -131,9 +133,16 @@ fun HomeScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 12.dp)
                 ) {
-                    TaskListTopBar(
+                    HomeTopBar(
                         onMenuClick = { scope.launch { drawerState.open() } },
                         onCalendarClick = { showDatePicker = true }
+                    )
+
+                    DateNavigationRow(
+                        selectedDate = selectedDate,
+                        onPreviousDay = viewModel::goToPreviousDay,
+                        onNextDay = viewModel::goToNextDay,
+                        modifier = Modifier.padding(top = 24.dp)
                     )
 
                     FilledTonalButton(
@@ -153,13 +162,6 @@ fun HomeScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
-
-                    DateNavigationRow(
-                        selectedDate = selectedDate,
-                        onPreviousDay = viewModel::goToPreviousDay,
-                        onNextDay = viewModel::goToNextDay,
-                        modifier = Modifier.padding(top = 28.dp)
-                    )
 
                     val completedCount = tasks.count { it.status == TaskStatus.COMPLETED }
                     Text(
@@ -287,36 +289,48 @@ private fun SectionHeader(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TaskListTopBar(onMenuClick: () -> Unit, onCalendarClick: () -> Unit) {
+private fun HomeTopBar(onMenuClick: () -> Unit, onCalendarClick: () -> Unit) {
+    val menuDescription = stringResource(id = R.string.menu)
+    val calendarDescription = stringResource(id = R.string.calendar)
+
     Box(modifier = Modifier.fillMaxWidth()) {
         IconButton(
             onClick = onMenuClick,
-            modifier = Modifier.align(Alignment.CenterStart)
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .semantics { contentDescription = menuDescription }
         ) {
-            Icon(
-                imageVector = Icons.Filled.Menu,
-                contentDescription = stringResource(id = R.string.menu),
-                tint = HomePrimaryBlue
+            OneTaskHamburgerIcon(tint = HomePrimaryBlue)
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = stringResource(id = R.string.home_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = HomePrimaryBlue,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = stringResource(id = R.string.home_tagline),
+                style = MaterialTheme.typography.bodySmall,
+                color = HomeSecondaryText,
+                textAlign = TextAlign.Center
             )
         }
 
-        Text(
-            text = stringResource(id = R.string.task_list_title),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = HomePrimaryBlue,
-            modifier = Modifier.align(Alignment.Center)
-        )
-
         IconButton(
             onClick = onCalendarClick,
-            modifier = Modifier.align(Alignment.CenterEnd)
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .semantics { contentDescription = calendarDescription }
         ) {
-            Icon(
-                imageVector = Icons.Filled.DateRange,
-                contentDescription = stringResource(id = R.string.calendar),
-                tint = HomePrimaryBlue
-            )
+            OneTaskCalendarIcon(tint = HomePrimaryBlue)
         }
     }
 }

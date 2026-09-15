@@ -3,7 +3,8 @@
     <string name="auth_subtitle">Sign in to keep your tasks safe</string>
     <string name="sign_in_with_google">Sign in with Google</string>
 
-    <string name="task_list_title">Task List</string>
+    <string name="home_title">One Task at a Time</string>
+    <string name="home_tagline">Less clutter. More life.</string>
     <string name="menu">Menu</string>
     <string name="calendar">Calendar</string>
     <string name="add_task">+ Add Task</string>
