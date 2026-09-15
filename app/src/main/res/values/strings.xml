@@ -92,4 +92,7 @@
     <string name="break_label">Break</string>
     <string name="task_label">TASK</string>
     <string name="times_up">Time\'s Up!</string>
+    <string name="break_confirm_title">Are you sure you want to take a break?</string>
+    <string name="break_confirm_message">Your timer will be paused and you\'ll return to your task list.</string>
+    <string name="take_a_break">Take a Break</string>
 </resources>

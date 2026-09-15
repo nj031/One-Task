@@ -1,5 +1,6 @@
 package com.nj031.onetask.ui.screens
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,35 +15,46 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.viewmodel.HomeViewModel
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -53,12 +65,14 @@ private const val TICK_INTERVAL_MILLIS = 250L
 fun FocusTimerScreen(
     viewModel: HomeViewModel = viewModel(),
     taskId: String,
-    onNavigateToJournal: () -> Unit = {}
+    onNavigateToJournal: () -> Unit = {},
+    onBackToHome: () -> Unit = {}
 ) {
     val task by remember(taskId) { viewModel.observeTask(taskId) }
         .collectAsState(initial = null)
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    var showBreakConfirm by remember { mutableStateOf(false) }
 
     // A fresh task (never opened before) enters In Progress and starts counting
     // down the moment this screen is shown.
@@ -129,10 +143,23 @@ fun FocusTimerScreen(
                                 }
                             },
                             onReset = { viewModel.resetTimer(currentTask) },
+                            onBreak = { showBreakConfirm = true },
                             modifier = Modifier.padding(top = 20.dp)
                         )
                     }
                 }
+            }
+
+            val currentTask = task
+            if (showBreakConfirm && currentTask != null) {
+                BreakConfirmationSheet(
+                    onTakeBreak = {
+                        viewModel.pauseTimer(currentTask)
+                        showBreakConfirm = false
+                        onBackToHome()
+                    },
+                    onCancel = { showBreakConfirm = false }
+                )
             }
         }
     }
@@ -168,6 +195,7 @@ private fun FocusTimerCard(
     nowMillis: Long,
     onPauseOrResume: () -> Unit,
     onReset: () -> Unit,
+    onBreak: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val totalMillis = (task.timerMinutes ?: 0) * MILLIS_PER_MINUTE
@@ -196,24 +224,11 @@ private fun FocusTimerCard(
                 .padding(horizontal = 24.dp, vertical = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(
-                modifier = Modifier.size(220.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.fillMaxSize(),
-                    strokeWidth = 14.dp,
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-                Text(
-                    text = formatHms(remainingMillis),
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            }
+            FocusTimerRing(
+                progress = progress,
+                remainingLabel = formatHms(remainingMillis),
+                modifier = Modifier.size(220.dp)
+            )
 
             Text(
                 text = stringResource(id = R.string.focus_timer_total_format, formatHms(totalMillis)),
@@ -256,7 +271,8 @@ private fun FocusTimerCard(
                     Text(stringResource(id = R.string.reset))
                 }
                 FilledTonalButton(
-                    onClick = { /* no-op: no Break system exists elsewhere in the app yet */ },
+                    onClick = onBreak,
+                    enabled = !isCompleted,
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(stringResource(id = R.string.break_label))
@@ -276,6 +292,125 @@ private fun FocusTimerCard(
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(top = 4.dp)
             )
+        }
+    }
+}
+
+/**
+ * A circular timer ring whose blue progress arc sweeps anti-clockwise from the top as time
+ * elapses, with a dot drawn exactly at the arc's endpoint so the two never fall out of sync.
+ */
+@Composable
+private fun FocusTimerRing(
+    progress: Float,
+    remainingLabel: String,
+    modifier: Modifier = Modifier
+) {
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant
+    val progressColor = MaterialTheme.colorScheme.primary
+
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val strokeWidthPx = 14.dp.toPx()
+            val diameter = size.minDimension - strokeWidthPx
+            val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
+            val arcSize = Size(diameter, diameter)
+
+            drawArc(
+                color = trackColor,
+                startAngle = 0f,
+                sweepAngle = 360f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
+            )
+
+            val clampedProgress = progress.coerceIn(0f, 1f)
+            val sweepAngle = -360f * clampedProgress
+            drawArc(
+                color = progressColor,
+                startAngle = -90f,
+                sweepAngle = sweepAngle,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
+            )
+
+            if (clampedProgress > 0.001f) {
+                val endAngleRadians = Math.toRadians((-90f + sweepAngle).toDouble())
+                val radius = diameter / 2f
+                val center = Offset(size.width / 2f, size.height / 2f)
+                val dotCenter = Offset(
+                    x = center.x + radius * cos(endAngleRadians).toFloat(),
+                    y = center.y + radius * sin(endAngleRadians).toFloat()
+                )
+                drawCircle(
+                    color = progressColor,
+                    radius = strokeWidthPx * 0.85f,
+                    center = dotCenter
+                )
+            }
+        }
+        Text(
+            text = remainingLabel,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+    }
+}
+
+@Composable
+private fun BreakConfirmationSheet(
+    onTakeBreak: () -> Unit,
+    onCancel: () -> Unit,
+    sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+) {
+    ModalBottomSheet(
+        onDismissRequest = onCancel,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = stringResource(id = R.string.break_confirm_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = stringResource(id = R.string.break_confirm_message),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 12.dp)
+            )
+            FilledTonalButton(
+                onClick = onTakeBreak,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 24.dp)
+            ) {
+                Text(stringResource(id = R.string.take_a_break))
+            }
+            TextButton(
+                onClick = onCancel,
+                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+            ) {
+                Text(
+                    text = stringResource(id = R.string.cancel),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
