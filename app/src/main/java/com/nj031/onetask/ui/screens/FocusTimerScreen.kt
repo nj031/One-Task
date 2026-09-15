@@ -274,6 +274,15 @@ private fun FocusTimerCard(
     }
     val isRunning = task.timerEndAtMillis != null
     val isCompleted = task.status == TaskStatus.COMPLETED
+    // "Resume" only makes sense once there's actually a paused, partway-through session to
+    // resume (i.e. the task is still In Progress). Right after Reset the task is back to Not
+    // Started at the full duration, so the same button must read "Start" instead - otherwise it
+    // wrongly implies a stopped-but-in-progress timer that Reset just cleared.
+    val primaryButtonLabelRes = when {
+        isRunning -> R.string.pause
+        task.status == TaskStatus.NOT_STARTED -> R.string.task_action_start
+        else -> R.string.resume
+    }
     // Elapsed fraction of the configured duration: 0% the moment a timer is fresh/reset, 100%
     // once it has fully run out. The ring, its progress arc and the moving dot all derive from
     // this single value, so they can never disagree with one another.
@@ -338,11 +347,7 @@ private fun FocusTimerCard(
                         enabled = !isCompleted,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(
-                            text = stringResource(
-                                id = if (isRunning) R.string.pause else R.string.resume
-                            )
-                        )
+                        Text(text = stringResource(id = primaryButtonLabelRes))
                     }
                     FilledTonalButton(
                         onClick = onReset,
