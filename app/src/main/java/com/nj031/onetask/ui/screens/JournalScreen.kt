@@ -394,7 +394,7 @@ private fun Long.toLocalDate(): LocalDate =
 private fun Long.toDisplayTime(): String =
     Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault()).format(noteTimeFormatter)
 
-private fun String.toPreviewText(): String {
+internal fun String.toPreviewText(): String {
     val collapsed = lineSequence()
         .map { it.trim() }
         .filter { it.isNotEmpty() }

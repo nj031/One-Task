@@ -8,6 +8,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.nj031.onetask.ui.screens.ArchiveScreen
 import com.nj031.onetask.ui.screens.AuthScreen
 import com.nj031.onetask.ui.screens.HomeScreen
 import com.nj031.onetask.ui.screens.JournalScreen
@@ -42,6 +43,12 @@ fun OneTaskNavHost(navController: NavHostController = rememberNavController()) {
                 onNoteClick = { noteId ->
                     navController.navigate(Screen.NoteEditor.createRoute(noteId))
                 }
+            )
+        }
+        composable(Screen.Archive.route) {
+            ArchiveScreen(
+                viewModel = journalViewModel,
+                onBackClick = { navController.popBackStack() }
             )
         }
         composable(
