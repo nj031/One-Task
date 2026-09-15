@@ -158,10 +158,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.resetTimer(task) }
     }
 
-    fun completeTimer(task: TaskEntity) {
-        viewModelScope.launch { repository.completeTimer(task) }
-    }
-
     fun finishTimer(task: TaskEntity) {
         viewModelScope.launch { repository.finishTimer(task) }
     }

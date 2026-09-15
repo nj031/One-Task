@@ -100,6 +100,7 @@ fun HomeScreen(
     var showAddTaskSheet by remember { mutableStateOf(false) }
     var editingTask by remember { mutableStateOf<TaskEntity?>(null) }
     var actionMenuTask by remember { mutableStateOf<TaskEntity?>(null) }
+    var deleteConfirmTask by remember { mutableStateOf<TaskEntity?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -262,10 +263,27 @@ fun HomeScreen(
                 actionMenuTask = null
             },
             onDeleteClick = {
-                viewModel.deleteTask(task)
                 actionMenuTask = null
+                // A task with a currently-running timer gets an extra confirmation step, since
+                // deleting it also silently ends the active focus session - everything else
+                // deletes immediately, matching existing behavior.
+                if (task.timerEndAtMillis != null) {
+                    deleteConfirmTask = task
+                } else {
+                    viewModel.deleteTask(task)
+                }
             },
             onDismiss = { actionMenuTask = null }
+        )
+    }
+
+    deleteConfirmTask?.let { task ->
+        DeleteRunningTimerConfirmationSheet(
+            onDelete = {
+                viewModel.deleteTask(task)
+                deleteConfirmTask = null
+            },
+            onCancel = { deleteConfirmTask = null }
         )
     }
 }
@@ -669,6 +687,73 @@ private fun TaskActionSheet(
             ) {
                 Text(
                     stringResource(id = R.string.cancel),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = HomeSecondaryText
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DeleteRunningTimerConfirmationSheet(
+    onDelete: () -> Unit,
+    onCancel: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
+    fun dismissThen(action: () -> Unit) {
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            if (!sheetState.isVisible) action()
+        }
+    }
+
+    CompactBottomSheet(
+        onDismissRequest = onCancel,
+        sheetState = sheetState,
+        containerColor = HomeCardWhite
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = stringResource(id = R.string.delete_task_confirm_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = HomePrimaryBlue,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = stringResource(id = R.string.delete_task_confirm_message),
+                style = MaterialTheme.typography.bodySmall,
+                color = HomeSecondaryText,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 10.dp)
+            )
+            FilledTonalButton(
+                onClick = { dismissThen(onDelete) },
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                ),
+                modifier = Modifier
+                    .padding(top = 18.dp)
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Text(stringResource(id = R.string.delete), style = MaterialTheme.typography.bodyMedium)
+            }
+            TextButton(
+                onClick = { dismissThen(onCancel) },
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                Text(
+                    text = stringResource(id = R.string.cancel),
                     style = MaterialTheme.typography.bodySmall,
                     color = HomeSecondaryText
                 )

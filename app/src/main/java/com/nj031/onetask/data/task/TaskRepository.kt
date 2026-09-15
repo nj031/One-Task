@@ -49,12 +49,15 @@ class TaskRepository(private val dao: TaskDao) {
         val newTotalMillis = (timerMinutes ?: 0) * MILLIS_PER_MINUTE
 
         // Editing the configured timer duration must never leave stale runtime state that
-        // still targets the OLD duration. Remaining time is preserved as-is when it still
-        // fits inside the new duration (e.g. 24:32 remaining carries over into a 60-minute
-        // timer unchanged), but is clamped down to the new duration when it doesn't (e.g.
-        // ~45 minutes remaining on a still-running 45-minute timer can't remain "45 minutes
-        // remaining" once the timer is edited down to 25 minutes). A never-started timer has
-        // no runtime state to adjust.
+        // still targets the OLD duration, and must never silently keep a timer counting down
+        // against a duration the user hasn't confirmed running against. Remaining time is
+        // preserved as-is when it still fits inside the new duration, but is clamped down to
+        // the new duration when it doesn't (e.g. ~45 minutes remaining on a still-running
+        // 45-minute timer can't remain "45 minutes remaining" once the timer is edited down to
+        // 25 minutes). Editing a currently-RUNNING timer's duration also stops (pauses) it, so
+        // the edit always lands on a stable, reviewable state rather than one still ticking
+        // down against numbers the user just changed. A never-started timer has no runtime
+        // state to adjust.
         val newTimerEndAtMillis: Long?
         val newTimerRemainingMillis: Long?
         when {
@@ -65,8 +68,8 @@ class TaskRepository(private val dao: TaskDao) {
             task.timerEndAtMillis != null -> {
                 val currentRemainingMillis = (task.timerEndAtMillis - now).coerceAtLeast(0)
                 val clampedRemainingMillis = currentRemainingMillis.coerceAtMost(newTotalMillis)
-                newTimerEndAtMillis = now + clampedRemainingMillis
-                newTimerRemainingMillis = null
+                newTimerEndAtMillis = null
+                newTimerRemainingMillis = clampedRemainingMillis
             }
             task.timerRemainingMillis != null -> {
                 newTimerEndAtMillis = null
@@ -166,17 +169,6 @@ class TaskRepository(private val dao: TaskDao) {
             status = TaskStatus.NOT_STARTED,
             timerEndAtMillis = null,
             timerRemainingMillis = totalMillis,
-            updatedAt = System.currentTimeMillis()
-        )
-        dao.update(updated)
-        CloudBackupRepository.pushTask(updated)
-    }
-
-    suspend fun completeTimer(task: TaskEntity) {
-        val updated = task.copy(
-            status = TaskStatus.COMPLETED,
-            timerEndAtMillis = null,
-            timerRemainingMillis = 0L,
             updatedAt = System.currentTimeMillis()
         )
         dao.update(updated)
