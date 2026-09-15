@@ -31,10 +31,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
+import com.nj031.onetask.viewmodel.JournalViewModel
 
 @Composable
-fun NoteEditorScreen(onDone: () -> Unit) {
+fun NoteEditorScreen(
+    viewModel: JournalViewModel = viewModel(),
+    onDone: () -> Unit
+) {
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
 
@@ -52,7 +57,13 @@ fun NoteEditorScreen(onDone: () -> Unit) {
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
-                NoteEditorTopBar(onBackClick = onDone, onSaveClick = onDone)
+                NoteEditorTopBar(
+                    onBackClick = onDone,
+                    onSaveClick = {
+                        viewModel.createNote(title = title, content = content)
+                        onDone()
+                    }
+                )
 
                 TextField(
                     value = title,

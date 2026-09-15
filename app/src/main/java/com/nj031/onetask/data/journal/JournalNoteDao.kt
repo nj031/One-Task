@@ -24,4 +24,7 @@ interface JournalNoteDao {
 
     @Query("SELECT * FROM journal_notes")
     fun getAll(): Flow<List<JournalNoteEntity>>
+
+    @Query("SELECT * FROM journal_notes WHERE status = :status")
+    fun getByStatus(status: JournalNoteStatus): Flow<List<JournalNoteEntity>>
 }

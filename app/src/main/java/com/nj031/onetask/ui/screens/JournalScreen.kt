@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,7 +35,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
+import com.nj031.onetask.viewmodel.JournalViewModel
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -42,8 +45,12 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
-fun JournalScreen(onAddNoteClick: () -> Unit = {}) {
-    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+fun JournalScreen(
+    viewModel: JournalViewModel = viewModel(),
+    onAddNoteClick: () -> Unit = {}
+) {
+    val selectedDate by viewModel.selectedDate.collectAsState()
+    val notes by viewModel.notesForSelectedDate.collectAsState()
     var showDatePicker by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -87,7 +94,11 @@ fun JournalScreen(onAddNoteClick: () -> Unit = {}) {
                 )
 
                 Text(
-                    text = stringResource(id = R.string.no_notes_yet),
+                    text = if (notes.isEmpty()) {
+                        stringResource(id = R.string.no_notes_yet)
+                    } else {
+                        stringResource(id = R.string.notes_saved_count, notes.size)
+                    },
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -102,7 +113,7 @@ fun JournalScreen(onAddNoteClick: () -> Unit = {}) {
     if (showDatePicker) {
         JournalDatePickerDialog(
             initialDate = selectedDate,
-            onDateSelected = { selectedDate = it },
+            onDateSelected = { viewModel.selectDate(it) },
             onDismiss = { showDatePicker = false }
         )
     }
