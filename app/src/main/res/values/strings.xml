@@ -10,10 +10,16 @@
     <string name="calendar">Calendar</string>
     <string name="add_task">+ Add Task</string>
     <string name="today">Today</string>
+    <string name="yesterday">Yesterday</string>
     <string name="previous_day">Previous day</string>
     <string name="next_day">Next day</string>
     <string name="tasks_completed">%1$d / %2$d tasks completed</string>
     <string name="no_tasks_yet">No tasks yet. Add one above.</string>
+    <string name="status_not_started">Not Started</string>
+    <string name="status_completed">Completed</string>
+    <string name="timer_minutes_format">%1$d min</string>
+    <string name="custom_timer_minutes_hint">Minutes</string>
+    <string name="remove">Remove</string>
 
     <string name="add_task_title">Add Task</string>
     <string name="task_name_label">Task name</string>
