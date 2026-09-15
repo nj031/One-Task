@@ -44,6 +44,39 @@ class TaskRepository(private val dao: TaskDao) {
         tag: String?,
         postponeIfIncomplete: Boolean
     ) {
+        val now = System.currentTimeMillis()
+        val newTotalMillis = (timerMinutes ?: 0) * MILLIS_PER_MINUTE
+
+        // Editing the configured timer duration must never leave stale runtime state that
+        // still targets the OLD duration. Remaining time is preserved as-is when it still
+        // fits inside the new duration (e.g. 24:32 remaining carries over into a 60-minute
+        // timer unchanged), but is clamped down to the new duration when it doesn't (e.g.
+        // ~45 minutes remaining on a still-running 45-minute timer can't remain "45 minutes
+        // remaining" once the timer is edited down to 25 minutes). A never-started timer has
+        // no runtime state to adjust.
+        val newTimerEndAtMillis: Long?
+        val newTimerRemainingMillis: Long?
+        when {
+            timerMinutes == null -> {
+                newTimerEndAtMillis = null
+                newTimerRemainingMillis = null
+            }
+            task.timerEndAtMillis != null -> {
+                val currentRemainingMillis = (task.timerEndAtMillis - now).coerceAtLeast(0)
+                val clampedRemainingMillis = currentRemainingMillis.coerceAtMost(newTotalMillis)
+                newTimerEndAtMillis = now + clampedRemainingMillis
+                newTimerRemainingMillis = null
+            }
+            task.timerRemainingMillis != null -> {
+                newTimerEndAtMillis = null
+                newTimerRemainingMillis = task.timerRemainingMillis.coerceAtMost(newTotalMillis)
+            }
+            else -> {
+                newTimerEndAtMillis = null
+                newTimerRemainingMillis = null
+            }
+        }
+
         dao.update(
             task.copy(
                 name = name,
@@ -53,7 +86,9 @@ class TaskRepository(private val dao: TaskDao) {
                 repeat = repeat,
                 tag = tag,
                 postponeIfIncomplete = postponeIfIncomplete,
-                updatedAt = System.currentTimeMillis()
+                timerEndAtMillis = newTimerEndAtMillis,
+                timerRemainingMillis = newTimerRemainingMillis,
+                updatedAt = now
             )
         )
     }

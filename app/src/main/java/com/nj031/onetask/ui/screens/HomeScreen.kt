@@ -1,10 +1,8 @@
 package com.nj031.onetask.ui.screens
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -198,14 +196,7 @@ fun HomeScreen(
                                     TaskCard(
                                         task = task,
                                         onToggleStatus = { viewModel.toggleTaskStatus(task) },
-                                        onClick = {
-                                            if (task.timerMinutes != null) {
-                                                onOpenFocusTimer(task.id)
-                                            } else {
-                                                editingTask = task
-                                            }
-                                        },
-                                        onLongClick = { actionMenuTask = task },
+                                        onClick = { actionMenuTask = task },
                                         onToggleSubtask = { subtaskId -> viewModel.toggleSubtask(task, subtaskId) }
                                     )
                                 }
@@ -221,14 +212,7 @@ fun HomeScreen(
                                     TaskCard(
                                         task = task,
                                         onToggleStatus = { viewModel.toggleTaskStatus(task) },
-                                        onClick = {
-                                            if (task.timerMinutes != null) {
-                                                onOpenFocusTimer(task.id)
-                                            } else {
-                                                editingTask = task
-                                            }
-                                        },
-                                        onLongClick = { actionMenuTask = task },
+                                        onClick = { actionMenuTask = task },
                                         onToggleSubtask = { subtaskId -> viewModel.toggleSubtask(task, subtaskId) }
                                     )
                                 }
@@ -389,13 +373,11 @@ private fun DateNavigationRow(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TaskCard(
     task: TaskEntity,
     onToggleStatus: () -> Unit,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
     onToggleSubtask: (String) -> Unit
 ) {
     var subtasksExpanded by remember(task.id) { mutableStateOf(false) }
@@ -403,9 +385,8 @@ private fun TaskCard(
     val subtasksInteractive = task.timerMinutes == null
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = HomeCardWhite),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
