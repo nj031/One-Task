@@ -7,6 +7,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.nj031.onetask.ui.screens.AuthScreen
 import com.nj031.onetask.ui.screens.HomeScreen
+import com.nj031.onetask.ui.screens.JournalScreen
 
 @Composable
 fun OneTaskNavHost(navController: NavHostController = rememberNavController()) {
@@ -23,7 +24,12 @@ fun OneTaskNavHost(navController: NavHostController = rememberNavController()) {
             )
         }
         composable(Screen.Home.route) {
-            HomeScreen()
+            HomeScreen(
+                onNavigateToJournal = { navController.navigate(Screen.Journal.route) }
+            )
+        }
+        composable(Screen.Journal.route) {
+            JournalScreen()
         }
     }
 }
