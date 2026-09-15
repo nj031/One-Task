@@ -76,7 +76,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
-    onNavigateToJournal: () -> Unit = {}
+    onNavigateToJournal: () -> Unit = {},
+    onOpenFocusTimer: (String) -> Unit = {}
 ) {
     var showAddTaskSheet by remember { mutableStateOf(false) }
     var editingTask by remember { mutableStateOf<TaskEntity?>(null) }
@@ -180,7 +181,13 @@ fun HomeScreen(
                                 TaskCard(
                                     task = task,
                                     onToggleStatus = { viewModel.toggleTaskStatus(task) },
-                                    onClick = { editingTask = task }
+                                    onClick = {
+                                        if (task.timerMinutes != null) {
+                                            onOpenFocusTimer(task.id)
+                                        } else {
+                                            editingTask = task
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -378,7 +385,11 @@ private fun TaskCard(
             ) {
                 Text(
                     text = stringResource(
-                        id = if (isCompleted) R.string.status_completed else R.string.status_not_started
+                        id = when (task.status) {
+                            TaskStatus.NOT_STARTED -> R.string.status_not_started
+                            TaskStatus.IN_PROGRESS -> R.string.status_in_progress
+                            TaskStatus.COMPLETED -> R.string.status_completed
+                        }
                     ),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
