@@ -49,7 +49,10 @@ import java.util.Locale
 import kotlinx.coroutines.launch
 
 @Composable
-fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
+fun HomeScreen(
+    viewModel: HomeViewModel = viewModel(),
+    onNavigateToJournal: () -> Unit = {}
+) {
     var showAddTaskSheet by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -60,7 +63,10 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.6f)) {
                 AppDrawerContent(
                     userEmail = stringResource(id = R.string.sample_user_email),
-                    onJournalingClick = { /* no-op: journaling not implemented yet */ },
+                    onJournalingClick = {
+                        scope.launch { drawerState.close() }
+                        onNavigateToJournal()
+                    },
                     onSettingsClick = { /* no-op: settings not implemented yet */ },
                     onLogoutClick = { /* no-op: logout not implemented yet */ }
                 )
