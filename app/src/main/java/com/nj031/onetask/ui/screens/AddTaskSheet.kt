@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
+import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskRepeat
 import com.nj031.onetask.ui.components.TonalActionButton
@@ -130,7 +131,7 @@ private fun AddTaskSheetContent(
     onAddCustomTag: (String) -> Unit,
     onSave: (
         name: String,
-        subtasks: List<String>,
+        subtasks: List<Subtask>,
         timerMinutes: Int?,
         date: LocalDate,
         repeat: TaskRepeat,
@@ -142,7 +143,7 @@ private fun AddTaskSheetContent(
 
     var taskName by remember { mutableStateOf(existingTask?.name.orEmpty()) }
     val subtasks = remember {
-        mutableStateListOf<String>().apply { addAll(existingTask?.subtasks ?: emptyList()) }
+        mutableStateListOf<Subtask>().apply { addAll(existingTask?.subtasks ?: emptyList()) }
     }
     var timerMinutes by remember { mutableStateOf(existingTask?.timerMinutes) }
     var selectedTaskDate by remember {
@@ -194,7 +195,7 @@ private fun AddTaskSheetContent(
         )
 
         SectionLabel(text = stringResource(id = R.string.subtasks_label), topPadding = 20.dp)
-        subtasks.forEachIndexed { index, value ->
+        subtasks.forEachIndexed { index, subtask ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -202,8 +203,8 @@ private fun AddTaskSheetContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextField(
-                    value = value,
-                    onValueChange = { subtasks[index] = it },
+                    value = subtask.name,
+                    onValueChange = { subtasks[index] = subtask.copy(name = it) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
@@ -228,7 +229,7 @@ private fun AddTaskSheetContent(
         }
         TonalActionButton(
             text = stringResource(id = R.string.add_subtask),
-            onClick = { subtasks.add("") },
+            onClick = { subtasks.add(Subtask(name = "")) },
             modifier = Modifier.padding(top = 8.dp)
         )
 
@@ -376,7 +377,7 @@ private fun AddTaskSheetContent(
             onClick = {
                 onSave(
                     taskName.trim(),
-                    subtasks.map { it.trim() }.filter { it.isNotBlank() },
+                    subtasks.map { it.copy(name = it.name.trim()) }.filter { it.name.isNotBlank() },
                     timerMinutes,
                     selectedTaskDate,
                     selectedRepeat,

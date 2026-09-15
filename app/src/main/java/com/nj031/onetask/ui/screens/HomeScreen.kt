@@ -1,8 +1,10 @@
 package com.nj031.onetask.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,6 +66,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
+import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.ui.theme.OneTaskTheme
@@ -95,6 +98,7 @@ fun HomeScreen(
 ) {
     var showAddTaskSheet by remember { mutableStateOf(false) }
     var editingTask by remember { mutableStateOf<TaskEntity?>(null) }
+    var actionMenuTask by remember { mutableStateOf<TaskEntity?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -207,7 +211,9 @@ fun HomeScreen(
                                             } else {
                                                 editingTask = task
                                             }
-                                        }
+                                        },
+                                        onLongClick = { actionMenuTask = task },
+                                        onToggleSubtask = { subtaskId -> viewModel.toggleSubtask(task, subtaskId) }
                                     )
                                 }
                             }
@@ -228,7 +234,9 @@ fun HomeScreen(
                                             } else {
                                                 editingTask = task
                                             }
-                                        }
+                                        },
+                                        onLongClick = { actionMenuTask = task },
+                                        onToggleSubtask = { subtaskId -> viewModel.toggleSubtask(task, subtaskId) }
                                     )
                                 }
                             }
@@ -256,6 +264,33 @@ fun HomeScreen(
             initialDate = selectedDate,
             onDateSelected = { viewModel.selectDate(it) },
             onDismiss = { showDatePicker = false }
+        )
+    }
+
+    actionMenuTask?.let { task ->
+        TaskActionSheet(
+            task = task,
+            onStartOrContinueClick = {
+                actionMenuTask = null
+                onOpenFocusTimer(task.id)
+            },
+            onResetClick = {
+                viewModel.resetTimer(task)
+                actionMenuTask = null
+            },
+            onEditClick = {
+                actionMenuTask = null
+                editingTask = task
+            },
+            onDoneClick = {
+                viewModel.markTaskDone(task)
+                actionMenuTask = null
+            },
+            onDeleteClick = {
+                viewModel.deleteTask(task)
+                actionMenuTask = null
+            },
+            onDismiss = { actionMenuTask = null }
         )
     }
 }
@@ -568,18 +603,23 @@ private fun HomeCalendarDayCell(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TaskCard(
     task: TaskEntity,
     onToggleStatus: () -> Unit,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onToggleSubtask: (String) -> Unit
 ) {
     var subtasksExpanded by remember(task.id) { mutableStateOf(false) }
     val isCompleted = task.status == TaskStatus.COMPLETED
+    val subtasksInteractive = task.timerMinutes == null
 
     Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = HomeCardWhite),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
@@ -644,11 +684,10 @@ private fun TaskCard(
             if (subtasksExpanded && task.subtasks.isNotEmpty()) {
                 Column(modifier = Modifier.padding(top = 8.dp)) {
                     task.subtasks.forEach { subtask ->
-                        Text(
-                            text = "• $subtask",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = HomeSecondaryText,
-                            modifier = Modifier.padding(vertical = 2.dp)
+                        SubtaskRow(
+                            subtask = subtask,
+                            interactive = subtasksInteractive,
+                            onToggle = { onToggleSubtask(subtask.id) }
                         )
                     }
                 }
@@ -669,6 +708,45 @@ private fun TagPill(text: String, modifier: Modifier = Modifier) {
             text = text,
             style = MaterialTheme.typography.labelSmall,
             color = HomePrimaryBlue
+        )
+    }
+}
+
+@Composable
+private fun SubtaskRow(
+    subtask: Subtask,
+    interactive: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(18.dp)
+                .clip(CircleShape)
+                .border(1.5.dp, HomePrimaryBlue, CircleShape)
+                .then(if (interactive) Modifier.clickable(onClick = onToggle) else Modifier),
+            contentAlignment = Alignment.Center
+        ) {
+            if (subtask.completed) {
+                Text(
+                    text = "✓",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = HomePrimaryBlue
+                )
+            }
+        }
+        Text(
+            text = subtask.name,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (subtask.completed) HomeSecondaryText else HomeDarkText,
+            textDecoration = if (subtask.completed) TextDecoration.LineThrough else TextDecoration.None,
+            modifier = Modifier.padding(start = 10.dp)
         )
     }
 }
@@ -695,6 +773,119 @@ private fun CircularTaskCheckbox(
                 color = HomePrimaryBlue
             )
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TaskActionSheet(
+    task: TaskEntity,
+    onStartOrContinueClick: () -> Unit,
+    onResetClick: () -> Unit,
+    onEditClick: () -> Unit,
+    onDoneClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
+    fun dismissThen(action: () -> Unit) {
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            if (!sheetState.isVisible) action()
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = HomeCardWhite,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = task.name,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = HomePrimaryBlue,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            if (task.timerMinutes != null) {
+                val hasStarted = task.status != TaskStatus.NOT_STARTED
+                TaskActionButton(
+                    text = "▶  " + stringResource(
+                        id = if (hasStarted) R.string.task_action_continue else R.string.task_action_start
+                    ),
+                    onClick = { dismissThen(onStartOrContinueClick) }
+                )
+                TaskActionButton(
+                    text = "↻  " + stringResource(id = R.string.reset),
+                    onClick = { dismissThen(onResetClick) },
+                    modifier = Modifier.padding(top = 10.dp)
+                )
+            }
+
+            TaskActionButton(
+                text = "✎  " + stringResource(id = R.string.edit),
+                onClick = { dismissThen(onEditClick) },
+                modifier = Modifier.padding(top = 10.dp)
+            )
+            TaskActionButton(
+                text = "✓  " + stringResource(id = R.string.task_action_done),
+                onClick = { dismissThen(onDoneClick) },
+                modifier = Modifier.padding(top = 10.dp)
+            )
+            TaskActionButton(
+                text = "🗑  " + stringResource(id = R.string.delete),
+                onClick = { dismissThen(onDeleteClick) },
+                isDestructive = true,
+                modifier = Modifier.padding(top = 10.dp)
+            )
+
+            TextButton(
+                onClick = { dismissThen(onDismiss) },
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
+                Text(stringResource(id = R.string.cancel), color = HomeSecondaryText)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskActionButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isDestructive: Boolean = false
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(52.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = if (isDestructive) {
+            ButtonDefaults.filledTonalButtonColors(
+                containerColor = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError
+            )
+        } else {
+            ButtonDefaults.filledTonalButtonColors(
+                containerColor = HomeButtonLight,
+                contentColor = HomeDarkText
+            )
+        }
+    ) {
+        Text(text, fontWeight = FontWeight.SemiBold)
     }
 }
 

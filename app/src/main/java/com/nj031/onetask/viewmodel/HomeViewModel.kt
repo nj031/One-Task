@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nj031.onetask.data.AppDatabase
+import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskRepeat
 import com.nj031.onetask.data.task.TaskRepository
@@ -54,7 +55,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun createTask(
         name: String,
-        subtasks: List<String>,
+        subtasks: List<Subtask>,
         timerMinutes: Int?,
         date: LocalDate,
         repeat: TaskRepeat,
@@ -78,7 +79,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun updateTask(
         task: TaskEntity,
         name: String,
-        subtasks: List<String>,
+        subtasks: List<Subtask>,
         timerMinutes: Int?,
         date: LocalDate,
         repeat: TaskRepeat,
@@ -111,6 +112,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addCustomTag(name: String) {
         viewModelScope.launch { repository.addCustomTag(name) }
+    }
+
+    fun toggleSubtask(task: TaskEntity, subtaskId: String) {
+        viewModelScope.launch { repository.toggleSubtask(task, subtaskId) }
+    }
+
+    fun markTaskDone(task: TaskEntity) {
+        viewModelScope.launch { repository.markTaskDone(task) }
+    }
+
+    fun deleteTask(task: TaskEntity) {
+        viewModelScope.launch { repository.deleteTask(task) }
     }
 
     fun observeTask(id: String): Flow<TaskEntity?> = repository.observeTaskById(id)

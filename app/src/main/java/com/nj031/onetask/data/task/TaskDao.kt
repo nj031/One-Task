@@ -1,6 +1,7 @@
 package com.nj031.onetask.data.task
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -14,6 +15,9 @@ interface TaskDao {
 
     @Update
     suspend fun update(task: TaskEntity)
+
+    @Delete
+    suspend fun delete(task: TaskEntity)
 
     @Query("SELECT * FROM tasks WHERE date = :date ORDER BY createdAt ASC")
     fun getByDate(date: Long): Flow<List<TaskEntity>>
