@@ -26,7 +26,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = stringResource(id = R.string.hello_one_task))
+            Text(text = stringResource(id = R.string.home_placeholder))
         }
     }
 }
