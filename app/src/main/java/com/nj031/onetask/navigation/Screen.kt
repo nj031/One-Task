@@ -20,4 +20,5 @@ sealed class Screen(val route: String) {
     }
     data object DataPrivacy : Screen("data_privacy")
     data object PrivacyPolicy : Screen("privacy_policy")
+    data object UpgradeToPro : Screen("upgrade_to_pro")
 }

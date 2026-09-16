@@ -110,6 +110,32 @@
     <string name="privacy_policy_title">Privacy Policy</string>
     <string name="privacy_policy_placeholder">Our full Privacy Policy will be published here soon.</string>
 
+    <string name="upgrade_to_pro_title">ONE TASK PRO</string>
+    <string name="upgrade_to_pro_column_free">FREE</string>
+    <string name="upgrade_to_pro_column_pro">PRO</string>
+    <string name="upgrade_to_pro_mark_included">✓</string>
+    <string name="upgrade_to_pro_mark_excluded">✕</string>
+    <string name="upgrade_to_pro_feature_timer_focus">Timer &amp; Focus Mode</string>
+    <string name="upgrade_to_pro_feature_local_backup">Local Backup</string>
+    <string name="upgrade_to_pro_feature_task_management">Task Management</string>
+    <string name="upgrade_to_pro_feature_unlimited_subtasks">Unlimited Subtasks</string>
+    <string name="upgrade_to_pro_feature_recurring_postpone">Recurring &amp; Postpone Tasks</string>
+    <string name="upgrade_to_pro_feature_basic_tags">Basic Task Tags</string>
+    <string name="upgrade_to_pro_feature_journal">Journal</string>
+    <string name="upgrade_to_pro_feature_custom_tags">Custom Task Tags</string>
+    <string name="upgrade_to_pro_feature_cloud_sync">Cloud Sync</string>
+    <string name="upgrade_to_pro_feature_multi_device">Multiple Device Login</string>
+    <string name="upgrade_to_pro_feature_auto_cloud_backup">Automatic Cloud Backup</string>
+    <string name="upgrade_to_pro_feature_extended_history">Extended History</string>
+    <string name="upgrade_to_pro_feature_analytics">Analytics</string>
+    <string name="upgrade_to_pro_feature_more_themes">More Themes</string>
+    <string name="upgrade_to_pro_feature_more_fonts">More Fonts</string>
+    <string name="upgrade_to_pro_feature_task_reminders">Task Reminders</string>
+    <string name="upgrade_to_pro_lifetime_access">Lifetime Access</string>
+    <string name="upgrade_to_pro_one_time_purchase">One-time purchase</string>
+    <string name="upgrade_to_pro_button">Upgrade to Pro</string>
+    <string name="upgrade_to_pro_coming_soon">Pro purchases aren\'t available yet - stay tuned!</string>
+
     <string name="journal_title">Journal</string>
     <string name="add_note">Add note</string>
     <string name="no_notes_yet">No notes yet. Tap + to add one.</string>
