@@ -10,7 +10,6 @@
     <string name="nav_journal">Journal</string>
     <string name="nav_tasks">Tasks</string>
     <string name="nav_profile">Profile</string>
-    <string name="profile_under_construction">SITE UNDER CONSTRUCTION 🚧</string>
     <string name="menu">Menu</string>
     <string name="calendar">Calendar</string>
     <string name="add_task">Add Task</string>
@@ -78,6 +77,35 @@
     <string name="rate_app_dialog_message">If you find One Task useful, we\'d love to hear your feedback.</string>
     <string name="rate_app_maybe_later">Maybe Later</string>
     <string name="rate_app_not_available_message">One Task isn\'t on Google Play yet. You\'ll be able to rate it here once it\'s published.</string>
+
+    <string name="profile_edit_profile">Edit Profile</string>
+    <string name="profile_section_pro">ONE TASK PRO</string>
+    <string name="profile_pro_free_plan">Free Plan</string>
+    <string name="profile_pro_description">Upgrade to unlock Custom Task Tags, Cloud Sync, and more.</string>
+    <string name="profile_section_account">ACCOUNT</string>
+    <string name="profile_account_status">Status</string>
+    <string name="profile_account_signed_in">Signed in</string>
+    <string name="profile_section_about">ABOUT</string>
+    <string name="profile_app_version">App Version</string>
+    <string name="profile_edit_change_photo">Change Photo</string>
+    <string name="profile_edit_remove_photo">Remove Photo</string>
+    <string name="profile_edit_name_label">Name</string>
+    <string name="profile_edit_name_required">Name is required</string>
+    <string name="profile_edit_dob_label">Date of Birth</string>
+    <string name="profile_edit_dob_placeholder">Not set</string>
+    <string name="profile_edit_clear">Clear</string>
+    <string name="profile_edit_select">Select</string>
+    <string name="profile_edit_gender_label">Gender</string>
+    <string name="profile_edit_gender_male">Male</string>
+    <string name="profile_edit_gender_female">Female</string>
+    <string name="profile_edit_gender_prefer_not_to_say">Prefer not to say</string>
+    <string name="profile_edit_email_label">Email</string>
+    <string name="profile_edit_save_changes">Save Changes</string>
+    <string name="profile_edit_dob_confirm">OK</string>
+    <string name="profile_edit_discard_title">Discard changes?</string>
+    <string name="profile_edit_discard_message">You have unsaved changes. If you leave now, they will be lost.</string>
+    <string name="profile_edit_discard_action">Discard</string>
+    <string name="profile_edit_keep_editing">Keep Editing</string>
 
     <string name="help_feedback_faq_title">Help &amp; FAQ</string>
     <string name="help_feedback_faq_subtitle">Get answers to common questions</string>

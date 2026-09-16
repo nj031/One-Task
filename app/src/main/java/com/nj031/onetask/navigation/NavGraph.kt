@@ -17,6 +17,7 @@ import com.nj031.onetask.ui.screens.AddTaskScreen
 import com.nj031.onetask.ui.screens.ArchiveScreen
 import com.nj031.onetask.ui.screens.AuthScreen
 import com.nj031.onetask.ui.screens.DataPrivacyScreen
+import com.nj031.onetask.ui.screens.EditProfileScreen
 import com.nj031.onetask.ui.screens.FeedbackFormScreen
 import com.nj031.onetask.ui.screens.FocusTimerScreen
 import com.nj031.onetask.ui.screens.HelpFaqCategoryScreen
@@ -32,6 +33,7 @@ import com.nj031.onetask.ui.screens.UpgradeToProScreen
 import com.nj031.onetask.viewmodel.AuthViewModel
 import com.nj031.onetask.viewmodel.HomeViewModel
 import com.nj031.onetask.viewmodel.JournalViewModel
+import com.nj031.onetask.viewmodel.ProfileViewModel
 
 /**
  * Standard "bottom nav" navigation: switching between the Homepage/Journal/Profile tabs
@@ -53,6 +55,7 @@ fun OneTaskNavHost(
 ) {
     val journalViewModel: JournalViewModel = viewModel()
     val homeViewModel: HomeViewModel = viewModel()
+    val profileViewModel: ProfileViewModel = viewModel()
     val startDestination = when {
         AuthRepository.currentUser == null -> Screen.Auth.route
         activeFocusTaskId != null -> Screen.FocusTimer.createRoute(activeFocusTaskId)
@@ -172,8 +175,17 @@ fun OneTaskNavHost(
         }
         composable(Screen.Profile.route) {
             ProfileScreen(
+                viewModel = profileViewModel,
                 onNavigateToJournal = { navController.navigateToBottomNavTab(Screen.Journal.route) },
-                onNavigateToTasks = { navController.navigateToBottomNavTab(Screen.Home.route) }
+                onNavigateToTasks = { navController.navigateToBottomNavTab(Screen.Home.route) },
+                onEditProfileClick = { navController.navigate(Screen.EditProfile.route) },
+                onUpgradeToProClick = { navController.navigate(Screen.UpgradeToPro.route) }
+            )
+        }
+        composable(Screen.EditProfile.route) {
+            EditProfileScreen(
+                viewModel = profileViewModel,
+                onDone = { navController.popBackStack() }
             )
         }
         composable(Screen.Archive.route) {
