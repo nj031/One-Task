@@ -35,6 +35,7 @@ import com.nj031.onetask.ui.screens.HomeScreen
 import com.nj031.onetask.ui.screens.JournalScreen
 import com.nj031.onetask.ui.screens.LoginScreen
 import com.nj031.onetask.ui.screens.NoteEditorScreen
+import com.nj031.onetask.ui.screens.NotificationsSettingsScreen
 import com.nj031.onetask.ui.screens.PrivacyPolicyScreen
 import com.nj031.onetask.ui.screens.ProfileScreen
 import com.nj031.onetask.ui.screens.RecycleBinScreen
@@ -420,9 +421,14 @@ fun OneTaskNavHost(
             )
         }
         composable(Screen.NotificationsSettings.route) {
-            SettingsComingSoonScreen(
-                title = stringResource(id = R.string.general_notifications),
-                message = stringResource(id = R.string.general_setting_coming_soon_message),
+            val focusSessionNotificationsEnabled by generalSettingsViewModel.focusSessionNotificationsEnabled.collectAsState()
+            val focusSessionCompleteEnabled by generalSettingsViewModel.focusSessionCompleteEnabled.collectAsState()
+            NotificationsSettingsScreen(
+                focusSessionNotificationsEnabled = focusSessionNotificationsEnabled,
+                focusSessionCompleteEnabled = focusSessionCompleteEnabled,
+                onFocusSessionNotificationsChange = generalSettingsViewModel::setFocusSessionNotificationsEnabled,
+                onFocusSessionCompleteChange = generalSettingsViewModel::setFocusSessionCompleteEnabled,
+                onTaskRemindersClick = { navController.navigate(Screen.UpgradeToPro.route) },
                 onBackClick = { navController.popBackStack() }
             )
         }
