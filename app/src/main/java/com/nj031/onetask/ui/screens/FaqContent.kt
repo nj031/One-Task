@@ -7,7 +7,8 @@ package com.nj031.onetask.ui.screens
  * here. Content matches the product-specified questions/answers; a small number of answers were
  * corrected to match One Task's actual current behavior (see inline notes) rather than aspirational
  * or marketing copy (e.g. features listed as "Pro-only" on the Upgrade to Pro screen that aren't
- * actually gated yet, and General Settings rows that are still "coming soon" placeholders).
+ * actually gated yet, and Appearance, the one General Settings row still a "coming soon"
+ * placeholder).
  */
 data class FaqQuestion(val question: String, val answer: String)
 data class FaqCategory(val id: String, val title: String, val questions: List<FaqQuestion>)
@@ -146,7 +147,7 @@ val faqCategories: List<FaqCategory> = listOf(
             ),
             FaqQuestion(
                 "Can I turn notifications off?",
-                "Yes. You can control One Task's notification permission from your device's notification settings. Turning notifications off may prevent One Task from notifying you about Focus session events."
+                "Yes. Open the hamburger menu, tap General, then Notifications, to turn Focus Session Notifications and Focus Session Complete on or off individually. You can also control One Task's overall notification permission from your device's notification settings."
             )
         )
     ),
@@ -190,11 +191,9 @@ val faqCategories: List<FaqCategory> = listOf(
     FaqCategory(
         id = "general",
         title = "General",
-        // General Settings now exists (hamburger menu > General): Appearance is a placeholder
-        // and Start Screen is fully functional, so those two answers are updated accordingly.
-        // Default Task Settings, Notifications, Week Starts On, Time Format, and Haptic
-        // Feedback are visible rows there too, but still open a "coming soon" placeholder, so
-        // those answers are unchanged.
+        // General Settings now exists (hamburger menu > General) with all 7 rows: Appearance is
+        // still a placeholder; Start Screen, Default Task Settings, Notifications, Week Starts
+        // On, Time Format, and Haptic Feedback are all fully functional.
         questions = listOf(
             FaqQuestion(
                 "How do I change the app appearance?",
@@ -206,27 +205,27 @@ val faqCategories: List<FaqCategory> = listOf(
             ),
             FaqQuestion(
                 "Can I set a default timer for new tasks?",
-                "One Task doesn't have a default timer setting yet. This is planned for a future update."
+                "Yes. Open the hamburger menu, tap General, then Default Task Settings, and choose a Default Timer (No Timer, 25, 45, 60 minutes, or Custom). New tasks start with this timer already selected - you can still change it per task, and existing tasks are never affected."
             ),
             FaqQuestion(
                 "Can I change my default task settings?",
-                "One Task doesn't have customizable default task settings yet. This is planned for a future update."
+                "Yes. Open the hamburger menu, tap General, then Default Task Settings, to set a default Timer, Tag, and whether Pending Task is on by default for new tasks. Changing these never affects tasks you've already created."
             ),
             FaqQuestion(
                 "How do I manage notifications?",
-                "One Task doesn't have in-app notification settings yet. You can manage notification permissions for One Task from your device's system settings."
+                "Open the hamburger menu, tap General, then Notifications, to turn Focus Session Notifications and Focus Session Complete on or off. Task Reminders is a planned Pro feature and isn't available yet. You can also manage notification permissions for One Task from your device's system settings."
             ),
             FaqQuestion(
                 "Can I change which day my week starts on?",
-                "One Task doesn't have a week-start-day setting yet. This is planned for a future update."
+                "Yes. Open the hamburger menu, tap General, then Week Starts On, and choose any day of the week. This only changes how days are ordered in the calendar - it never moves or changes your task dates."
             ),
             FaqQuestion(
                 "Can I switch between 12-hour and 24-hour time?",
-                "One Task doesn't have a 12-hour/24-hour format setting yet. This is planned for a future update."
+                "Yes. Open the hamburger menu, tap General, then Time Format, and choose System Default, 12-hour, or 24-hour. This applies wherever One Task shows a time, such as Journal note timestamps."
             ),
             FaqQuestion(
                 "What is haptic feedback?",
-                "One Task doesn't have a haptic feedback setting yet. This is planned for a future update."
+                "Haptic feedback is a subtle vibration for meaningful actions, like completing a task, starting or pausing your timer, or picking a date. You can turn it on or off from the hamburger menu under General → Haptic Feedback - it's on by default."
             )
         )
     )

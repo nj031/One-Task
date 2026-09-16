@@ -86,4 +86,13 @@ class GeneralSettingsViewModel(application: Application) : AndroidViewModel(appl
         repository.setTimeFormat(timeFormat)
         _timeFormat.value = timeFormat
     }
+
+    // --- Haptic Feedback ---
+    private val _hapticFeedbackEnabled = MutableStateFlow(repository.getHapticFeedbackEnabled())
+    val hapticFeedbackEnabled: StateFlow<Boolean> = _hapticFeedbackEnabled.asStateFlow()
+
+    fun setHapticFeedbackEnabled(enabled: Boolean) {
+        repository.setHapticFeedbackEnabled(enabled)
+        _hapticFeedbackEnabled.value = enabled
+    }
 }

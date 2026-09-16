@@ -45,6 +45,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.ui.components.CompactBottomSheet
+import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.viewmodel.JournalViewModel
 import kotlinx.coroutines.launch
 
@@ -224,8 +225,12 @@ private fun DeletePermanentlyConfirmationDialog(onConfirm: () -> Unit, onDismiss
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 8.dp)
             )
+            val hapticTick = rememberHapticTick()
             FilledTonalButton(
-                onClick = { dismissThen(onConfirm) },
+                onClick = {
+                    hapticTick()
+                    dismissThen(onConfirm)
+                },
                 modifier = Modifier
                     .padding(top = 16.dp)
                     .fillMaxWidth()

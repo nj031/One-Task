@@ -68,6 +68,7 @@ import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskRepeat
 import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.ui.components.OneTaskCalendarSheet
+import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.viewmodel.HomeViewModel
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -175,6 +176,7 @@ private fun AddTaskScreenContent(
 ) {
     val today = remember { LocalDate.now() }
     val keyboardController = LocalSoftwareKeyboardController.current
+    val hapticTick = rememberHapticTick()
 
     var taskName by remember { mutableStateOf(existingTask?.name.orEmpty()) }
     val taskNameFocusRequester = remember { FocusRequester() }
@@ -488,7 +490,10 @@ private fun AddTaskScreenContent(
                     }
                     Switch(
                         checked = postponeIfIncomplete,
-                        onCheckedChange = { postponeIfIncomplete = it }
+                        onCheckedChange = {
+                            hapticTick()
+                            postponeIfIncomplete = it
+                        }
                     )
                 }
 

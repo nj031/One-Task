@@ -32,9 +32,8 @@ import java.util.Locale
 
 /**
  * Settings > General, reachable from the hamburger drawer's "General" row (previously a no-op).
- * Appearance is a placeholder; Start Screen, Default Task Settings, Notifications, Week Starts
- * On, and Time Format are all fully functional. Haptic Feedback still opens a shared "coming
- * soon" screen, the same treatment Privacy Policy already got before its content existed.
+ * Every row is fully functional except Appearance, which opens a shared "coming soon" screen,
+ * the same treatment Privacy Policy already got before its content existed.
  */
 @Composable
 fun GeneralSettingsScreen(
