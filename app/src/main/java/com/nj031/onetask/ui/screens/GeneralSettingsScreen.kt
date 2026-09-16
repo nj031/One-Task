@@ -25,16 +25,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
 import com.nj031.onetask.data.settings.StartScreen
+import com.nj031.onetask.data.settings.TimeFormat
+import java.time.DayOfWeek
+import java.time.format.TextStyle
+import java.util.Locale
 
 /**
  * Settings > General, reachable from the hamburger drawer's "General" row (previously a no-op).
- * Only Appearance (a placeholder) and Start Screen (fully functional) are implemented so far;
- * the remaining five rows are visible in their spec'd order and each open a shared "coming
+ * Appearance is a placeholder; Start Screen, Default Task Settings, Notifications, Week Starts
+ * On, and Time Format are all fully functional. Haptic Feedback still opens a shared "coming
  * soon" screen, the same treatment Privacy Policy already got before its content existed.
  */
 @Composable
 fun GeneralSettingsScreen(
     startScreen: StartScreen,
+    weekStartDay: DayOfWeek,
+    timeFormat: TimeFormat,
     onBackClick: () -> Unit,
     onAppearanceClick: () -> Unit,
     onStartScreenClick: () -> Unit,
@@ -46,6 +52,14 @@ fun GeneralSettingsScreen(
 ) {
     val startScreenLabel = stringResource(
         id = if (startScreen == StartScreen.TASKS) R.string.start_screen_option_tasks else R.string.start_screen_option_journal
+    )
+    val weekStartDayLabel = weekStartDay.getDisplayName(TextStyle.FULL, Locale.getDefault())
+    val timeFormatLabel = stringResource(
+        id = when (timeFormat) {
+            TimeFormat.SYSTEM_DEFAULT -> R.string.time_format_system_default
+            TimeFormat.HOUR_12 -> R.string.time_format_12_hour
+            TimeFormat.HOUR_24 -> R.string.time_format_24_hour
+        }
     )
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
@@ -93,10 +107,12 @@ fun GeneralSettingsScreen(
             )
             GeneralSettingsRow(
                 title = stringResource(id = R.string.general_week_starts_on),
+                value = weekStartDayLabel,
                 onClick = onWeekStartsOnClick
             )
             GeneralSettingsRow(
                 title = stringResource(id = R.string.general_time_format),
+                value = timeFormatLabel,
                 onClick = onTimeFormatClick
             )
             GeneralSettingsRow(

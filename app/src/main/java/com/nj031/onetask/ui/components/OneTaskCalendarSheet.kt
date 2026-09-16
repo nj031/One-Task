@@ -39,10 +39,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
-import java.text.DateFormatSymbols
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
 import java.util.Locale
 import kotlinx.coroutines.launch
 
@@ -59,7 +60,8 @@ private val CalendarSecondaryText = Color(0xFF6B7C93)
  * sheet immediately - there is no separate confirm step, matching the Homepage calendar this
  * was modeled on. [markedDates] draws a small dot under a day (e.g. Journal's "has notes"
  * indicator); [maxSelectableDate], when set, dims and disables any day after it (e.g. Journal
- * disallows picking a future date).
+ * disallows picking a future date). [weekStartDay] only reorders which column each weekday
+ * lands in (General Settings > Week Starts On) - it never changes a date's actual value.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,7 +70,8 @@ fun OneTaskCalendarSheet(
     onDateSelected: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
     markedDates: Set<LocalDate> = emptySet(),
-    maxSelectableDate: LocalDate? = null
+    maxSelectableDate: LocalDate? = null,
+    weekStartDay: DayOfWeek = DayOfWeek.MONDAY
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
@@ -109,13 +112,14 @@ fun OneTaskCalendarSheet(
                 )
             }
 
-            CalendarWeekdayHeader()
+            CalendarWeekdayHeader(weekStartDay = weekStartDay)
 
             CalendarMonthGrid(
                 visibleMonth = visibleMonth,
                 selectedDate = initialDate,
                 markedDates = markedDates,
                 maxSelectableDate = maxSelectableDate,
+                weekStartDay = weekStartDay,
                 onDayClick = { date ->
                     onDateSelected(date)
                     dismiss()
@@ -164,10 +168,11 @@ private fun CalendarNavButton(
 }
 
 @Composable
-private fun CalendarWeekdayHeader() {
-    val labels = remember {
-        val symbols = DateFormatSymbols(Locale.getDefault()).shortWeekdays
-        (1..7).map { symbols[it].take(1) }
+private fun CalendarWeekdayHeader(weekStartDay: DayOfWeek) {
+    val labels = remember(weekStartDay) {
+        orderedWeekDays(weekStartDay).map { day ->
+            day.getDisplayName(TextStyle.NARROW, Locale.getDefault())
+        }
     }
     Row(
         modifier = Modifier
@@ -186,16 +191,24 @@ private fun CalendarWeekdayHeader() {
     }
 }
 
+/** The 7 days of the week in display order starting from [startDay] - e.g. starting from
+ * WEDNESDAY yields [WED, THU, FRI, SAT, SUN, MON, TUE]. Used identically by the header labels
+ * and the month grid's column layout so they always stay in sync. */
+private fun orderedWeekDays(startDay: DayOfWeek): List<DayOfWeek> =
+    (0..6).map { DayOfWeek.of((startDay.value - 1 + it) % 7 + 1) }
+
 @Composable
 private fun CalendarMonthGrid(
     visibleMonth: YearMonth,
     selectedDate: LocalDate,
     markedDates: Set<LocalDate>,
     maxSelectableDate: LocalDate?,
+    weekStartDay: DayOfWeek,
     onDayClick: (LocalDate) -> Unit
 ) {
     val daysInMonth = visibleMonth.lengthOfMonth()
-    val firstDayOffset = visibleMonth.atDay(1).dayOfWeek.value % 7
+    val firstDayOfMonth = visibleMonth.atDay(1).dayOfWeek
+    val firstDayOffset = (firstDayOfMonth.value - weekStartDay.value + 7) % 7
     val totalWeeks = (firstDayOffset + daysInMonth + 6) / 7
 
     Column(modifier = Modifier.fillMaxWidth()) {

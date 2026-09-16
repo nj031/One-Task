@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import com.nj031.onetask.data.settings.GeneralSettingsRepository
 import com.nj031.onetask.data.settings.StartScreen
+import com.nj031.onetask.data.settings.TimeFormat
+import java.time.DayOfWeek
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -65,5 +67,23 @@ class GeneralSettingsViewModel(application: Application) : AndroidViewModel(appl
     fun setFocusSessionCompleteEnabled(enabled: Boolean) {
         repository.setFocusSessionCompleteEnabled(enabled)
         _focusSessionCompleteEnabled.value = enabled
+    }
+
+    // --- Week Starts On / Time Format - purely presentational, never touches task dates,
+    // recurring-task logic, or timer duration formatting. ---
+    private val _weekStartDay = MutableStateFlow(repository.getWeekStartDay())
+    val weekStartDay: StateFlow<DayOfWeek> = _weekStartDay.asStateFlow()
+
+    private val _timeFormat = MutableStateFlow(repository.getTimeFormat())
+    val timeFormat: StateFlow<TimeFormat> = _timeFormat.asStateFlow()
+
+    fun setWeekStartDay(day: DayOfWeek) {
+        repository.setWeekStartDay(day)
+        _weekStartDay.value = day
+    }
+
+    fun setTimeFormat(timeFormat: TimeFormat) {
+        repository.setTimeFormat(timeFormat)
+        _timeFormat.value = timeFormat
     }
 }

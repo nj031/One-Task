@@ -73,6 +73,7 @@ import com.nj031.onetask.ui.theme.OneTaskCalendarIcon
 import com.nj031.onetask.ui.theme.OneTaskHamburgerIcon
 import com.nj031.onetask.ui.theme.OneTaskTheme
 import com.nj031.onetask.viewmodel.HomeViewModel
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -102,7 +103,8 @@ fun HomeScreen(
     onDataPrivacyClick: () -> Unit = {},
     onUpgradeToProClick: () -> Unit = {},
     onHelpFeedbackClick: () -> Unit = {},
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    weekStartDay: DayOfWeek = DayOfWeek.MONDAY
 ) {
     var actionMenuTask by remember { mutableStateOf<TaskEntity?>(null) }
     var deleteConfirmTask by remember { mutableStateOf<TaskEntity?>(null) }
@@ -262,7 +264,8 @@ fun HomeScreen(
         OneTaskCalendarSheet(
             initialDate = selectedDate,
             onDateSelected = { viewModel.selectDate(it) },
-            onDismiss = { showDatePicker = false }
+            onDismiss = { showDatePicker = false },
+            weekStartDay = weekStartDay
         )
     }
 

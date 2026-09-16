@@ -69,6 +69,7 @@ import com.nj031.onetask.data.task.TaskRepeat
 import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.ui.components.OneTaskCalendarSheet
 import com.nj031.onetask.viewmodel.HomeViewModel
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -92,6 +93,7 @@ fun AddTaskScreen(
     defaultTimerMinutes: Int? = null,
     defaultTag: String? = null,
     defaultPostponeIfIncomplete: Boolean = true,
+    weekStartDay: DayOfWeek = DayOfWeek.MONDAY,
     onDone: () -> Unit
 ) {
     val existingTaskState = produceState<TaskEntity?>(initialValue = null, key1 = taskId) {
@@ -116,6 +118,7 @@ fun AddTaskScreen(
             initialTimerMinutes = existingTask?.timerMinutes ?: defaultTimerMinutes,
             initialTag = existingTask?.tag ?: defaultTag,
             initialPostponeIfIncomplete = existingTask?.postponeIfIncomplete ?: defaultPostponeIfIncomplete,
+            weekStartDay = weekStartDay,
             customTags = customTags,
             onAddCustomTag = { name -> viewModel.addCustomTag(name) },
             onCancel = onDone,
@@ -156,6 +159,7 @@ private fun AddTaskScreenContent(
     initialTimerMinutes: Int?,
     initialTag: String?,
     initialPostponeIfIncomplete: Boolean,
+    weekStartDay: DayOfWeek,
     customTags: List<String>,
     onAddCustomTag: (String) -> Unit,
     onCancel: () -> Unit,
@@ -532,7 +536,8 @@ private fun AddTaskScreenContent(
         OneTaskCalendarSheet(
             initialDate = selectedTaskDate,
             onDateSelected = { selectedTaskDate = it },
-            onDismiss = { showDatePickerSheet = false }
+            onDismiss = { showDatePickerSheet = false },
+            weekStartDay = weekStartDay
         )
     }
 
