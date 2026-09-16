@@ -75,6 +75,13 @@ fun ForgotPasswordScreen(
                         fontWeight = FontWeight.Bold
                     )
                 }
+
+                Text(
+                    text = stringResource(id = R.string.email_spam_folder_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 20.dp)
+                )
             } else {
                 Text(
                     text = stringResource(id = R.string.forgot_password_message),

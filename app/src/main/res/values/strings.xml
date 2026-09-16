@@ -35,6 +35,7 @@
     <string name="forgot_password_sent_message">If an account exists for this email, we\'ve sent a link to reset your password.</string>
     <string name="done_action">Done</string>
     <string name="or_divider">OR</string>
+    <string name="email_spam_folder_hint">Didn\'t receive the email? Please check your Spam or Junk folder.</string>
 
     <string name="home_title">One Task at a Time</string>
     <string name="home_tagline">Less clutter. More life.</string>
