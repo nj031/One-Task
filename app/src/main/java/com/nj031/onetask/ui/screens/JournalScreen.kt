@@ -76,6 +76,7 @@ fun JournalScreen(
     onArchiveClick: () -> Unit = {},
     onDataPrivacyClick: () -> Unit = {},
     onUpgradeToProClick: () -> Unit = {},
+    onHelpFeedbackClick: () -> Unit = {},
     onNavigateToTasks: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onLogout: () -> Unit = {}
@@ -131,7 +132,10 @@ fun JournalScreen(
                         onUpgradeToProClick()
                     },
                     onAboutClick = { /* no-op: not implemented yet */ },
-                    onHelpFeedbackClick = { /* no-op: help & feedback not implemented yet */ }
+                    onHelpFeedbackClick = {
+                        scope.launch { drawerState.close() }
+                        onHelpFeedbackClick()
+                    }
                 )
             }
         }

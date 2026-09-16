@@ -21,4 +21,9 @@ sealed class Screen(val route: String) {
     data object DataPrivacy : Screen("data_privacy")
     data object PrivacyPolicy : Screen("privacy_policy")
     data object UpgradeToPro : Screen("upgrade_to_pro")
+    data object HelpFeedback : Screen("help_feedback")
+    data object HelpFaq : Screen("help_faq")
+    data object FeedbackForm : Screen("feedback_form/{type}") {
+        fun createRoute(type: String): String = "feedback_form/$type"
+    }
 }

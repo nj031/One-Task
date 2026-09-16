@@ -78,6 +78,44 @@
     <string name="rate_app_dialog_message">If you find One Task useful, we\'d love to hear your feedback.</string>
     <string name="rate_app_maybe_later">Maybe Later</string>
     <string name="rate_app_not_available_message">One Task isn\'t on Google Play yet. You\'ll be able to rate it here once it\'s published.</string>
+
+    <string name="help_feedback_faq_title">Help &amp; FAQ</string>
+    <string name="help_feedback_faq_subtitle">Get answers to common questions</string>
+    <string name="help_feedback_suggest_title">Suggest a Feature</string>
+    <string name="help_feedback_suggest_subtitle">Share an idea for One Task</string>
+    <string name="help_feedback_report_title">Report a Problem</string>
+    <string name="help_feedback_report_subtitle">Tell us about a bug or issue</string>
+    <string name="help_feedback_send_title">Send Feedback</string>
+    <string name="help_feedback_send_subtitle">Share your thoughts about One Task</string>
+    <string name="help_feedback_contact_title">Contact Support</string>
+    <string name="help_feedback_contact_subtitle">Get in touch with us</string>
+    <string name="help_feedback_contact_subject">One Task Support</string>
+    <string name="help_feedback_no_email_app">No email app is configured on this device.</string>
+
+    <string name="help_faq_title">Help &amp; FAQ</string>
+    <string name="help_faq_placeholder">Answers to common questions will be added here soon.</string>
+
+    <string name="suggest_feature_title">Suggest a Feature</string>
+    <string name="suggest_feature_description">Have an idea for One Task?\nTell us what you’d like to see.</string>
+    <string name="suggest_feature_field_label">What would you like to see?</string>
+    <string name="suggest_feature_success_message">Your suggestion has been submitted.</string>
+
+    <string name="report_problem_title">Report a Problem</string>
+    <string name="report_problem_description">Tell us what went wrong.</string>
+    <string name="report_problem_field_label">What happened?</string>
+    <string name="report_problem_success_message">Your problem has been reported.</string>
+
+    <string name="send_feedback_title">Send Feedback</string>
+    <string name="send_feedback_description">Tell us what you think about One Task.</string>
+    <string name="send_feedback_field_label">Write your feedback…</string>
+    <string name="send_feedback_success_message">Your feedback has been submitted.</string>
+
+    <string name="feedback_form_submit">Submit</string>
+    <string name="feedback_form_done">Done</string>
+    <string name="feedback_form_success_title">Thank you!</string>
+    <string name="feedback_form_char_count">%1$d / %2$d</string>
+    <string name="feedback_form_generic_error">Something went wrong. Please try again.</string>
+
     <string name="logged_in_as">Logged in as</string>
     <string name="log_out">Log out</string>
     <string name="sample_user_email">spideysince97@gmail.com</string>
