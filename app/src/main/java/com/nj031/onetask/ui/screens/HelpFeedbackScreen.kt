@@ -33,8 +33,10 @@ import com.nj031.onetask.R
 
 /** One Task's official support inbox - pre-filled as the "To" address when the user taps
  * Contact Support. This is the only Help & Feedback action that uses email; the other three
- * (Suggest a Feature/Report a Problem/Send Feedback) submit to the backend directly. */
-private const val SUPPORT_EMAIL = "hello.onetask@gmail.com"
+ * (Suggest a Feature/Report a Problem/Send Feedback) submit to the backend directly. Also reused
+ * by AboutOneTaskScreen's Contact & Support row, so there's a single source of truth for the
+ * address rather than a second one hardcoded there. */
+internal const val SUPPORT_EMAIL = "hello.onetask@gmail.com"
 
 /**
  * Help & Feedback landing screen, reachable from the hamburger menu. Four of its five rows
