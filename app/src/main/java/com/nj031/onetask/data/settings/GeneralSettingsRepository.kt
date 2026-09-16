@@ -6,13 +6,16 @@ enum class StartScreen { TASKS, JOURNAL }
 
 private const val PREFS_NAME = "general_settings_prefs"
 private const val KEY_START_SCREEN = "start_screen"
+private const val KEY_DEFAULT_TIMER_MINUTES = "default_timer_minutes"
+private const val KEY_DEFAULT_TAG = "default_tag"
+private const val KEY_DEFAULT_POSTPONE_IF_INCOMPLETE = "default_postpone_if_incomplete"
 
 /**
- * Stores General Settings (currently just Start Screen) in a private SharedPreferences file,
- * the same choice made for UserProfileRepository: AppDatabase has no real Migration objects and
- * falls back to fallbackToDestructiveMigration() on any version bump, so a new Room table for a
- * couple of simple preference values isn't worth risking every existing install's Tasks/Journal
- * data on their next update.
+ * Stores General Settings in a private SharedPreferences file, the same choice made for
+ * UserProfileRepository: AppDatabase has no real Migration objects and falls back to
+ * fallbackToDestructiveMigration() on any version bump, so a new Room table for a handful of
+ * simple preference values isn't worth risking every existing install's Tasks/Journal data on
+ * their next update.
  */
 class GeneralSettingsRepository(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -26,5 +29,31 @@ class GeneralSettingsRepository(context: Context) {
 
     fun setStartScreen(startScreen: StartScreen) {
         prefs.edit().putString(KEY_START_SCREEN, startScreen.name).apply()
+    }
+
+    /** null (stored as 0) means "No Timer" - matches the value every new task already started
+     * with before this setting existed, so a user who never visits this screen sees no change. */
+    fun getDefaultTimerMinutes(): Int? {
+        val minutes = prefs.getInt(KEY_DEFAULT_TIMER_MINUTES, 0)
+        return if (minutes > 0) minutes else null
+    }
+
+    fun setDefaultTimerMinutes(minutes: Int?) {
+        prefs.edit().putInt(KEY_DEFAULT_TIMER_MINUTES, minutes ?: 0).apply()
+    }
+
+    /** null means no default tag - matches the value every new task already started with. */
+    fun getDefaultTag(): String? = prefs.getString(KEY_DEFAULT_TAG, null)
+
+    fun setDefaultTag(tag: String?) {
+        prefs.edit().putString(KEY_DEFAULT_TAG, tag).apply()
+    }
+
+    /** true (Pending Task ON) is the default - matches AddTaskScreen's existing hardcoded
+     * `existingTask?.postponeIfIncomplete ?: true` for a brand-new task. */
+    fun getDefaultPostponeIfIncomplete(): Boolean = prefs.getBoolean(KEY_DEFAULT_POSTPONE_IF_INCOMPLETE, true)
+
+    fun setDefaultPostponeIfIncomplete(postpone: Boolean) {
+        prefs.edit().putBoolean(KEY_DEFAULT_POSTPONE_IF_INCOMPLETE, postpone).apply()
     }
 }
