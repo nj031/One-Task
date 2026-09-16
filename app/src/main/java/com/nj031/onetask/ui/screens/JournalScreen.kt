@@ -74,7 +74,6 @@ fun JournalScreen(
     onNoteClick: (String) -> Unit = {},
     onRecycleBinClick: () -> Unit = {},
     onArchiveClick: () -> Unit = {},
-    onSettingsClick: () -> Unit = {},
     onNavigateToTasks: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onLogout: () -> Unit = {}
@@ -106,17 +105,13 @@ fun JournalScreen(
         drawerContent = {
             ModalDrawerSheet(
                 modifier = Modifier.fillMaxWidth(0.6f),
-                drawerContainerColor = MaterialTheme.colorScheme.surface
+                drawerContainerColor = MaterialTheme.colorScheme.background
             ) {
                 OneTaskDrawerContent(
                     userEmail = AuthRepository.currentUser?.email
                         ?: stringResource(id = R.string.sample_user_email),
-                    onSettingsClick = {
-                        scope.launch { drawerState.close() }
-                        onSettingsClick()
-                    },
-                    onHelpFeedbackClick = { /* no-op: help & feedback not implemented yet */ },
-                    onRateAppClick = { /* no-op: not published yet */ },
+                    onSwitchAccountClick = { /* no-op: account switching not implemented yet */ },
+                    onLogoutClick = onLogout,
                     onArchiveClick = {
                         scope.launch { drawerState.close() }
                         onArchiveClick()
@@ -125,7 +120,12 @@ fun JournalScreen(
                         scope.launch { drawerState.close() }
                         onRecycleBinClick()
                     },
-                    onLogoutClick = onLogout
+                    onGeneralSettingsClick = { /* no-op: not implemented yet */ },
+                    onDataPrivacyClick = { /* no-op: not implemented yet */ },
+                    onUpgradeToProClick = { /* no-op: Premium not available yet */ },
+                    onAboutClick = { /* no-op: not implemented yet */ },
+                    onHelpFeedbackClick = { /* no-op: help & feedback not implemented yet */ },
+                    onRateAppClick = { /* no-op: not published yet */ }
                 )
             }
         }

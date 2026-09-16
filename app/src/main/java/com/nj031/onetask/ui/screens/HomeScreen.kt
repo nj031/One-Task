@@ -1,5 +1,6 @@
 package com.nj031.onetask.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -95,6 +96,8 @@ fun HomeScreen(
     onOpenFocusTimer: (String) -> Unit = {},
     onAddTaskClick: () -> Unit = {},
     onEditTaskClick: (String) -> Unit = {},
+    onArchiveClick: () -> Unit = {},
+    onRecycleBinClick: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
     var actionMenuTask by remember { mutableStateOf<TaskEntity?>(null) }
@@ -102,6 +105,10 @@ fun HomeScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    BackHandler(enabled = drawerState.isOpen) {
+        scope.launch { drawerState.close() }
+    }
 
     val selectedDate by viewModel.selectedDate.collectAsState()
     val tasks by viewModel.tasksForSelectedDate.collectAsState()
@@ -113,19 +120,27 @@ fun HomeScreen(
         drawerContent = {
             ModalDrawerSheet(
                 modifier = Modifier.fillMaxWidth(0.6f),
-                drawerContainerColor = MaterialTheme.colorScheme.surface
+                drawerContainerColor = MaterialTheme.colorScheme.background
             ) {
                 OneTaskDrawerContent(
                     userEmail = AuthRepository.currentUser?.email
                         ?: stringResource(id = R.string.sample_user_email),
-                    onJournalingClick = {
+                    onSwitchAccountClick = { /* no-op: account switching not implemented yet */ },
+                    onLogoutClick = onLogout,
+                    onArchiveClick = {
                         scope.launch { drawerState.close() }
-                        onNavigateToJournal()
+                        onArchiveClick()
                     },
-                    onSettingsClick = { /* no-op: settings not implemented yet */ },
+                    onRecycleBinClick = {
+                        scope.launch { drawerState.close() }
+                        onRecycleBinClick()
+                    },
+                    onGeneralSettingsClick = { /* no-op: not implemented yet */ },
+                    onDataPrivacyClick = { /* no-op: not implemented yet */ },
+                    onUpgradeToProClick = { /* no-op: Premium not available yet */ },
+                    onAboutClick = { /* no-op: not implemented yet */ },
                     onHelpFeedbackClick = { /* no-op: help & feedback not implemented yet */ },
-                    onRateAppClick = { /* no-op: not published yet */ },
-                    onLogoutClick = onLogout
+                    onRateAppClick = { /* no-op: not published yet */ }
                 )
             }
         }

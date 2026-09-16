@@ -84,6 +84,8 @@ fun OneTaskNavHost(
                 onEditTaskClick = { taskId ->
                     navController.navigate(Screen.AddTask.createRoute(taskId))
                 },
+                onArchiveClick = { navController.navigate(Screen.Archive.route) },
+                onRecycleBinClick = { navController.navigate(Screen.RecycleBin.route) },
                 onLogout = {
                     AuthRepository.signOut()
                     navController.navigate(Screen.Auth.route) {
@@ -144,7 +146,6 @@ fun OneTaskNavHost(
                 },
                 onRecycleBinClick = { navController.navigate(Screen.RecycleBin.route) },
                 onArchiveClick = { navController.navigate(Screen.Archive.route) },
-                onSettingsClick = { /* no-op: settings not implemented yet */ },
                 onNavigateToTasks = { navController.navigateToBottomNavTab(Screen.Home.route) },
                 onNavigateToProfile = { navController.navigateToBottomNavTab(Screen.Profile.route) },
                 onLogout = {
