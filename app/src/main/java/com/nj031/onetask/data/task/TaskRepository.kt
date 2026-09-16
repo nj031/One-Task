@@ -10,6 +10,10 @@ class TaskRepository(private val dao: TaskDao) {
 
     fun observeCustomTags(): Flow<List<String>> = dao.getCustomTags()
 
+    suspend fun getAllTasksOnce(): List<TaskEntity> = dao.getAll()
+
+    suspend fun getAllCustomTagsOnce(): List<String> = dao.getCustomTagsOnce()
+
     suspend fun createTask(
         name: String,
         subtasks: List<Subtask>,
@@ -128,6 +132,27 @@ class TaskRepository(private val dao: TaskDao) {
 
     suspend fun addCustomTag(name: String) {
         dao.insertTag(TaskTagEntity(name = name))
+    }
+
+    /** Upserts (by id) the given tasks/tags into local storage and mirrors the tasks to the
+     * cloud backup, without touching any existing task/tag not present in [tasks]/[tags]. Used
+     * by Data & Privacy's Restore flow, which merges a backup file into the current account
+     * rather than replacing it. */
+    suspend fun restoreTasks(tasks: List<TaskEntity>, tags: List<String>) {
+        tasks.forEach { task ->
+            dao.insert(task)
+            CloudBackupRepository.pushTask(task)
+        }
+        tags.forEach { tag -> dao.insertTag(TaskTagEntity(name = tag)) }
+    }
+
+    /** Permanently deletes every task and custom tag, locally and from the cloud backup. Does
+     * not touch the account itself. */
+    suspend fun deleteAllTasksAndTags() {
+        val allTasks = dao.getAll()
+        dao.deleteAllTasks()
+        dao.deleteAllTags()
+        allTasks.forEach { CloudBackupRepository.deleteTask(it.id) }
     }
 
     suspend fun postponeOverdueTasks(today: Long) {

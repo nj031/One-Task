@@ -16,6 +16,8 @@ class JournalRepository(private val dao: JournalNoteDao) {
     fun observeActiveNoteDates(): Flow<List<Long>> =
         dao.getDatesByStatus(JournalNoteStatus.ACTIVE)
 
+    suspend fun getAllNotesOnce(): List<JournalNoteEntity> = dao.getAllOnce()
+
     suspend fun createNote(title: String, content: String, journalDate: Long) {
         val now = System.currentTimeMillis()
         val note = JournalNoteEntity(
@@ -60,5 +62,24 @@ class JournalRepository(private val dao: JournalNoteDao) {
     suspend fun deleteNotePermanently(note: JournalNoteEntity) {
         dao.delete(note)
         CloudBackupRepository.deleteNote(note.id)
+    }
+
+    /** Upserts (by id) the given notes into local storage and mirrors them to the cloud
+     * backup, without touching any existing note not present in [notes]. Used by Data &
+     * Privacy's Restore flow, which merges a backup file into the current account rather than
+     * replacing it. */
+    suspend fun restoreNotes(notes: List<JournalNoteEntity>) {
+        notes.forEach { note ->
+            dao.insert(note)
+            CloudBackupRepository.pushNote(note)
+        }
+    }
+
+    /** Permanently deletes every note, locally and from the cloud backup. Does not touch the
+     * account itself. */
+    suspend fun deleteAllNotes() {
+        val allNotes = dao.getAllOnce()
+        dao.deleteAllNotes()
+        allNotes.forEach { CloudBackupRepository.deleteNote(it.id) }
     }
 }

@@ -18,4 +18,6 @@ sealed class Screen(val route: String) {
         fun createRoute(taskId: String? = null): String =
             if (taskId != null) "add_task?taskId=$taskId" else "add_task"
     }
+    data object DataPrivacy : Screen("data_privacy")
+    data object PrivacyPolicy : Screen("privacy_policy")
 }

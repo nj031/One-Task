@@ -36,4 +36,13 @@ interface TaskDao {
 
     @Query("SELECT name FROM task_tags ORDER BY name ASC")
     fun getCustomTags(): Flow<List<String>>
+
+    @Query("SELECT name FROM task_tags ORDER BY name ASC")
+    suspend fun getCustomTagsOnce(): List<String>
+
+    @Query("DELETE FROM tasks")
+    suspend fun deleteAllTasks()
+
+    @Query("DELETE FROM task_tags")
+    suspend fun deleteAllTags()
 }
