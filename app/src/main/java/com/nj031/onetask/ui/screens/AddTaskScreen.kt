@@ -89,6 +89,9 @@ private val TIMER_PRESETS = listOf(TIMER_25_MIN, TIMER_45_MIN, TIMER_60_MIN)
 fun AddTaskScreen(
     viewModel: HomeViewModel,
     taskId: String?,
+    defaultTimerMinutes: Int? = null,
+    defaultTag: String? = null,
+    defaultPostponeIfIncomplete: Boolean = true,
     onDone: () -> Unit
 ) {
     val existingTaskState = produceState<TaskEntity?>(initialValue = null, key1 = taskId) {
@@ -107,6 +110,12 @@ fun AddTaskScreen(
         AddTaskScreenContent(
             existingTask = existingTask,
             initialDate = existingTask?.date?.let(LocalDate::ofEpochDay) ?: homeSelectedDate,
+            // Default Task Settings only ever seed a brand-new task's initial fields - an
+            // existing task being edited always keeps showing its own saved values, since
+            // existingTask?.x is already non-null in that case and short-circuits the default.
+            initialTimerMinutes = existingTask?.timerMinutes ?: defaultTimerMinutes,
+            initialTag = existingTask?.tag ?: defaultTag,
+            initialPostponeIfIncomplete = existingTask?.postponeIfIncomplete ?: defaultPostponeIfIncomplete,
             customTags = customTags,
             onAddCustomTag = { name -> viewModel.addCustomTag(name) },
             onCancel = onDone,
@@ -144,6 +153,9 @@ fun AddTaskScreen(
 private fun AddTaskScreenContent(
     existingTask: TaskEntity?,
     initialDate: LocalDate,
+    initialTimerMinutes: Int?,
+    initialTag: String?,
+    initialPostponeIfIncomplete: Boolean,
     customTags: List<String>,
     onAddCustomTag: (String) -> Unit,
     onCancel: () -> Unit,
@@ -173,19 +185,18 @@ private fun AddTaskScreenContent(
     var showDatePickerSheet by remember { mutableStateOf(false) }
 
     var selectedRepeat by remember { mutableStateOf(existingTask?.repeat ?: TaskRepeat.NONE) }
-    var selectedTag by remember { mutableStateOf(existingTask?.tag) }
+    var selectedTag by remember { mutableStateOf(initialTag) }
     var showAddTagSheet by remember { mutableStateOf(false) }
 
     var postponeIfIncomplete by remember {
-        mutableStateOf(existingTask?.postponeIfIncomplete ?: true)
+        mutableStateOf(initialPostponeIfIncomplete)
     }
 
-    var timerMinutes by remember { mutableStateOf(existingTask?.timerMinutes) }
-    val existingTimerMinutes = existingTask?.timerMinutes
-    val isInitialCustomTimer = existingTimerMinutes != null && existingTimerMinutes !in TIMER_PRESETS
+    var timerMinutes by remember { mutableStateOf(initialTimerMinutes) }
+    val isInitialCustomTimer = initialTimerMinutes != null && initialTimerMinutes !in TIMER_PRESETS
     var showCustomTimerInput by remember { mutableStateOf(isInitialCustomTimer) }
     var customTimerText by remember {
-        mutableStateOf(if (isInitialCustomTimer) existingTimerMinutes.toString() else "")
+        mutableStateOf(if (isInitialCustomTimer) initialTimerMinutes.toString() else "")
     }
     val customTimerFocusRequester = remember { FocusRequester() }
 

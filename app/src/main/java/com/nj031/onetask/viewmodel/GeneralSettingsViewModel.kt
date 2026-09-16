@@ -23,4 +23,30 @@ class GeneralSettingsViewModel(application: Application) : AndroidViewModel(appl
         repository.setStartScreen(startScreen)
         _startScreen.value = startScreen
     }
+
+    // --- Default Task Settings - only ever seed a brand-new task's initial fields; changing
+    // these never touches any task that already exists. ---
+    private val _defaultTimerMinutes = MutableStateFlow(repository.getDefaultTimerMinutes())
+    val defaultTimerMinutes: StateFlow<Int?> = _defaultTimerMinutes.asStateFlow()
+
+    private val _defaultTag = MutableStateFlow(repository.getDefaultTag())
+    val defaultTag: StateFlow<String?> = _defaultTag.asStateFlow()
+
+    private val _defaultPostponeIfIncomplete = MutableStateFlow(repository.getDefaultPostponeIfIncomplete())
+    val defaultPostponeIfIncomplete: StateFlow<Boolean> = _defaultPostponeIfIncomplete.asStateFlow()
+
+    fun setDefaultTimerMinutes(minutes: Int?) {
+        repository.setDefaultTimerMinutes(minutes)
+        _defaultTimerMinutes.value = minutes
+    }
+
+    fun setDefaultTag(tag: String?) {
+        repository.setDefaultTag(tag)
+        _defaultTag.value = tag
+    }
+
+    fun setDefaultPostponeIfIncomplete(postpone: Boolean) {
+        repository.setDefaultPostponeIfIncomplete(postpone)
+        _defaultPostponeIfIncomplete.value = postpone
+    }
 }

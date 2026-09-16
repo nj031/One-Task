@@ -201,6 +201,12 @@
     <string name="start_screen_option_tasks">Tasks</string>
     <string name="start_screen_option_journal">Journal</string>
 
+    <string name="default_task_settings_title">Default Task Settings</string>
+    <string name="default_task_settings_description">These defaults only apply to new tasks - changing them never affects tasks you\'ve already created.</string>
+    <string name="default_timer_section">Default Timer</string>
+    <string name="default_tag_section">Default Tag</string>
+    <string name="default_pending_task_section">Default Pending Task</string>
+
     <string name="data_privacy_title">Data &amp; Privacy</string>
     <string name="data_privacy_section_backup_sync">BACKUP &amp; SYNC</string>
     <string name="data_privacy_cloud_sync">Cloud Sync</string>

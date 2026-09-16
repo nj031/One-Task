@@ -22,6 +22,7 @@ import com.nj031.onetask.ui.screens.AuthScreen
 import com.nj031.onetask.ui.screens.CreateAccountEmailScreen
 import com.nj031.onetask.ui.screens.CreateAccountPasswordScreen
 import com.nj031.onetask.ui.screens.DataPrivacyScreen
+import com.nj031.onetask.ui.screens.DefaultTaskSettingsScreen
 import com.nj031.onetask.ui.screens.EditProfileScreen
 import com.nj031.onetask.ui.screens.FeedbackFormScreen
 import com.nj031.onetask.ui.screens.FocusTimerScreen
@@ -272,9 +273,15 @@ fun OneTaskNavHost(
                 }
             )
         ) { backStackEntry ->
+            val defaultTimerMinutes by generalSettingsViewModel.defaultTimerMinutes.collectAsState()
+            val defaultTag by generalSettingsViewModel.defaultTag.collectAsState()
+            val defaultPostponeIfIncomplete by generalSettingsViewModel.defaultPostponeIfIncomplete.collectAsState()
             AddTaskScreen(
                 viewModel = homeViewModel,
                 taskId = backStackEntry.arguments?.getString("taskId"),
+                defaultTimerMinutes = defaultTimerMinutes,
+                defaultTag = defaultTag,
+                defaultPostponeIfIncomplete = defaultPostponeIfIncomplete,
                 onDone = { navController.popBackStack() }
             )
         }
@@ -399,9 +406,16 @@ fun OneTaskNavHost(
             )
         }
         composable(Screen.DefaultTaskSettings.route) {
-            SettingsComingSoonScreen(
-                title = stringResource(id = R.string.general_default_task_settings),
-                message = stringResource(id = R.string.general_setting_coming_soon_message),
+            val defaultTimerMinutes by generalSettingsViewModel.defaultTimerMinutes.collectAsState()
+            val defaultTag by generalSettingsViewModel.defaultTag.collectAsState()
+            val defaultPostponeIfIncomplete by generalSettingsViewModel.defaultPostponeIfIncomplete.collectAsState()
+            DefaultTaskSettingsScreen(
+                defaultTimerMinutes = defaultTimerMinutes,
+                defaultTag = defaultTag,
+                defaultPostponeIfIncomplete = defaultPostponeIfIncomplete,
+                onDefaultTimerMinutesChange = generalSettingsViewModel::setDefaultTimerMinutes,
+                onDefaultTagChange = generalSettingsViewModel::setDefaultTag,
+                onDefaultPostponeIfIncompleteChange = generalSettingsViewModel::setDefaultPostponeIfIncomplete,
                 onBackClick = { navController.popBackStack() }
             )
         }
