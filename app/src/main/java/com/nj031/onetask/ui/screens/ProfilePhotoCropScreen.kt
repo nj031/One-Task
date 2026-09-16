@@ -7,7 +7,6 @@ import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -30,17 +28,20 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.graphicsLayer
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -161,14 +162,12 @@ private fun CropArea(
     onTransform: (Float, Offset) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val density = LocalDensity.current
-    val nativeWidthDp = with(density) { bitmap.width.toFloat().toDp() }
-    val nativeHeightDp = with(density) { bitmap.height.toFloat().toDp() }
     val frameRadius = frameSizePx / 2f
     val currentScale = rememberUpdatedState(scale)
     val currentOffset = rememberUpdatedState(offset)
+    val imageBitmap = remember(bitmap) { bitmap.asImageBitmap() }
 
-    Box(
+    Canvas(
         modifier = modifier
             .pointerInput(bitmap) {
                 detectTransformGestures { _, pan, zoom, _ ->
@@ -183,41 +182,31 @@ private fun CropArea(
                     )
                     onTransform(newScale, newOffset)
                 }
-            },
-        contentAlignment = Alignment.Center
+            }
     ) {
-        Image(
-            bitmap = bitmap.asImageBitmap(),
-            contentDescription = null,
-            modifier = Modifier
-                .size(nativeWidthDp, nativeHeightDp)
-                .graphicsLayer {
-                    scaleX = baseScale * scale
-                    scaleY = baseScale * scale
-                    translationX = offset.x
-                    translationY = offset.y
-                }
+        // The image is drawn directly into its destination rect rather than via a separately
+        // transformed Image composable, so the whole crop preview - image, scrim, frame outline -
+        // is one DrawScope pass using only its ordinary drawXxx primitives.
+        val totalScale = baseScale * scale
+        val dstWidth = bitmap.width * totalScale
+        val dstHeight = bitmap.height * totalScale
+        val dstLeft = center.x - dstWidth / 2f + offset.x
+        val dstTop = center.y - dstHeight / 2f + offset.y
+        drawImage(
+            image = imageBitmap,
+            dstOffset = IntOffset(dstLeft.roundToInt(), dstTop.roundToInt()),
+            dstSize = IntSize(dstWidth.roundToInt(), dstHeight.roundToInt())
         )
 
-        // The dimmed scrim outside the crop circle is punched out via a native saveLayer +
-        // PorterDuff CLEAR, rather than Compose's own experimental compositing-strategy API, so
-        // this doesn't depend on an unstable opt-in.
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawIntoCanvas { canvas ->
-                val scrimPaint = android.graphics.Paint().apply {
-                    color = android.graphics.Color.argb((0.55f * 255).toInt(), 0, 0, 0)
-                }
-                val clearPaint = android.graphics.Paint().apply {
-                    xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
-                    isAntiAlias = true
-                }
-                val saveCount = canvas.nativeCanvas.saveLayer(0f, 0f, size.width, size.height, null)
-                canvas.nativeCanvas.drawRect(0f, 0f, size.width, size.height, scrimPaint)
-                canvas.nativeCanvas.drawCircle(center.x, center.y, frameRadius, clearPaint)
-                canvas.nativeCanvas.restoreToCount(saveCount)
-            }
-            drawCircle(color = Color.White, radius = frameRadius, center = center, style = Stroke(width = 2.dp.toPx()))
+        // Dimmed scrim outside the crop circle, via an even-odd "full rect minus circle" path -
+        // avoids needing a native saveLayer/PorterDuff punch-hole.
+        val scrimPath = Path().apply {
+            addRect(Rect(Offset.Zero, size))
+            addOval(Rect(center = center, radius = frameRadius))
+            fillType = PathFillType.EvenOdd
         }
+        drawPath(path = scrimPath, color = Color.Black.copy(alpha = 0.55f))
+        drawCircle(color = Color.White, radius = frameRadius, center = center, style = Stroke(width = 2.dp.toPx()))
     }
 }
 
