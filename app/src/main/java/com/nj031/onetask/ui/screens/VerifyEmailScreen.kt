@@ -119,6 +119,16 @@ fun VerifyEmailScreen(
                     fontWeight = FontWeight.Bold
                 )
             }
+
+            Text(
+                text = stringResource(id = R.string.email_spam_folder_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 20.dp)
+            )
         }
     }
 }
