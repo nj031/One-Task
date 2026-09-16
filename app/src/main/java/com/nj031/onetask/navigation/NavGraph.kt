@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -11,8 +12,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.nj031.onetask.R
 import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.feedback.FeedbackType
+import com.nj031.onetask.data.settings.StartScreen
 import com.nj031.onetask.ui.screens.AddTaskScreen
 import com.nj031.onetask.ui.screens.ArchiveScreen
 import com.nj031.onetask.ui.screens.AuthScreen
@@ -23,6 +26,7 @@ import com.nj031.onetask.ui.screens.EditProfileScreen
 import com.nj031.onetask.ui.screens.FeedbackFormScreen
 import com.nj031.onetask.ui.screens.FocusTimerScreen
 import com.nj031.onetask.ui.screens.ForgotPasswordScreen
+import com.nj031.onetask.ui.screens.GeneralSettingsScreen
 import com.nj031.onetask.ui.screens.HelpFaqCategoryScreen
 import com.nj031.onetask.ui.screens.HelpFaqScreen
 import com.nj031.onetask.ui.screens.HelpFeedbackScreen
@@ -33,10 +37,13 @@ import com.nj031.onetask.ui.screens.NoteEditorScreen
 import com.nj031.onetask.ui.screens.PrivacyPolicyScreen
 import com.nj031.onetask.ui.screens.ProfileScreen
 import com.nj031.onetask.ui.screens.RecycleBinScreen
+import com.nj031.onetask.ui.screens.SettingsComingSoonScreen
 import com.nj031.onetask.ui.screens.SetUpProfileScreen
+import com.nj031.onetask.ui.screens.StartScreenSettingScreen
 import com.nj031.onetask.ui.screens.UpgradeToProScreen
 import com.nj031.onetask.ui.screens.VerifyEmailScreen
 import com.nj031.onetask.viewmodel.AuthViewModel
+import com.nj031.onetask.viewmodel.GeneralSettingsViewModel
 import com.nj031.onetask.viewmodel.HomeViewModel
 import com.nj031.onetask.viewmodel.JournalViewModel
 import com.nj031.onetask.viewmodel.ProfileViewModel
@@ -63,6 +70,7 @@ fun OneTaskNavHost(
     val homeViewModel: HomeViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
+    val generalSettingsViewModel: GeneralSettingsViewModel = viewModel()
     val startDestination = when {
         AuthRepository.currentUser == null -> Screen.Auth.route
         // Only an unverified account can reach this point: Google sign-in accounts are always
@@ -71,7 +79,10 @@ fun OneTaskNavHost(
         // link was confirmed - resume exactly where they left off instead of dropping them on
         // Home with an unverified account.
         !AuthRepository.isCurrentUserEmailVerified -> Screen.VerifyEmail.route
+        // An in-progress Focus session always takes priority over the Start Screen setting -
+        // the user is mid-task, not just launching the app fresh.
         activeFocusTaskId != null -> Screen.FocusTimer.createRoute(activeFocusTaskId)
+        generalSettingsViewModel.startScreen.value == StartScreen.JOURNAL -> Screen.Journal.route
         else -> Screen.Home.route
     }
 
@@ -239,6 +250,7 @@ fun OneTaskNavHost(
                 },
                 onArchiveClick = { navController.navigate(Screen.Archive.route) },
                 onRecycleBinClick = { navController.navigate(Screen.RecycleBin.route) },
+                onGeneralSettingsClick = { navController.navigate(Screen.GeneralSettings.route) },
                 onDataPrivacyClick = { navController.navigate(Screen.DataPrivacy.route) },
                 onUpgradeToProClick = { navController.navigate(Screen.UpgradeToPro.route) },
                 onHelpFeedbackClick = { navController.navigate(Screen.HelpFeedback.route) },
@@ -302,6 +314,7 @@ fun OneTaskNavHost(
                 },
                 onRecycleBinClick = { navController.navigate(Screen.RecycleBin.route) },
                 onArchiveClick = { navController.navigate(Screen.Archive.route) },
+                onGeneralSettingsClick = { navController.navigate(Screen.GeneralSettings.route) },
                 onDataPrivacyClick = { navController.navigate(Screen.DataPrivacy.route) },
                 onUpgradeToProClick = { navController.navigate(Screen.UpgradeToPro.route) },
                 onHelpFeedbackClick = { navController.navigate(Screen.HelpFeedback.route) },
@@ -355,6 +368,70 @@ fun OneTaskNavHost(
         }
         composable(Screen.PrivacyPolicy.route) {
             PrivacyPolicyScreen(onBackClick = { navController.popBackStack() })
+        }
+        composable(Screen.GeneralSettings.route) {
+            val startScreen by generalSettingsViewModel.startScreen.collectAsState()
+            GeneralSettingsScreen(
+                startScreen = startScreen,
+                onBackClick = { navController.popBackStack() },
+                onAppearanceClick = { navController.navigate(Screen.AppearanceSettings.route) },
+                onStartScreenClick = { navController.navigate(Screen.StartScreenSettings.route) },
+                onDefaultTaskSettingsClick = { navController.navigate(Screen.DefaultTaskSettings.route) },
+                onNotificationsClick = { navController.navigate(Screen.NotificationsSettings.route) },
+                onWeekStartsOnClick = { navController.navigate(Screen.WeekStartsOnSettings.route) },
+                onTimeFormatClick = { navController.navigate(Screen.TimeFormatSettings.route) },
+                onHapticFeedbackClick = { navController.navigate(Screen.HapticFeedbackSettings.route) }
+            )
+        }
+        composable(Screen.AppearanceSettings.route) {
+            SettingsComingSoonScreen(
+                title = stringResource(id = R.string.appearance_title),
+                message = stringResource(id = R.string.appearance_placeholder_message),
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.StartScreenSettings.route) {
+            val startScreen by generalSettingsViewModel.startScreen.collectAsState()
+            StartScreenSettingScreen(
+                selected = startScreen,
+                onSelect = generalSettingsViewModel::setStartScreen,
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.DefaultTaskSettings.route) {
+            SettingsComingSoonScreen(
+                title = stringResource(id = R.string.general_default_task_settings),
+                message = stringResource(id = R.string.general_setting_coming_soon_message),
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.NotificationsSettings.route) {
+            SettingsComingSoonScreen(
+                title = stringResource(id = R.string.general_notifications),
+                message = stringResource(id = R.string.general_setting_coming_soon_message),
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.WeekStartsOnSettings.route) {
+            SettingsComingSoonScreen(
+                title = stringResource(id = R.string.general_week_starts_on),
+                message = stringResource(id = R.string.general_setting_coming_soon_message),
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.TimeFormatSettings.route) {
+            SettingsComingSoonScreen(
+                title = stringResource(id = R.string.general_time_format),
+                message = stringResource(id = R.string.general_setting_coming_soon_message),
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.HapticFeedbackSettings.route) {
+            SettingsComingSoonScreen(
+                title = stringResource(id = R.string.general_haptic_feedback),
+                message = stringResource(id = R.string.general_setting_coming_soon_message),
+                onBackClick = { navController.popBackStack() }
+            )
         }
         composable(Screen.UpgradeToPro.route) {
             UpgradeToProScreen(onBackClick = { navController.popBackStack() })

@@ -36,4 +36,12 @@ sealed class Screen(val route: String) {
     data object FeedbackForm : Screen("feedback_form/{type}") {
         fun createRoute(type: String): String = "feedback_form/$type"
     }
+    data object GeneralSettings : Screen("general_settings")
+    data object AppearanceSettings : Screen("appearance_settings")
+    data object StartScreenSettings : Screen("start_screen_settings")
+    data object DefaultTaskSettings : Screen("default_task_settings")
+    data object NotificationsSettings : Screen("notifications_settings")
+    data object WeekStartsOnSettings : Screen("week_starts_on_settings")
+    data object TimeFormatSettings : Screen("time_format_settings")
+    data object HapticFeedbackSettings : Screen("haptic_feedback_settings")
 }

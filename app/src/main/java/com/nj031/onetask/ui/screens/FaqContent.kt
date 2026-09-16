@@ -7,7 +7,7 @@ package com.nj031.onetask.ui.screens
  * here. Content matches the product-specified questions/answers; a small number of answers were
  * corrected to match One Task's actual current behavior (see inline notes) rather than aspirational
  * or marketing copy (e.g. features listed as "Pro-only" on the Upgrade to Pro screen that aren't
- * actually gated yet, and General settings that don't exist as a screen yet).
+ * actually gated yet, and General Settings rows that are still "coming soon" placeholders).
  */
 data class FaqQuestion(val question: String, val answer: String)
 data class FaqCategory(val id: String, val title: String, val questions: List<FaqQuestion>)
@@ -190,18 +190,19 @@ val faqCategories: List<FaqCategory> = listOf(
     FaqCategory(
         id = "general",
         title = "General",
-        // These General settings (appearance, start screen, default task settings, week start,
-        // time format, haptics) don't exist as a screen yet - General is still a no-op drawer
-        // row. Answers are corrected to say so honestly instead of describing settings paths
-        // that don't exist, per the "prioritize actual implemented behavior" rule.
+        // General Settings now exists (hamburger menu > General): Appearance is a placeholder
+        // and Start Screen is fully functional, so those two answers are updated accordingly.
+        // Default Task Settings, Notifications, Week Starts On, Time Format, and Haptic
+        // Feedback are visible rows there too, but still open a "coming soon" placeholder, so
+        // those answers are unchanged.
         questions = listOf(
             FaqQuestion(
                 "How do I change the app appearance?",
-                "One Task doesn't have an appearance/theme setting yet. This is planned for a future update."
+                "Open the hamburger menu, tap General, then Appearance. Theme customization isn't built yet, but the screen is there and will be filled in with a future update."
             ),
             FaqQuestion(
                 "How do I change the start screen?",
-                "One Task doesn't let you choose a custom start screen yet. This is planned for a future update."
+                "Open the hamburger menu, tap General, then Start Screen, and choose Tasks or Journal. This controls which section opens when you launch One Task."
             ),
             FaqQuestion(
                 "Can I set a default timer for new tasks?",

@@ -74,6 +74,7 @@ fun JournalScreen(
     onNoteClick: (String) -> Unit = {},
     onRecycleBinClick: () -> Unit = {},
     onArchiveClick: () -> Unit = {},
+    onGeneralSettingsClick: () -> Unit = {},
     onDataPrivacyClick: () -> Unit = {},
     onUpgradeToProClick: () -> Unit = {},
     onHelpFeedbackClick: () -> Unit = {},
@@ -122,7 +123,10 @@ fun JournalScreen(
                         scope.launch { drawerState.close() }
                         onRecycleBinClick()
                     },
-                    onGeneralSettingsClick = { /* no-op: not implemented yet */ },
+                    onGeneralSettingsClick = {
+                        scope.launch { drawerState.close() }
+                        onGeneralSettingsClick()
+                    },
                     onDataPrivacyClick = {
                         scope.launch { drawerState.close() }
                         onDataPrivacyClick()

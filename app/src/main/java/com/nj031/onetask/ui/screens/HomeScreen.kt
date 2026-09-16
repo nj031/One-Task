@@ -98,6 +98,7 @@ fun HomeScreen(
     onEditTaskClick: (String) -> Unit = {},
     onArchiveClick: () -> Unit = {},
     onRecycleBinClick: () -> Unit = {},
+    onGeneralSettingsClick: () -> Unit = {},
     onDataPrivacyClick: () -> Unit = {},
     onUpgradeToProClick: () -> Unit = {},
     onHelpFeedbackClick: () -> Unit = {},
@@ -137,7 +138,10 @@ fun HomeScreen(
                         scope.launch { drawerState.close() }
                         onRecycleBinClick()
                     },
-                    onGeneralSettingsClick = { /* no-op: not implemented yet */ },
+                    onGeneralSettingsClick = {
+                        scope.launch { drawerState.close() }
+                        onGeneralSettingsClick()
+                    },
                     onDataPrivacyClick = {
                         scope.launch { drawerState.close() }
                         onDataPrivacyClick()

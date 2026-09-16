@@ -182,6 +182,25 @@
     <string name="sample_user_email">spideysince97@gmail.com</string>
 
     <string name="continue_action">Continue</string>
+
+    <string name="general_settings_title">General</string>
+    <string name="general_appearance">Appearance</string>
+    <string name="general_start_screen">Start Screen</string>
+    <string name="general_default_task_settings">Default Task Settings</string>
+    <string name="general_notifications">Notifications</string>
+    <string name="general_week_starts_on">Week Starts On</string>
+    <string name="general_time_format">Time Format</string>
+    <string name="general_haptic_feedback">Haptic Feedback</string>
+    <string name="general_setting_coming_soon_message">This setting will be available in a future update.</string>
+
+    <string name="appearance_title">Appearance</string>
+    <string name="appearance_placeholder_message">Appearance and theme customization is coming soon.</string>
+
+    <string name="start_screen_title">Start Screen</string>
+    <string name="start_screen_description">Choose which section opens when you launch One Task.</string>
+    <string name="start_screen_option_tasks">Tasks</string>
+    <string name="start_screen_option_journal">Journal</string>
+
     <string name="data_privacy_title">Data &amp; Privacy</string>
     <string name="data_privacy_section_backup_sync">BACKUP &amp; SYNC</string>
     <string name="data_privacy_cloud_sync">Cloud Sync</string>
