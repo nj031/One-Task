@@ -13,10 +13,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,7 +44,6 @@ import com.nj031.onetask.R
 @Composable
 fun OneTaskDrawerContent(
     userEmail: String,
-    onSwitchAccountClick: () -> Unit,
     onLogoutClick: () -> Unit,
     onArchiveClick: () -> Unit,
     onRecycleBinClick: () -> Unit,
@@ -50,6 +55,8 @@ fun OneTaskDrawerContent(
     onRateAppClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showLogoutConfirm by remember { mutableStateOf(false) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -109,10 +116,9 @@ fun OneTaskDrawerContent(
                     )
                 }
                 DrawerMenuRow(
-                    text = stringResource(id = R.string.drawer_switch_account),
-                    onClick = onSwitchAccountClick
+                    text = stringResource(id = R.string.log_out),
+                    onClick = { showLogoutConfirm = true }
                 )
-                DrawerMenuRow(text = stringResource(id = R.string.log_out), onClick = onLogoutClick)
             }
 
             DrawerSectionLabel(text = stringResource(id = R.string.drawer_section_journal))
@@ -135,6 +141,29 @@ fun OneTaskDrawerContent(
             DrawerMenuRow(text = stringResource(id = R.string.drawer_help_feedback), onClick = onHelpFeedbackClick)
             DrawerMenuRow(text = stringResource(id = R.string.drawer_rate_app), onClick = onRateAppClick)
         }
+    }
+
+    if (showLogoutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLogoutConfirm = false },
+            title = { Text(text = stringResource(id = R.string.logout_confirm_title)) },
+            text = { Text(text = stringResource(id = R.string.logout_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLogoutConfirm = false
+                        onLogoutClick()
+                    }
+                ) {
+                    Text(text = stringResource(id = R.string.logout_confirm_action))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutConfirm = false }) {
+                    Text(text = stringResource(id = R.string.cancel))
+                }
+            }
+        )
     }
 }
 

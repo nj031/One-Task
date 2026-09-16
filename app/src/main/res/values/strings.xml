@@ -62,7 +62,9 @@
     <string name="cancel">Cancel</string>
 
     <string name="drawer_section_account">ACCOUNT</string>
-    <string name="drawer_switch_account">Switch account</string>
+    <string name="logout_confirm_title">Log out?</string>
+    <string name="logout_confirm_message">You\'ll need to log in again to access your One Task account.</string>
+    <string name="logout_confirm_action">Log Out</string>
     <string name="drawer_section_journal">JOURNAL</string>
     <string name="drawer_section_settings">SETTINGS</string>
     <string name="drawer_settings_general">General</string>

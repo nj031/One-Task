@@ -125,7 +125,6 @@ fun HomeScreen(
                 OneTaskDrawerContent(
                     userEmail = AuthRepository.currentUser?.email
                         ?: stringResource(id = R.string.sample_user_email),
-                    onSwitchAccountClick = { /* no-op: account switching not implemented yet */ },
                     onLogoutClick = onLogout,
                     onArchiveClick = {
                         scope.launch { drawerState.close() }
