@@ -1,6 +1,7 @@
 package com.nj031.onetask.data.profile
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import java.io.File
 
@@ -16,6 +17,14 @@ object ProfilePhotoStorage {
         context.contentResolver.openInputStream(source)?.use { input ->
             destination.outputStream().use { output -> input.copyTo(output) }
         }
+        return destination.absolutePath
+    }
+
+    /** Used by the profile photo crop flow, which produces an in-memory cropped Bitmap rather
+     * than a source Uri to copy bytes from. */
+    fun saveBitmap(context: Context, bitmap: Bitmap): String {
+        val destination = photoFile(context)
+        destination.outputStream().use { output -> bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output) }
         return destination.absolutePath
     }
 

@@ -123,6 +123,8 @@
     <string name="profile_app_version">App Version</string>
     <string name="profile_edit_change_photo">Change Photo</string>
     <string name="profile_edit_remove_photo">Remove Photo</string>
+    <string name="profile_edit_crop_title">Crop Photo</string>
+    <string name="profile_edit_crop_done">Done</string>
     <string name="profile_edit_name_label">Name</string>
     <string name="profile_edit_name_required">Name is required</string>
     <string name="profile_edit_dob_label">Date of Birth</string>
