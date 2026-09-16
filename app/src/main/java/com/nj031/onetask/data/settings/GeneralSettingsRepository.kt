@@ -1,8 +1,11 @@
 package com.nj031.onetask.data.settings
 
 import android.content.Context
+import java.time.DayOfWeek
 
 enum class StartScreen { TASKS, JOURNAL }
+
+enum class TimeFormat { SYSTEM_DEFAULT, HOUR_12, HOUR_24 }
 
 private const val PREFS_NAME = "general_settings_prefs"
 private const val KEY_START_SCREEN = "start_screen"
@@ -11,6 +14,8 @@ private const val KEY_DEFAULT_TAG = "default_tag"
 private const val KEY_DEFAULT_POSTPONE_IF_INCOMPLETE = "default_postpone_if_incomplete"
 private const val KEY_FOCUS_SESSION_NOTIFICATIONS_ENABLED = "focus_session_notifications_enabled"
 private const val KEY_FOCUS_SESSION_COMPLETE_ENABLED = "focus_session_complete_enabled"
+private const val KEY_WEEK_START_DAY = "week_start_day"
+private const val KEY_TIME_FORMAT = "time_format"
 
 /**
  * Stores General Settings in a private SharedPreferences file, the same choice made for
@@ -73,5 +78,25 @@ class GeneralSettingsRepository(context: Context) {
 
     fun setFocusSessionCompleteEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_FOCUS_SESSION_COMPLETE_ENABLED, enabled).apply()
+    }
+
+    /** Monday is the default per spec - this only affects calendar/week presentation
+     * (OneTaskCalendarSheet's column order), never task dates or recurring-task logic. */
+    fun getWeekStartDay(): DayOfWeek {
+        val raw = prefs.getString(KEY_WEEK_START_DAY, null) ?: return DayOfWeek.MONDAY
+        return runCatching { DayOfWeek.valueOf(raw) }.getOrDefault(DayOfWeek.MONDAY)
+    }
+
+    fun setWeekStartDay(day: DayOfWeek) {
+        prefs.edit().putString(KEY_WEEK_START_DAY, day.name).apply()
+    }
+
+    fun getTimeFormat(): TimeFormat {
+        val raw = prefs.getString(KEY_TIME_FORMAT, null) ?: return TimeFormat.SYSTEM_DEFAULT
+        return runCatching { TimeFormat.valueOf(raw) }.getOrDefault(TimeFormat.SYSTEM_DEFAULT)
+    }
+
+    fun setTimeFormat(timeFormat: TimeFormat) {
+        prefs.edit().putString(KEY_TIME_FORMAT, timeFormat.name).apply()
     }
 }

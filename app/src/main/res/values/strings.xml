@@ -216,6 +216,15 @@
     <string name="notifications_task_reminders_description">Get reminded about upcoming and overdue tasks.</string>
     <string name="pro_badge_label">PRO</string>
 
+    <string name="week_starts_on_title">Week Starts On</string>
+    <string name="week_starts_on_description">Choose which day your calendar and weekly views start on. This only changes how days are ordered - it never moves or changes task dates.</string>
+
+    <string name="time_format_title">Time Format</string>
+    <string name="time_format_description">Choose how times are shown throughout One Task.</string>
+    <string name="time_format_system_default">System Default</string>
+    <string name="time_format_12_hour">12-hour</string>
+    <string name="time_format_24_hour">24-hour</string>
+
     <string name="data_privacy_title">Data &amp; Privacy</string>
     <string name="data_privacy_section_backup_sync">BACKUP &amp; SYNC</string>
     <string name="data_privacy_cloud_sync">Cloud Sync</string>

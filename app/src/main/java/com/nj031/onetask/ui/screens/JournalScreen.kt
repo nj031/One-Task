@@ -1,5 +1,6 @@
 package com.nj031.onetask.ui.screens
 
+import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -45,6 +46,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -54,12 +56,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.journal.JournalNoteEntity
+import com.nj031.onetask.data.settings.TimeFormat
 import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.ui.components.OneTaskAddButton
 import com.nj031.onetask.ui.components.OneTaskBottomNav
 import com.nj031.onetask.ui.components.OneTaskCalendarSheet
 import com.nj031.onetask.viewmodel.JournalViewModel
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -80,7 +84,9 @@ fun JournalScreen(
     onHelpFeedbackClick: () -> Unit = {},
     onNavigateToTasks: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    weekStartDay: DayOfWeek = DayOfWeek.MONDAY,
+    timeFormat: TimeFormat = TimeFormat.SYSTEM_DEFAULT
 ) {
     val selectedDate by viewModel.selectedDate.collectAsState()
     val notes by viewModel.notesForSelectedDate.collectAsState()
@@ -210,6 +216,7 @@ fun JournalScreen(
                             items(notes, key = { it.id }) { note ->
                                 JournalNoteCard(
                                     note = note,
+                                    timeFormat = timeFormat,
                                     onClick = { onNoteClick(note.id) },
                                     onLongClick = { actionMenuNote = note }
                                 )
@@ -227,7 +234,8 @@ fun JournalScreen(
             markedDates = activeNoteDates,
             maxSelectableDate = LocalDate.now(),
             onDateSelected = { viewModel.selectDate(it) },
-            onDismiss = { showDatePicker = false }
+            onDismiss = { showDatePicker = false },
+            weekStartDay = weekStartDay
         )
     }
 
@@ -295,6 +303,7 @@ private fun JournalTopBar(onMenuClick: () -> Unit, onCalendarClick: () -> Unit) 
 @Composable
 private fun JournalNoteCard(
     note: JournalNoteEntity,
+    timeFormat: TimeFormat,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -332,7 +341,7 @@ private fun JournalNoteCard(
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    text = note.updatedAt.toDisplayTime(),
+                    text = note.updatedAt.toDisplayTime(timeFormat),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 8.dp)
@@ -456,13 +465,22 @@ private fun DeleteNoteConfirmationDialog(onConfirm: () -> Unit, onDismiss: () ->
 private val journalDateFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.getDefault())
 
-private val noteTimeFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
-
 private const val NOTE_PREVIEW_MAX_LENGTH = 60
 
-private fun Long.toDisplayTime(): String =
-    Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault()).format(noteTimeFormatter)
+/** System Default follows the device's actual 12/24-hour clock preference (the same thing
+ * Android's own clock/alarm apps read) rather than always showing 12-hour time regardless of
+ * that preference, which is what this used to do unconditionally before this setting existed. */
+@Composable
+private fun Long.toDisplayTime(timeFormat: TimeFormat): String {
+    val context = LocalContext.current
+    val pattern = when (timeFormat) {
+        TimeFormat.HOUR_12 -> "h:mm a"
+        TimeFormat.HOUR_24 -> "HH:mm"
+        TimeFormat.SYSTEM_DEFAULT -> if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm a"
+    }
+    val formatter = DateTimeFormatter.ofPattern(pattern, Locale.getDefault())
+    return Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault()).format(formatter)
+}
 
 internal fun String.toPreviewText(): String {
     val collapsed = lineSequence()

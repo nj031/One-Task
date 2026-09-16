@@ -42,8 +42,10 @@ import com.nj031.onetask.ui.screens.RecycleBinScreen
 import com.nj031.onetask.ui.screens.SettingsComingSoonScreen
 import com.nj031.onetask.ui.screens.SetUpProfileScreen
 import com.nj031.onetask.ui.screens.StartScreenSettingScreen
+import com.nj031.onetask.ui.screens.TimeFormatSettingScreen
 import com.nj031.onetask.ui.screens.UpgradeToProScreen
 import com.nj031.onetask.ui.screens.VerifyEmailScreen
+import com.nj031.onetask.ui.screens.WeekStartsOnSettingScreen
 import com.nj031.onetask.viewmodel.AuthViewModel
 import com.nj031.onetask.viewmodel.GeneralSettingsViewModel
 import com.nj031.onetask.viewmodel.HomeViewModel
@@ -239,6 +241,7 @@ fun OneTaskNavHost(
             )
         }
         composable(Screen.Home.route) {
+            val weekStartDay by generalSettingsViewModel.weekStartDay.collectAsState()
             HomeScreen(
                 viewModel = homeViewModel,
                 onNavigateToJournal = { navController.navigateToBottomNavTab(Screen.Journal.route) },
@@ -261,7 +264,8 @@ fun OneTaskNavHost(
                     navController.navigate(Screen.Auth.route) {
                         popUpTo(0)
                     }
-                }
+                },
+                weekStartDay = weekStartDay
             )
         }
         composable(
@@ -277,12 +281,14 @@ fun OneTaskNavHost(
             val defaultTimerMinutes by generalSettingsViewModel.defaultTimerMinutes.collectAsState()
             val defaultTag by generalSettingsViewModel.defaultTag.collectAsState()
             val defaultPostponeIfIncomplete by generalSettingsViewModel.defaultPostponeIfIncomplete.collectAsState()
+            val weekStartDay by generalSettingsViewModel.weekStartDay.collectAsState()
             AddTaskScreen(
                 viewModel = homeViewModel,
                 taskId = backStackEntry.arguments?.getString("taskId"),
                 defaultTimerMinutes = defaultTimerMinutes,
                 defaultTag = defaultTag,
                 defaultPostponeIfIncomplete = defaultPostponeIfIncomplete,
+                weekStartDay = weekStartDay,
                 onDone = { navController.popBackStack() }
             )
         }
@@ -314,6 +320,8 @@ fun OneTaskNavHost(
             )
         }
         composable(Screen.Journal.route) {
+            val weekStartDay by generalSettingsViewModel.weekStartDay.collectAsState()
+            val timeFormat by generalSettingsViewModel.timeFormat.collectAsState()
             JournalScreen(
                 viewModel = journalViewModel,
                 onAddNoteClick = { navController.navigate(Screen.NoteEditor.createRoute()) },
@@ -333,7 +341,9 @@ fun OneTaskNavHost(
                     navController.navigate(Screen.Auth.route) {
                         popUpTo(0)
                     }
-                }
+                },
+                weekStartDay = weekStartDay,
+                timeFormat = timeFormat
             )
         }
         composable(Screen.Profile.route) {
@@ -379,8 +389,12 @@ fun OneTaskNavHost(
         }
         composable(Screen.GeneralSettings.route) {
             val startScreen by generalSettingsViewModel.startScreen.collectAsState()
+            val weekStartDay by generalSettingsViewModel.weekStartDay.collectAsState()
+            val timeFormat by generalSettingsViewModel.timeFormat.collectAsState()
             GeneralSettingsScreen(
                 startScreen = startScreen,
+                weekStartDay = weekStartDay,
+                timeFormat = timeFormat,
                 onBackClick = { navController.popBackStack() },
                 onAppearanceClick = { navController.navigate(Screen.AppearanceSettings.route) },
                 onStartScreenClick = { navController.navigate(Screen.StartScreenSettings.route) },
@@ -433,16 +447,18 @@ fun OneTaskNavHost(
             )
         }
         composable(Screen.WeekStartsOnSettings.route) {
-            SettingsComingSoonScreen(
-                title = stringResource(id = R.string.general_week_starts_on),
-                message = stringResource(id = R.string.general_setting_coming_soon_message),
+            val weekStartDay by generalSettingsViewModel.weekStartDay.collectAsState()
+            WeekStartsOnSettingScreen(
+                selected = weekStartDay,
+                onSelect = generalSettingsViewModel::setWeekStartDay,
                 onBackClick = { navController.popBackStack() }
             )
         }
         composable(Screen.TimeFormatSettings.route) {
-            SettingsComingSoonScreen(
-                title = stringResource(id = R.string.general_time_format),
-                message = stringResource(id = R.string.general_setting_coming_soon_message),
+            val timeFormat by generalSettingsViewModel.timeFormat.collectAsState()
+            TimeFormatSettingScreen(
+                selected = timeFormat,
+                onSelect = generalSettingsViewModel::setTimeFormat,
                 onBackClick = { navController.popBackStack() }
             )
         }
