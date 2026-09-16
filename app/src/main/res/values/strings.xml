@@ -225,6 +225,9 @@
     <string name="time_format_12_hour">12-hour</string>
     <string name="time_format_24_hour">24-hour</string>
 
+    <string name="haptic_feedback_title">Haptic Feedback</string>
+    <string name="haptic_feedback_description">Feel a subtle vibration for meaningful actions like completing a task, starting or pausing your timer, and picking a date.</string>
+
     <string name="data_privacy_title">Data &amp; Privacy</string>
     <string name="data_privacy_section_backup_sync">BACKUP &amp; SYNC</string>
     <string name="data_privacy_cloud_sync">Cloud Sync</string>

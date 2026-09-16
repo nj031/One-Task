@@ -16,6 +16,7 @@ private const val KEY_FOCUS_SESSION_NOTIFICATIONS_ENABLED = "focus_session_notif
 private const val KEY_FOCUS_SESSION_COMPLETE_ENABLED = "focus_session_complete_enabled"
 private const val KEY_WEEK_START_DAY = "week_start_day"
 private const val KEY_TIME_FORMAT = "time_format"
+private const val KEY_HAPTIC_FEEDBACK_ENABLED = "haptic_feedback_enabled"
 
 /**
  * Stores General Settings in a private SharedPreferences file, the same choice made for
@@ -98,5 +99,12 @@ class GeneralSettingsRepository(context: Context) {
 
     fun setTimeFormat(timeFormat: TimeFormat) {
         prefs.edit().putString(KEY_TIME_FORMAT, timeFormat.name).apply()
+    }
+
+    /** ON is the default per spec. */
+    fun getHapticFeedbackEnabled(): Boolean = prefs.getBoolean(KEY_HAPTIC_FEEDBACK_ENABLED, true)
+
+    fun setHapticFeedbackEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_HAPTIC_FEEDBACK_ENABLED, enabled).apply()
     }
 }

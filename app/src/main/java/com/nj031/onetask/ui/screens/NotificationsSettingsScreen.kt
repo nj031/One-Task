@@ -28,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
+import com.nj031.onetask.ui.haptics.rememberHapticTick
 
 /**
  * General Settings > Notifications. Focus Session Notifications and Focus Session Complete are
@@ -143,6 +144,7 @@ private fun NotificationToggleRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
+    val hapticTick = rememberHapticTick()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -163,7 +165,13 @@ private fun NotificationToggleRow(
                 modifier = Modifier.padding(top = 2.dp)
             )
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = checked,
+            onCheckedChange = {
+                hapticTick()
+                onCheckedChange(it)
+            }
+        )
     }
 }
 

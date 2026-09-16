@@ -37,6 +37,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
+import com.nj031.onetask.ui.haptics.rememberHapticTick
 
 private const val TIMER_25_MIN = 25
 private const val TIMER_45_MIN = 45
@@ -66,6 +67,7 @@ fun DefaultTaskSettingsScreen(
     var customTimerText by remember {
         mutableStateOf(if (isInitialCustomTimer) defaultTimerMinutes.toString() else "")
     }
+    val hapticTick = rememberHapticTick()
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
         Column(
@@ -194,7 +196,10 @@ fun DefaultTaskSettingsScreen(
                 )
                 Switch(
                     checked = defaultPostponeIfIncomplete,
-                    onCheckedChange = onDefaultPostponeIfIncompleteChange
+                    onCheckedChange = {
+                        hapticTick()
+                        onDefaultPostponeIfIncompleteChange(it)
+                    }
                 )
             }
         }

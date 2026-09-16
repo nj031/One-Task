@@ -61,6 +61,7 @@ import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.ui.components.CompactBottomSheet
+import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.viewmodel.HomeViewModel
 import kotlin.math.cos
 import kotlin.math.sin
@@ -80,6 +81,7 @@ fun FocusTimerScreen(
         .collectAsState(initial = null)
     var showBreakConfirm by remember { mutableStateOf(false) }
     var showLeaveFocusConfirm by remember { mutableStateOf(false) }
+    val hapticTick = rememberHapticTick()
 
     // Whether the "Focus session complete" prompt (for a finished timer with subtasks still
     // left) has been dismissed via Continue Task. Reset below whenever a fresh countdown
@@ -203,13 +205,17 @@ fun FocusTimerScreen(
                             isSessionComplete = isSessionComplete,
                             showCompletionPrompt = isSessionComplete && hasIncompleteSubtasks && !completionAcknowledged,
                             onPauseOrResume = {
+                                hapticTick()
                                 if (currentTask.timerEndAtMillis != null) {
                                     viewModel.pauseTimer(currentTask)
                                 } else {
                                     viewModel.startTimer(currentTask)
                                 }
                             },
-                            onReset = { viewModel.resetTimer(currentTask) },
+                            onReset = {
+                                hapticTick()
+                                viewModel.resetTimer(currentTask)
+                            },
                             onBreak = { showBreakConfirm = true },
                             onToggleSubtask = { subtaskId -> viewModel.toggleSubtask(currentTask, subtaskId) },
                             onMarkTaskDone = { viewModel.markTaskDone(currentTask) },
@@ -225,6 +231,7 @@ fun FocusTimerScreen(
         if (showBreakConfirm && currentTask != null) {
             BreakConfirmationSheet(
                 onTakeBreak = {
+                    hapticTick()
                     viewModel.pauseTimer(currentTask)
                     showBreakConfirm = false
                     exitFocusMode()

@@ -1,6 +1,7 @@
 package com.nj031.onetask.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
@@ -16,6 +17,7 @@ import com.nj031.onetask.R
 import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.feedback.FeedbackType
 import com.nj031.onetask.data.settings.StartScreen
+import com.nj031.onetask.ui.haptics.LocalHapticFeedbackEnabled
 import com.nj031.onetask.ui.screens.AddTaskScreen
 import com.nj031.onetask.ui.screens.ArchiveScreen
 import com.nj031.onetask.ui.screens.AuthScreen
@@ -28,6 +30,7 @@ import com.nj031.onetask.ui.screens.FeedbackFormScreen
 import com.nj031.onetask.ui.screens.FocusTimerScreen
 import com.nj031.onetask.ui.screens.ForgotPasswordScreen
 import com.nj031.onetask.ui.screens.GeneralSettingsScreen
+import com.nj031.onetask.ui.screens.HapticFeedbackSettingScreen
 import com.nj031.onetask.ui.screens.HelpFaqCategoryScreen
 import com.nj031.onetask.ui.screens.HelpFaqScreen
 import com.nj031.onetask.ui.screens.HelpFeedbackScreen
@@ -75,6 +78,7 @@ fun OneTaskNavHost(
     val profileViewModel: ProfileViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
     val generalSettingsViewModel: GeneralSettingsViewModel = viewModel()
+    val hapticFeedbackEnabled by generalSettingsViewModel.hapticFeedbackEnabled.collectAsState()
     val startDestination = when {
         AuthRepository.currentUser == null -> Screen.Auth.route
         // Only an unverified account can reach this point: Google sign-in accounts are always
@@ -99,6 +103,7 @@ fun OneTaskNavHost(
         }
     }
 
+    CompositionLocalProvider(LocalHapticFeedbackEnabled provides hapticFeedbackEnabled) {
     NavHost(
         navController = navController,
         startDestination = startDestination
@@ -463,9 +468,10 @@ fun OneTaskNavHost(
             )
         }
         composable(Screen.HapticFeedbackSettings.route) {
-            SettingsComingSoonScreen(
-                title = stringResource(id = R.string.general_haptic_feedback),
-                message = stringResource(id = R.string.general_setting_coming_soon_message),
+            val hapticEnabled by generalSettingsViewModel.hapticFeedbackEnabled.collectAsState()
+            HapticFeedbackSettingScreen(
+                enabled = hapticEnabled,
+                onEnabledChange = generalSettingsViewModel::setHapticFeedbackEnabled,
                 onBackClick = { navController.popBackStack() }
             )
         }
@@ -531,5 +537,6 @@ fun OneTaskNavHost(
                 onDone = { navController.popBackStack() }
             )
         }
+    }
     }
 }

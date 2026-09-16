@@ -69,6 +69,7 @@ import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.ui.components.OneTaskAddButton
 import com.nj031.onetask.ui.components.OneTaskBottomNav
 import com.nj031.onetask.ui.components.OneTaskCalendarSheet
+import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.ui.theme.OneTaskCalendarIcon
 import com.nj031.onetask.ui.theme.OneTaskHamburgerIcon
 import com.nj031.onetask.ui.theme.OneTaskTheme
@@ -111,6 +112,7 @@ fun HomeScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val hapticTick = rememberHapticTick()
 
     BackHandler(enabled = drawerState.isOpen) {
         scope.launch { drawerState.close() }
@@ -306,6 +308,7 @@ fun HomeScreen(
     deleteConfirmTask?.let { task ->
         DeleteRunningTimerConfirmationSheet(
             onDelete = {
+                hapticTick()
                 viewModel.deleteTask(task)
                 deleteConfirmTask = null
             },
@@ -601,12 +604,16 @@ private fun CircularTaskCheckbox(
     onToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val hapticTick = rememberHapticTick()
     Box(
         modifier = modifier
             .size(24.dp)
             .clip(CircleShape)
             .border(2.dp, HomePrimaryBlue, CircleShape)
-            .clickable(onClick = onToggle),
+            .clickable(onClick = {
+                hapticTick()
+                onToggle()
+            }),
         contentAlignment = Alignment.Center
     ) {
         if (checked) {

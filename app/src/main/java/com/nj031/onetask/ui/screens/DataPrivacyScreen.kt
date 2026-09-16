@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
+import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.viewmodel.DataPrivacyViewModel
 import kotlinx.coroutines.launch
 
@@ -68,6 +69,7 @@ fun DataPrivacyScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var isBusy by remember { mutableStateOf(false) }
+    val hapticTick = rememberHapticTick()
 
     var restoreUri by remember { mutableStateOf<Uri?>(null) }
     var deleteAllStage by remember { mutableStateOf(DELETE_STAGE_NONE) }
@@ -240,6 +242,7 @@ fun DataPrivacyScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        hapticTick()
                         deleteAllStage = DELETE_STAGE_NONE
                         scope.launch {
                             isBusy = true
@@ -291,6 +294,7 @@ fun DataPrivacyScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        hapticTick()
                         deleteAccountStage = DELETE_STAGE_NONE
                         scope.launch {
                             isBusy = true

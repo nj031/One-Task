@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
+import com.nj031.onetask.ui.haptics.rememberHapticTick
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
@@ -76,6 +77,7 @@ fun OneTaskCalendarSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     var visibleMonth by remember { mutableStateOf(YearMonth.from(initialDate)) }
+    val hapticTick = rememberHapticTick()
 
     fun dismiss() {
         scope.launch { sheetState.hide() }.invokeOnCompletion {
@@ -121,6 +123,7 @@ fun OneTaskCalendarSheet(
                 maxSelectableDate = maxSelectableDate,
                 weekStartDay = weekStartDay,
                 onDayClick = { date ->
+                    hapticTick()
                     onDateSelected(date)
                     dismiss()
                 }

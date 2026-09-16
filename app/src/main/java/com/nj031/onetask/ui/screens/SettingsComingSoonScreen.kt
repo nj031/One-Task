@@ -24,9 +24,8 @@ import com.nj031.onetask.R
 /**
  * Shared "not built yet" screen for a General Settings row whose real UI hasn't been designed
  * yet - same treatment Privacy Policy already got before its content existed. Used for
- * Appearance (explicitly a placeholder per spec) and for the General rows this pass doesn't
- * implement (Default Task Settings, Notifications, Week Starts On, Time Format, Haptic
- * Feedback), each with its own title but the same generic message.
+ * Appearance, explicitly a placeholder per spec - the actual theme system is planned as
+ * separate future work. Every other General Settings row is fully functional.
  */
 @Composable
 fun SettingsComingSoonScreen(title: String, message: String, onBackClick: () -> Unit) {
