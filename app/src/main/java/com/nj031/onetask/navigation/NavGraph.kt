@@ -19,6 +19,7 @@ import com.nj031.onetask.ui.screens.AuthScreen
 import com.nj031.onetask.ui.screens.DataPrivacyScreen
 import com.nj031.onetask.ui.screens.FeedbackFormScreen
 import com.nj031.onetask.ui.screens.FocusTimerScreen
+import com.nj031.onetask.ui.screens.HelpFaqCategoryScreen
 import com.nj031.onetask.ui.screens.HelpFaqScreen
 import com.nj031.onetask.ui.screens.HelpFeedbackScreen
 import com.nj031.onetask.ui.screens.HomeScreen
@@ -220,7 +221,21 @@ fun OneTaskNavHost(
             )
         }
         composable(Screen.HelpFaq.route) {
-            HelpFaqScreen(onBackClick = { navController.popBackStack() })
+            HelpFaqScreen(
+                onBackClick = { navController.popBackStack() },
+                onCategoryClick = { categoryId ->
+                    navController.navigate(Screen.HelpFaqCategory.createRoute(categoryId))
+                }
+            )
+        }
+        composable(
+            route = Screen.HelpFaqCategory.route,
+            arguments = listOf(navArgument("categoryId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            HelpFaqCategoryScreen(
+                categoryId = backStackEntry.arguments?.getString("categoryId").orEmpty(),
+                onBackClick = { navController.popBackStack() }
+            )
         }
         composable(
             route = Screen.FeedbackForm.route,
