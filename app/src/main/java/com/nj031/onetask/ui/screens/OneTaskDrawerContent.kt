@@ -1,5 +1,10 @@
 package com.nj031.onetask.ui.screens
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -27,12 +32,35 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nj031.onetask.R
+
+/** One Task's application id (see app/build.gradle.kts) - the Play Store listing, once live, is
+ * reached at this same id. */
+private const val PLAY_STORE_PACKAGE_NAME = "com.nj031.onetask"
+
+/** One Task isn't published on Google Play yet. Flip this to true once the app has a live Play
+ * Store listing - "Rate One Task" will then open its official rating/review page as-is. */
+private const val IS_PLAY_STORE_LISTING_LIVE = false
+
+private fun openPlayStoreListing(context: Context) {
+    val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$PLAY_STORE_PACKAGE_NAME"))
+    try {
+        context.startActivity(marketIntent)
+    } catch (e: ActivityNotFoundException) {
+        context.startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://play.google.com/store/apps/details?id=$PLAY_STORE_PACKAGE_NAME")
+            )
+        )
+    }
+}
 
 /**
  * The single global hamburger-menu drawer used by every screen - identical structure and
@@ -52,10 +80,11 @@ fun OneTaskDrawerContent(
     onUpgradeToProClick: () -> Unit,
     onAboutClick: () -> Unit,
     onHelpFeedbackClick: () -> Unit,
-    onRateAppClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var showLogoutConfirm by remember { mutableStateOf(false) }
+    var showRateDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -139,7 +168,7 @@ fun OneTaskDrawerContent(
             DrawerSectionLabel(text = stringResource(id = R.string.drawer_section_about))
             DrawerMenuRow(text = stringResource(id = R.string.drawer_about_one_task), onClick = onAboutClick)
             DrawerMenuRow(text = stringResource(id = R.string.drawer_help_feedback), onClick = onHelpFeedbackClick)
-            DrawerMenuRow(text = stringResource(id = R.string.drawer_rate_app), onClick = onRateAppClick)
+            DrawerMenuRow(text = stringResource(id = R.string.drawer_rate_app), onClick = { showRateDialog = true })
         }
     }
 
@@ -161,6 +190,37 @@ fun OneTaskDrawerContent(
             dismissButton = {
                 TextButton(onClick = { showLogoutConfirm = false }) {
                     Text(text = stringResource(id = R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (showRateDialog) {
+        AlertDialog(
+            onDismissRequest = { showRateDialog = false },
+            title = { Text(text = stringResource(id = R.string.rate_app_dialog_title)) },
+            text = { Text(text = stringResource(id = R.string.rate_app_dialog_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showRateDialog = false
+                        if (IS_PLAY_STORE_LISTING_LIVE) {
+                            openPlayStoreListing(context)
+                        } else {
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.rate_app_not_available_message),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                ) {
+                    Text(text = stringResource(id = R.string.drawer_rate_app))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRateDialog = false }) {
+                    Text(text = stringResource(id = R.string.rate_app_maybe_later))
                 }
             }
         )
