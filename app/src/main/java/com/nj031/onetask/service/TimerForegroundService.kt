@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import com.nj031.onetask.MainActivity
 import com.nj031.onetask.R
 import com.nj031.onetask.data.AppDatabase
+import com.nj031.onetask.data.settings.GeneralSettingsRepository
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskRepository
 import com.nj031.onetask.data.task.TaskStatus
@@ -43,9 +44,18 @@ class TimerForegroundService : Service() {
     private var observeJob: Job? = null
     private lateinit var taskRepository: TaskRepository
 
+    // Read once per service instance (a fresh one is created for every focus session start,
+    // including a cold-start resume) - both default to true, matching this service's own
+    // always-on behavior before these settings existed.
+    private var notificationsEnabled = true
+    private var completionNotificationEnabled = true
+
     override fun onCreate() {
         super.onCreate()
         taskRepository = TaskRepository(AppDatabase.getInstance(applicationContext).taskDao())
+        val settings = GeneralSettingsRepository(applicationContext)
+        notificationsEnabled = settings.getFocusSessionNotificationsEnabled()
+        completionNotificationEnabled = settings.getFocusSessionCompleteEnabled()
         createNotificationChannel()
     }
 
@@ -78,7 +88,7 @@ class TimerForegroundService : Service() {
                 // reached zero, or the UI's tick loop got there first while this row was still
                 // being observed - so it's the single reliable place to fire the one-shot
                 // "session complete" notification, however the app was being used at the time.
-                if (task != null && isJustCompleted(task)) {
+                if (task != null && isJustCompleted(task) && completionNotificationEnabled) {
                     postCompletionNotification(task)
                 }
                 if (task == null || task.status != TaskStatus.IN_PROGRESS || task.timerEndAtMillis == null) {
@@ -104,9 +114,21 @@ class TimerForegroundService : Service() {
 
     private suspend fun runCountdown(task: TaskEntity) {
         val endAtMillis = task.timerEndAtMillis ?: return
+        // Android requires a foreground service to keep a notification posted the whole time
+        // it runs - that requirement is met unconditionally by startForeground() in
+        // onStartCommand and is never skipped here. What IS optional, and what
+        // notificationsEnabled actually gates, is the live per-second countdown text refresh:
+        // when disabled, the required notification stays up but only gets a single static
+        // update instead of ticking every second.
+        var staticNotificationPosted = false
         while (true) {
             val remainingMillis = (endAtMillis - System.currentTimeMillis()).coerceAtLeast(0)
-            postNotification(NOTIFICATION_ID_RUNNING, buildRunningNotification(task.name, formatRemaining(remainingMillis)))
+            if (notificationsEnabled) {
+                postNotification(NOTIFICATION_ID_RUNNING, buildRunningNotification(task.name, formatRemaining(remainingMillis)))
+            } else if (!staticNotificationPosted) {
+                postNotification(NOTIFICATION_ID_RUNNING, buildRunningNotification(task.name, remainingLabel = null))
+                staticNotificationPosted = true
+            }
             if (remainingMillis <= 0) {
                 taskRepository.finishTimer(task)
                 return
@@ -141,12 +163,17 @@ class TimerForegroundService : Service() {
         }
     }
 
-    private fun buildRunningNotification(taskName: String, remainingLabel: String): Notification {
+    private fun buildRunningNotification(taskName: String, remainingLabel: String?): Notification {
         val displayName = taskName.ifBlank { getString(R.string.focus_timer_title) }
+        val contentText = if (remainingLabel != null) {
+            getString(R.string.focus_timer_notification_running_text, displayName, remainingLabel)
+        } else {
+            getString(R.string.focus_timer_notification_running_text_minimal, displayName)
+        }
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(getString(R.string.focus_timer_notification_running_title))
-            .setContentText(getString(R.string.focus_timer_notification_running_text, displayName, remainingLabel))
+            .setContentText(contentText)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

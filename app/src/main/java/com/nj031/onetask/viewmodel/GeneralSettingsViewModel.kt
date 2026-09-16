@@ -49,4 +49,21 @@ class GeneralSettingsViewModel(application: Application) : AndroidViewModel(appl
         repository.setDefaultPostponeIfIncomplete(postpone)
         _defaultPostponeIfIncomplete.value = postpone
     }
+
+    // --- Notifications ---
+    private val _focusSessionNotificationsEnabled = MutableStateFlow(repository.getFocusSessionNotificationsEnabled())
+    val focusSessionNotificationsEnabled: StateFlow<Boolean> = _focusSessionNotificationsEnabled.asStateFlow()
+
+    private val _focusSessionCompleteEnabled = MutableStateFlow(repository.getFocusSessionCompleteEnabled())
+    val focusSessionCompleteEnabled: StateFlow<Boolean> = _focusSessionCompleteEnabled.asStateFlow()
+
+    fun setFocusSessionNotificationsEnabled(enabled: Boolean) {
+        repository.setFocusSessionNotificationsEnabled(enabled)
+        _focusSessionNotificationsEnabled.value = enabled
+    }
+
+    fun setFocusSessionCompleteEnabled(enabled: Boolean) {
+        repository.setFocusSessionCompleteEnabled(enabled)
+        _focusSessionCompleteEnabled.value = enabled
+    }
 }

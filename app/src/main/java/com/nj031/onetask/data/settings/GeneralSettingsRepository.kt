@@ -9,6 +9,8 @@ private const val KEY_START_SCREEN = "start_screen"
 private const val KEY_DEFAULT_TIMER_MINUTES = "default_timer_minutes"
 private const val KEY_DEFAULT_TAG = "default_tag"
 private const val KEY_DEFAULT_POSTPONE_IF_INCOMPLETE = "default_postpone_if_incomplete"
+private const val KEY_FOCUS_SESSION_NOTIFICATIONS_ENABLED = "focus_session_notifications_enabled"
+private const val KEY_FOCUS_SESSION_COMPLETE_ENABLED = "focus_session_complete_enabled"
 
 /**
  * Stores General Settings in a private SharedPreferences file, the same choice made for
@@ -55,5 +57,21 @@ class GeneralSettingsRepository(context: Context) {
 
     fun setDefaultPostponeIfIncomplete(postpone: Boolean) {
         prefs.edit().putBoolean(KEY_DEFAULT_POSTPONE_IF_INCOMPLETE, postpone).apply()
+    }
+
+    /** Both notification toggles default to ON, matching TimerForegroundService's existing
+     * always-on behavior before these settings existed. */
+    fun getFocusSessionNotificationsEnabled(): Boolean =
+        prefs.getBoolean(KEY_FOCUS_SESSION_NOTIFICATIONS_ENABLED, true)
+
+    fun setFocusSessionNotificationsEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_FOCUS_SESSION_NOTIFICATIONS_ENABLED, enabled).apply()
+    }
+
+    fun getFocusSessionCompleteEnabled(): Boolean =
+        prefs.getBoolean(KEY_FOCUS_SESSION_COMPLETE_ENABLED, true)
+
+    fun setFocusSessionCompleteEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_FOCUS_SESSION_COMPLETE_ENABLED, enabled).apply()
     }
 }
