@@ -94,7 +94,6 @@
     <string name="profile_edit_dob_label">Date of Birth</string>
     <string name="profile_edit_dob_placeholder">Not set</string>
     <string name="profile_edit_clear">Clear</string>
-    <string name="profile_edit_select">Select</string>
     <string name="profile_edit_gender_label">Gender</string>
     <string name="profile_edit_gender_male">Male</string>
     <string name="profile_edit_gender_female">Female</string>

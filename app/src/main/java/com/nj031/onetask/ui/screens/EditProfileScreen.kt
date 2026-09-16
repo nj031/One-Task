@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -36,8 +38,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -60,13 +65,67 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.profile.Gender
 import com.nj031.onetask.data.profile.ProfilePhotoStorage
+import com.nj031.onetask.ui.theme.OneTaskBackground
+import com.nj031.onetask.ui.theme.OneTaskBorder
+import com.nj031.onetask.ui.theme.OneTaskDarkText
+import com.nj031.onetask.ui.theme.OneTaskLightBlue
+import com.nj031.onetask.ui.theme.OneTaskPrimary
+import com.nj031.onetask.ui.theme.OneTaskSecondaryText
+import com.nj031.onetask.ui.theme.OneTaskSurface
 import com.nj031.onetask.viewmodel.ProfileViewModel
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/**
+ * Material3's DatePicker reads several color roles (primaryContainer, tertiaryContainer,
+ * outlineVariant, surface containers, ...) that OneTaskTheme's own color scheme never overrides
+ * since no other screen needs them - left alone, they silently fall back to Material3's default
+ * lavender/purple baseline instead of One Task's blue. This is a fully-specified scheme (not a
+ * partial .copy()) wrapped locally around just the DOB dialog, so the fix stays scoped to this
+ * one screen instead of touching the app's global Theme.kt.
+ */
+private val DatePickerColorScheme = lightColorScheme(
+    primary = OneTaskPrimary,
+    onPrimary = Color.White,
+    primaryContainer = OneTaskLightBlue,
+    onPrimaryContainer = OneTaskDarkText,
+    secondary = OneTaskPrimary,
+    onSecondary = Color.White,
+    secondaryContainer = OneTaskLightBlue,
+    onSecondaryContainer = OneTaskDarkText,
+    tertiary = OneTaskPrimary,
+    onTertiary = Color.White,
+    tertiaryContainer = OneTaskLightBlue,
+    onTertiaryContainer = OneTaskDarkText,
+    background = OneTaskBackground,
+    onBackground = OneTaskDarkText,
+    surface = OneTaskSurface,
+    onSurface = OneTaskDarkText,
+    surfaceVariant = OneTaskLightBlue,
+    onSurfaceVariant = OneTaskSecondaryText,
+    surfaceTint = OneTaskPrimary,
+    outline = OneTaskBorder,
+    outlineVariant = OneTaskBorder,
+    inverseSurface = OneTaskDarkText,
+    inverseOnSurface = OneTaskSurface,
+    inversePrimary = OneTaskLightBlue
+)
+
+/** The DOB picker's latest selectable day is today - tomorrow and beyond are disabled in both
+ * the calendar grid and the year picker, not merely rejected after the fact. */
+@OptIn(ExperimentalMaterial3Api::class)
+private object PastOrTodaySelectableDates : SelectableDates {
+    override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis <= todayUtcMillis()
+    override fun isSelectableYear(year: Int): Boolean = year <= LocalDate.now().year
+}
+
+private fun todayUtcMillis(): Long =
+    LocalDate.now().atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
 
 /**
  * Full-screen profile editor. Name/DOB/Gender/photo edits live entirely in local composable
@@ -219,22 +278,35 @@ fun EditProfileScreen(
                 modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = dateOfBirth?.let { formatDate(it) }.orEmpty(),
-                    onValueChange = {},
-                    readOnly = true,
-                    placeholder = { Text(text = stringResource(id = R.string.profile_edit_dob_placeholder)) },
+                Row(
                     modifier = Modifier
                         .weight(1f)
+                        .clip(RoundedCornerShape(14.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
                         .clickable { showDatePicker = true }
-                )
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = dateOfBirth?.let { formatDate(it) } ?: stringResource(id = R.string.profile_edit_dob_placeholder),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (dateOfBirth != null) {
+                            MaterialTheme.colorScheme.onBackground
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Icon(
+                        imageVector = Icons.Filled.DateRange,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
                 if (dateOfBirth != null) {
                     TextButton(onClick = { dateOfBirth = null }) {
                         Text(text = stringResource(id = R.string.profile_edit_clear))
-                    }
-                } else {
-                    TextButton(onClick = { showDatePicker = true }) {
-                        Text(text = stringResource(id = R.string.profile_edit_select))
                     }
                 }
             }
@@ -297,24 +369,34 @@ fun EditProfileScreen(
     }
 
     if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = dateOfBirth)
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    dateOfBirth = datePickerState.selectedDateMillis
-                    showDatePicker = false
-                }) {
-                    Text(text = stringResource(id = R.string.profile_edit_dob_confirm))
+        MaterialTheme(colorScheme = DatePickerColorScheme) {
+            val datePickerState = rememberDatePickerState(
+                initialSelectedDateMillis = dateOfBirth,
+                selectableDates = PastOrTodaySelectableDates
+            )
+            DatePickerDialog(
+                onDismissRequest = { showDatePicker = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val selected = datePickerState.selectedDateMillis
+                            if (selected != null) {
+                                dateOfBirth = selected
+                            }
+                            showDatePicker = false
+                        }
+                    ) {
+                        Text(text = stringResource(id = R.string.profile_edit_dob_confirm))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDatePicker = false }) {
+                        Text(text = stringResource(id = R.string.cancel))
+                    }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text(text = stringResource(id = R.string.cancel))
-                }
+            ) {
+                DatePicker(state = datePickerState)
             }
-        ) {
-            DatePicker(state = datePickerState)
         }
     }
 
