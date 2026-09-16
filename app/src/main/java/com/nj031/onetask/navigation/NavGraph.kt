@@ -16,20 +16,26 @@ import com.nj031.onetask.data.feedback.FeedbackType
 import com.nj031.onetask.ui.screens.AddTaskScreen
 import com.nj031.onetask.ui.screens.ArchiveScreen
 import com.nj031.onetask.ui.screens.AuthScreen
+import com.nj031.onetask.ui.screens.CreateAccountEmailScreen
+import com.nj031.onetask.ui.screens.CreateAccountPasswordScreen
 import com.nj031.onetask.ui.screens.DataPrivacyScreen
 import com.nj031.onetask.ui.screens.EditProfileScreen
 import com.nj031.onetask.ui.screens.FeedbackFormScreen
 import com.nj031.onetask.ui.screens.FocusTimerScreen
+import com.nj031.onetask.ui.screens.ForgotPasswordScreen
 import com.nj031.onetask.ui.screens.HelpFaqCategoryScreen
 import com.nj031.onetask.ui.screens.HelpFaqScreen
 import com.nj031.onetask.ui.screens.HelpFeedbackScreen
 import com.nj031.onetask.ui.screens.HomeScreen
 import com.nj031.onetask.ui.screens.JournalScreen
+import com.nj031.onetask.ui.screens.LoginScreen
 import com.nj031.onetask.ui.screens.NoteEditorScreen
 import com.nj031.onetask.ui.screens.PrivacyPolicyScreen
 import com.nj031.onetask.ui.screens.ProfileScreen
 import com.nj031.onetask.ui.screens.RecycleBinScreen
+import com.nj031.onetask.ui.screens.SetUpProfileScreen
 import com.nj031.onetask.ui.screens.UpgradeToProScreen
+import com.nj031.onetask.ui.screens.VerifyEmailScreen
 import com.nj031.onetask.viewmodel.AuthViewModel
 import com.nj031.onetask.viewmodel.HomeViewModel
 import com.nj031.onetask.viewmodel.JournalViewModel
@@ -56,10 +62,26 @@ fun OneTaskNavHost(
     val journalViewModel: JournalViewModel = viewModel()
     val homeViewModel: HomeViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
+    val authViewModel: AuthViewModel = viewModel()
     val startDestination = when {
         AuthRepository.currentUser == null -> Screen.Auth.route
+        // Only an unverified account can reach this point: Google sign-in accounts are always
+        // pre-verified by Firebase, and an unverified email/password account only exists here
+        // because the app was killed mid-signup, after the account was created but before its
+        // link was confirmed - resume exactly where they left off instead of dropping them on
+        // Home with an unverified account.
+        !AuthRepository.isCurrentUserEmailVerified -> Screen.VerifyEmail.route
         activeFocusTaskId != null -> Screen.FocusTimer.createRoute(activeFocusTaskId)
         else -> Screen.Home.route
+    }
+
+    /** After a successful login/signup, verified accounts always land on Home; the ambiguous
+     * "just verified email, still needs a name" case never reaches here directly, since
+     * Verify Email's own onContinue keeps that decision local. */
+    fun NavHostController.navigateToHomeAfterAuth() {
+        navigate(Screen.Home.route) {
+            popUpTo(Screen.Auth.route) { inclusive = true }
+        }
     }
 
     NavHost(
@@ -67,20 +89,140 @@ fun OneTaskNavHost(
         startDestination = startDestination
     ) {
         composable(Screen.Auth.route) {
-            val authViewModel: AuthViewModel = viewModel()
             val context = LocalContext.current
             val isLoading by authViewModel.isLoading.collectAsState()
             val errorMessage by authViewModel.errorMessage.collectAsState()
             AuthScreen(
                 isLoading = isLoading,
                 errorMessage = errorMessage,
+                onCreateAccount = { navController.navigate(Screen.CreateAccountEmail.route) },
+                onLogIn = { navController.navigate(Screen.Login.route) },
                 onSignInWithGoogle = {
-                    authViewModel.signInWithGoogle(context) {
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Auth.route) { inclusive = true }
+                    authViewModel.signInWithGoogle(context) { needsProfileSetup ->
+                        if (needsProfileSetup) {
+                            navController.navigate(Screen.SetUpProfile.route) {
+                                popUpTo(Screen.Auth.route) { inclusive = true }
+                            }
+                        } else {
+                            navController.navigateToHomeAfterAuth()
                         }
                     }
                 }
+            )
+        }
+        composable(Screen.CreateAccountEmail.route) {
+            val signUpState by authViewModel.signUpState.collectAsState()
+            CreateAccountEmailScreen(
+                state = signUpState,
+                onEmailChange = authViewModel::updateSignUpEmail,
+                onNext = {
+                    authViewModel.submitSignUpEmail {
+                        navController.navigate(Screen.CreateAccountPassword.route)
+                    }
+                },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.CreateAccountPassword.route) {
+            val signUpState by authViewModel.signUpState.collectAsState()
+            CreateAccountPasswordScreen(
+                state = signUpState,
+                onPasswordChange = authViewModel::updateSignUpPassword,
+                onConfirmPasswordChange = authViewModel::updateSignUpConfirmPassword,
+                onNext = {
+                    authViewModel.submitSignUpPassword {
+                        navController.navigate(Screen.VerifyEmail.route)
+                    }
+                },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.VerifyEmail.route) {
+            val signUpState by authViewModel.signUpState.collectAsState()
+            val verifyEmailState by authViewModel.verifyEmailState.collectAsState()
+            VerifyEmailScreen(
+                email = signUpState.email,
+                state = verifyEmailState,
+                onResend = authViewModel::resendVerificationEmail,
+                onContinue = {
+                    authViewModel.checkEmailVerified {
+                        val displayName = AuthRepository.currentUser?.displayName
+                        if (displayName.isNullOrBlank()) {
+                            navController.navigate(Screen.SetUpProfile.route)
+                        } else {
+                            navController.navigateToHomeAfterAuth()
+                        }
+                    }
+                },
+                onBack = {
+                    // Verification -> Password per spec, but this screen can also be the app's
+                    // cold-start root (a killed, mid-signup process resumed here) with nothing
+                    // beneath it to pop to - same defensive pattern as FocusTimerScreen's
+                    // onBackToHome, so Back can never unexpectedly close the app.
+                    val poppedToPassword = navController.popBackStack(Screen.CreateAccountPassword.route, false)
+                    if (!poppedToPassword) {
+                        AuthRepository.signOut()
+                        navController.navigate(Screen.Auth.route) { popUpTo(0) { inclusive = true } }
+                    }
+                }
+            )
+        }
+        composable(Screen.SetUpProfile.route) {
+            val profileSetupState by authViewModel.profileSetupState.collectAsState()
+            SetUpProfileScreen(
+                state = profileSetupState,
+                onNameChange = authViewModel::updateProfileSetupName,
+                onFinish = {
+                    authViewModel.submitProfileSetup {
+                        navController.navigateToHomeAfterAuth()
+                    }
+                },
+                onBack = {
+                    // Profile setup -> Verification for the email signup chain; a Google
+                    // signup with no usable name skips straight from Main Login to here, so
+                    // fall back to a plain pop (-> Main Login) when Verification isn't in the
+                    // stack, and only as a last resort (this screen resumed as the cold-start
+                    // root) sign out rather than leave Back with nothing to do.
+                    val poppedToVerify = navController.popBackStack(Screen.VerifyEmail.route, false)
+                    if (!poppedToVerify && !navController.popBackStack()) {
+                        AuthRepository.signOut()
+                        navController.navigate(Screen.Auth.route) { popUpTo(0) { inclusive = true } }
+                    }
+                }
+            )
+        }
+        composable(Screen.Login.route) {
+            val loginState by authViewModel.loginState.collectAsState()
+            LoginScreen(
+                state = loginState,
+                onEmailChange = authViewModel::updateLoginEmail,
+                onPasswordChange = authViewModel::updateLoginPassword,
+                onLogIn = {
+                    authViewModel.submitLogin {
+                        val user = AuthRepository.currentUser
+                        when {
+                            !AuthRepository.isCurrentUserEmailVerified -> navController.navigate(Screen.VerifyEmail.route) {
+                                popUpTo(Screen.Auth.route) { inclusive = false }
+                            }
+                            user?.displayName.isNullOrBlank() -> navController.navigate(Screen.SetUpProfile.route) {
+                                popUpTo(Screen.Auth.route) { inclusive = false }
+                            }
+                            else -> navController.navigateToHomeAfterAuth()
+                        }
+                    }
+                },
+                onForgotPassword = { navController.navigate(Screen.ForgotPassword.route) },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.ForgotPassword.route) {
+            val forgotPasswordState by authViewModel.forgotPasswordState.collectAsState()
+            ForgotPasswordScreen(
+                state = forgotPasswordState,
+                onEmailChange = authViewModel::updateForgotPasswordEmail,
+                onSendResetLink = authViewModel::submitForgotPassword,
+                onDone = { navController.popBackStack() },
+                onBack = { navController.popBackStack() }
             )
         }
         composable(Screen.Home.route) {

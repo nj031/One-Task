@@ -2,6 +2,12 @@ package com.nj031.onetask.navigation
 
 sealed class Screen(val route: String) {
     data object Auth : Screen("auth")
+    data object Login : Screen("login")
+    data object CreateAccountEmail : Screen("create_account_email")
+    data object CreateAccountPassword : Screen("create_account_password")
+    data object VerifyEmail : Screen("verify_email")
+    data object SetUpProfile : Screen("set_up_profile")
+    data object ForgotPassword : Screen("forgot_password")
     data object Home : Screen("home")
     data object Journal : Screen("journal")
     data object Profile : Screen("profile")

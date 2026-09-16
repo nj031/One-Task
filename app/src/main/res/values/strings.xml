@@ -1,7 +1,40 @@
 <resources>
     <string name="app_name">One Task</string>
     <string name="auth_subtitle">Sign in to keep your tasks safe</string>
-    <string name="sign_in_with_google">Sign in with Google</string>
+    <string name="sign_in_with_google">Continue with Google</string>
+    <string name="auth_create_account">Create an Account</string>
+    <string name="auth_log_in">Log In</string>
+
+    <string name="create_account_title">Create an Account</string>
+    <string name="email_address_label">Email Address</string>
+    <string name="next_action">Next</string>
+
+    <string name="set_up_password_title">Set Up Password</string>
+    <string name="password_label">Password</string>
+    <string name="confirm_password_label">Confirm Password</string>
+    <string name="password_requirement_hint">Use at least 8 characters, with at least one letter and one number.</string>
+    <string name="show_password">Show password</string>
+    <string name="hide_password">Hide password</string>
+
+    <string name="verify_email_title">Verify Your Email</string>
+    <string name="verify_email_message">We\'ve sent a verification link to %1$s. Please open it to verify your email, then come back and tap Continue.</string>
+    <string name="verify_email_continue">I\'ve Verified — Continue</string>
+    <string name="verify_email_resend">Resend Email</string>
+
+    <string name="set_up_profile_title">Set Up Profile</string>
+    <string name="set_up_profile_hint">This name will appear on your One Task profile. You can change it anytime from your Profile.</string>
+    <string name="finish_action">Finish</string>
+
+    <string name="login_title">Log In</string>
+    <string name="forgot_password_action">Forgot Password?</string>
+
+    <string name="forgot_password_title">Forgot Password</string>
+    <string name="forgot_password_message">Enter your email address and we\'ll send you a link to reset your password.</string>
+    <string name="send_reset_link">Send Reset Link</string>
+    <string name="forgot_password_sent_title">Check Your Email</string>
+    <string name="forgot_password_sent_message">If an account exists for this email, we\'ve sent a link to reset your password.</string>
+    <string name="done_action">Done</string>
+    <string name="or_divider">OR</string>
 
     <string name="home_title">One Task at a Time</string>
     <string name="home_tagline">Less clutter. More life.</string>

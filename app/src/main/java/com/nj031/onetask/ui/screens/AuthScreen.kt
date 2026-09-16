@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -14,6 +15,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,10 +29,17 @@ import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
 import com.nj031.onetask.ui.theme.OneTaskTheme
 
+/**
+ * Main Login screen - the app's entry point when signed out. Exactly three options per spec:
+ * Create an Account, Log In, and Continue with Google. Each just navigates onward; no
+ * credentials are collected here.
+ */
 @Composable
 fun AuthScreen(
     isLoading: Boolean,
     errorMessage: String?,
+    onCreateAccount: () -> Unit,
+    onLogIn: () -> Unit,
     onSignInWithGoogle: () -> Unit
 ) {
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
@@ -73,9 +82,53 @@ fun AuthScreen(
                     Button(
                         modifier = Modifier
                             .padding(top = 32.dp)
-                            .fillMaxWidth(),
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        onClick = onCreateAccount,
+                        enabled = !isLoading,
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.auth_create_account),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    OutlinedButton(
+                        modifier = Modifier
+                            .padding(top = 12.dp)
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        onClick = onLogIn,
+                        enabled = !isLoading,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.auth_log_in),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Text(
+                        modifier = Modifier.padding(top = 20.dp),
+                        text = stringResource(id = R.string.or_divider),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Button(
+                        modifier = Modifier
+                            .padding(top = 20.dp)
+                            .fillMaxWidth()
+                            .height(52.dp),
                         onClick = onSignInWithGoogle,
                         enabled = !isLoading,
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.secondary,
                             contentColor = MaterialTheme.colorScheme.onSecondary
@@ -111,7 +164,7 @@ fun AuthScreen(
 @Composable
 private fun AuthScreenLightPreview() {
     OneTaskTheme(darkTheme = false) {
-        AuthScreen(isLoading = false, errorMessage = null, onSignInWithGoogle = {})
+        AuthScreen(isLoading = false, errorMessage = null, onCreateAccount = {}, onLogIn = {}, onSignInWithGoogle = {})
     }
 }
 
@@ -119,6 +172,6 @@ private fun AuthScreenLightPreview() {
 @Composable
 private fun AuthScreenDarkPreview() {
     OneTaskTheme(darkTheme = true) {
-        AuthScreen(isLoading = false, errorMessage = null, onSignInWithGoogle = {})
+        AuthScreen(isLoading = false, errorMessage = null, onCreateAccount = {}, onLogIn = {}, onSignInWithGoogle = {})
     }
 }
