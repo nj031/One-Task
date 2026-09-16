@@ -98,6 +98,7 @@ fun HomeScreen(
     onEditTaskClick: (String) -> Unit = {},
     onArchiveClick: () -> Unit = {},
     onRecycleBinClick: () -> Unit = {},
+    onDataPrivacyClick: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
     var actionMenuTask by remember { mutableStateOf<TaskEntity?>(null) }
@@ -135,7 +136,10 @@ fun HomeScreen(
                         onRecycleBinClick()
                     },
                     onGeneralSettingsClick = { /* no-op: not implemented yet */ },
-                    onDataPrivacyClick = { /* no-op: not implemented yet */ },
+                    onDataPrivacyClick = {
+                        scope.launch { drawerState.close() }
+                        onDataPrivacyClick()
+                    },
                     onUpgradeToProClick = { /* no-op: Premium not available yet */ },
                     onAboutClick = { /* no-op: not implemented yet */ },
                     onHelpFeedbackClick = { /* no-op: help & feedback not implemented yet */ },

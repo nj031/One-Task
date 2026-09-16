@@ -15,10 +15,12 @@ import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.ui.screens.AddTaskScreen
 import com.nj031.onetask.ui.screens.ArchiveScreen
 import com.nj031.onetask.ui.screens.AuthScreen
+import com.nj031.onetask.ui.screens.DataPrivacyScreen
 import com.nj031.onetask.ui.screens.FocusTimerScreen
 import com.nj031.onetask.ui.screens.HomeScreen
 import com.nj031.onetask.ui.screens.JournalScreen
 import com.nj031.onetask.ui.screens.NoteEditorScreen
+import com.nj031.onetask.ui.screens.PrivacyPolicyScreen
 import com.nj031.onetask.ui.screens.ProfileScreen
 import com.nj031.onetask.ui.screens.RecycleBinScreen
 import com.nj031.onetask.viewmodel.AuthViewModel
@@ -86,6 +88,7 @@ fun OneTaskNavHost(
                 },
                 onArchiveClick = { navController.navigate(Screen.Archive.route) },
                 onRecycleBinClick = { navController.navigate(Screen.RecycleBin.route) },
+                onDataPrivacyClick = { navController.navigate(Screen.DataPrivacy.route) },
                 onLogout = {
                     AuthRepository.signOut()
                     navController.navigate(Screen.Auth.route) {
@@ -146,6 +149,7 @@ fun OneTaskNavHost(
                 },
                 onRecycleBinClick = { navController.navigate(Screen.RecycleBin.route) },
                 onArchiveClick = { navController.navigate(Screen.Archive.route) },
+                onDataPrivacyClick = { navController.navigate(Screen.DataPrivacy.route) },
                 onNavigateToTasks = { navController.navigateToBottomNavTab(Screen.Home.route) },
                 onNavigateToProfile = { navController.navigateToBottomNavTab(Screen.Profile.route) },
                 onLogout = {
@@ -173,6 +177,20 @@ fun OneTaskNavHost(
                 viewModel = journalViewModel,
                 onBackClick = { navController.popBackStack() }
             )
+        }
+        composable(Screen.DataPrivacy.route) {
+            DataPrivacyScreen(
+                onBackClick = { navController.popBackStack() },
+                onPrivacyPolicyClick = { navController.navigate(Screen.PrivacyPolicy.route) },
+                onAccountDeleted = {
+                    navController.navigate(Screen.Auth.route) {
+                        popUpTo(0)
+                    }
+                }
+            )
+        }
+        composable(Screen.PrivacyPolicy.route) {
+            PrivacyPolicyScreen(onBackClick = { navController.popBackStack() })
         }
         composable(
             route = Screen.NoteEditor.route,

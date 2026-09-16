@@ -74,6 +74,7 @@ fun JournalScreen(
     onNoteClick: (String) -> Unit = {},
     onRecycleBinClick: () -> Unit = {},
     onArchiveClick: () -> Unit = {},
+    onDataPrivacyClick: () -> Unit = {},
     onNavigateToTasks: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onLogout: () -> Unit = {}
@@ -120,7 +121,10 @@ fun JournalScreen(
                         onRecycleBinClick()
                     },
                     onGeneralSettingsClick = { /* no-op: not implemented yet */ },
-                    onDataPrivacyClick = { /* no-op: not implemented yet */ },
+                    onDataPrivacyClick = {
+                        scope.launch { drawerState.close() }
+                        onDataPrivacyClick()
+                    },
                     onUpgradeToProClick = { /* no-op: Premium not available yet */ },
                     onAboutClick = { /* no-op: not implemented yet */ },
                     onHelpFeedbackClick = { /* no-op: help & feedback not implemented yet */ },

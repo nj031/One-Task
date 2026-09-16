@@ -33,4 +33,7 @@ interface JournalNoteDao {
 
     @Query("SELECT DISTINCT journalDate FROM journal_notes WHERE status = :status")
     fun getDatesByStatus(status: JournalNoteStatus): Flow<List<Long>>
+
+    @Query("DELETE FROM journal_notes")
+    suspend fun deleteAllNotes()
 }
