@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,31 +27,33 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nj031.onetask.R
-import com.nj031.onetask.ui.components.TonalActionButton
 
 /**
- * The single hamburger-menu drawer used by both the Tasks/Homepage and Journal screens (never a
- * separate menu design per section). Structure is always GENERAL (app-wide options) optionally
- * preceded by a quick "Journaling" nav shortcut (Tasks side only - omitted once you're already on
- * Journal), then an optional JOURNAL section (Archive/Recycle Bin), shown only when the caller is
- * Journal itself. Sections are told apart by a small label, not a heavy divider.
+ * The single global hamburger-menu drawer used by every screen - identical structure and
+ * content everywhere it's opened from (Tasks, Journal, ...), never a per-screen variant.
+ * Structure: branding, then an ACCOUNT card, a JOURNAL card (Archive/Recycle Bin), then plain
+ * SETTINGS and ABOUT row sections. Cards carry the app's white surface color to stand out
+ * against the drawer's own light background; plain rows sit directly on that background.
  */
 @Composable
 fun OneTaskDrawerContent(
     userEmail: String,
-    onSettingsClick: () -> Unit,
+    onSwitchAccountClick: () -> Unit,
+    onLogoutClick: () -> Unit,
+    onArchiveClick: () -> Unit,
+    onRecycleBinClick: () -> Unit,
+    onGeneralSettingsClick: () -> Unit,
+    onDataPrivacyClick: () -> Unit,
+    onUpgradeToProClick: () -> Unit,
+    onAboutClick: () -> Unit,
     onHelpFeedbackClick: () -> Unit,
     onRateAppClick: () -> Unit,
-    onLogoutClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    onJournalingClick: (() -> Unit)? = null,
-    onArchiveClick: (() -> Unit)? = null,
-    onRecycleBinClick: (() -> Unit)? = null
+    modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(24.dp)
+            .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -68,125 +71,117 @@ fun OneTaskDrawerContent(
                 )
             }
 
-            Text(
-                text = stringResource(id = R.string.app_name),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 12.dp)
-            )
+            Column(modifier = Modifier.padding(start = 12.dp)) {
+                Text(
+                    text = stringResource(id = R.string.app_name),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = stringResource(id = R.string.home_title),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         Column(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
+                .padding(top = 16.dp)
         ) {
-            onJournalingClick?.let { onClick ->
+            DrawerSectionLabel(text = stringResource(id = R.string.drawer_section_account))
+            DrawerCard {
+                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+                    Text(
+                        text = stringResource(id = R.string.logged_in_as),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = userEmail,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
                 DrawerMenuRow(
-                    text = stringResource(id = R.string.drawer_journaling),
-                    onClick = onClick,
-                    modifier = Modifier.padding(top = 20.dp)
+                    text = stringResource(id = R.string.drawer_switch_account),
+                    onClick = onSwitchAccountClick
                 )
+                DrawerMenuRow(text = stringResource(id = R.string.log_out), onClick = onLogoutClick)
             }
 
-            DrawerSectionLabel(text = stringResource(id = R.string.drawer_section_general))
-            DrawerMenuRow(text = stringResource(id = R.string.drawer_settings), onClick = onSettingsClick)
-            DrawerMenuRow(text = stringResource(id = R.string.drawer_help_feedback), onClick = onHelpFeedbackClick)
-            DrawerMenuRow(text = stringResource(id = R.string.drawer_rate_app), onClick = onRateAppClick)
-            DrawerMenuRow(
-                text = stringResource(id = R.string.drawer_statistics),
-                onClick = { /* no-op: Premium feature, not available yet */ },
-                enabled = false,
-                trailing = { DrawerPremiumBadge() }
-            )
-
-            if (onArchiveClick != null && onRecycleBinClick != null) {
-                DrawerSectionLabel(text = stringResource(id = R.string.drawer_section_journal))
+            DrawerSectionLabel(text = stringResource(id = R.string.drawer_section_journal))
+            DrawerCard {
                 DrawerMenuRow(text = stringResource(id = R.string.archive_title), onClick = onArchiveClick)
                 DrawerMenuRow(text = stringResource(id = R.string.recycle_bin_title), onClick = onRecycleBinClick)
             }
+
+            DrawerSectionLabel(text = stringResource(id = R.string.drawer_section_settings))
+            DrawerMenuRow(text = stringResource(id = R.string.drawer_settings_general), onClick = onGeneralSettingsClick)
+            DrawerMenuRow(text = stringResource(id = R.string.drawer_data_privacy), onClick = onDataPrivacyClick)
+            DrawerMenuRow(
+                text = stringResource(id = R.string.drawer_upgrade_to_pro),
+                onClick = onUpgradeToProClick,
+                emphasized = true
+            )
+
+            DrawerSectionLabel(text = stringResource(id = R.string.drawer_section_about))
+            DrawerMenuRow(text = stringResource(id = R.string.drawer_about_one_task), onClick = onAboutClick)
+            DrawerMenuRow(text = stringResource(id = R.string.drawer_help_feedback), onClick = onHelpFeedbackClick)
+            DrawerMenuRow(text = stringResource(id = R.string.drawer_rate_app), onClick = onRateAppClick)
         }
-
-        Text(
-            text = stringResource(id = R.string.logged_in_as),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = userEmail,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(top = 2.dp)
-        )
-
-        TonalActionButton(
-            text = stringResource(id = R.string.log_out),
-            onClick = onLogoutClick,
-            modifier = Modifier.padding(top = 16.dp)
-        )
     }
 }
 
-/** A plain, low-emphasis nav row - text plus an optional trailing element, no filled background,
- * so a menu full of these reads as a clean list rather than a stack of blue pills. */
+/** A white, rounded surface grouping a handful of closely related rows (Account, Journal) so
+ * they read as one prominent unit against the drawer's own light background. */
 @Composable
-private fun DrawerMenuRow(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    trailing: (@Composable () -> Unit)? = null
-) {
-    Row(
+private fun DrawerCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(
         modifier = modifier
             .fillMaxWidth()
+            .padding(top = 6.dp, bottom = 14.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface),
+        content = content
+    )
+}
+
+/** A plain, low-emphasis nav row - text only, no filled background, so a menu full of these
+ * reads as a clean list rather than a stack of blue pills. [emphasized] gives the "Upgrade to
+ * Pro" row a premium look (bold, primary-colored) without turning it into its own card. */
+@Composable
+private fun DrawerMenuRow(text: String, onClick: () -> Unit, emphasized: Boolean = false) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 14.dp),
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium,
-            color = if (enabled) {
-                MaterialTheme.colorScheme.onBackground
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            modifier = Modifier.weight(1f)
+            fontWeight = if (emphasized) FontWeight.Bold else FontWeight.Medium,
+            color = if (emphasized) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
         )
-        trailing?.invoke()
     }
 }
 
 @Composable
-private fun DrawerSectionLabel(text: String, modifier: Modifier = Modifier) {
+private fun DrawerSectionLabel(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.Bold,
         letterSpacing = 1.sp,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.padding(top = 18.dp, bottom = 2.dp, start = 10.dp)
+        modifier = Modifier.padding(top = 14.dp, bottom = 6.dp, start = 10.dp)
     )
-}
-
-@Composable
-private fun DrawerPremiumBadge() {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(MaterialTheme.colorScheme.secondaryContainer)
-            .padding(horizontal = 8.dp, vertical = 3.dp)
-    ) {
-        Text(
-            text = stringResource(id = R.string.drawer_premium_badge),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-    }
 }
