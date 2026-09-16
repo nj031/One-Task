@@ -74,6 +74,10 @@
     <string name="drawer_about_one_task">About One Task</string>
     <string name="drawer_help_feedback">Help &amp; Feedback</string>
     <string name="drawer_rate_app">Rate One Task</string>
+    <string name="rate_app_dialog_title">Enjoying One Task?</string>
+    <string name="rate_app_dialog_message">If you find One Task useful, we\'d love to hear your feedback.</string>
+    <string name="rate_app_maybe_later">Maybe Later</string>
+    <string name="rate_app_not_available_message">One Task isn\'t on Google Play yet. You\'ll be able to rate it here once it\'s published.</string>
     <string name="logged_in_as">Logged in as</string>
     <string name="log_out">Log out</string>
     <string name="sample_user_email">spideysince97@gmail.com</string>
