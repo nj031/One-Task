@@ -259,6 +259,16 @@
     <string name="privacy_policy_title">Privacy Policy</string>
     <string name="privacy_policy_placeholder">Our full Privacy Policy will be published here soon.</string>
 
+    <string name="about_one_task_tagline">Focus on what matters. One Task at a time.</string>
+    <string name="about_one_task_description">One Task is a simple productivity app designed to help you organize your tasks, manage your time, stay focused, and build a consistent daily routine.\n\nIt brings task management, Focus Mode, and Journal together in one simple and organized workspace.</string>
+    <string name="about_one_task_terms_of_service">Terms of Service</string>
+    <string name="about_one_task_open_source_licenses">Open Source Licenses</string>
+    <string name="about_one_task_contact_support">Contact &amp; Support</string>
+    <string name="terms_of_service_title">Terms of Service</string>
+    <string name="terms_of_service_placeholder">Our Terms of Service will be published here soon.</string>
+    <string name="open_source_licenses_title">Open Source Licenses</string>
+    <string name="open_source_licenses_placeholder">A list of open source licenses used by One Task will be published here soon.</string>
+
     <string name="upgrade_to_pro_title">ONE TASK PRO</string>
     <string name="upgrade_to_pro_column_free">FREE</string>
     <string name="upgrade_to_pro_column_pro">PRO</string>

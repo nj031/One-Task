@@ -44,4 +44,7 @@ sealed class Screen(val route: String) {
     data object WeekStartsOnSettings : Screen("week_starts_on_settings")
     data object TimeFormatSettings : Screen("time_format_settings")
     data object HapticFeedbackSettings : Screen("haptic_feedback_settings")
+    data object AboutOneTask : Screen("about_one_task")
+    data object TermsOfService : Screen("terms_of_service")
+    data object OpenSourceLicenses : Screen("open_source_licenses")
 }

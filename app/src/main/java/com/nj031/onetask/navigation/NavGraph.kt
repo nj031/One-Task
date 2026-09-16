@@ -18,6 +18,7 @@ import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.feedback.FeedbackType
 import com.nj031.onetask.data.settings.StartScreen
 import com.nj031.onetask.ui.haptics.LocalHapticFeedbackEnabled
+import com.nj031.onetask.ui.screens.AboutOneTaskScreen
 import com.nj031.onetask.ui.screens.AddTaskScreen
 import com.nj031.onetask.ui.screens.ArchiveScreen
 import com.nj031.onetask.ui.screens.AuthScreen
@@ -263,6 +264,7 @@ fun OneTaskNavHost(
                 onGeneralSettingsClick = { navController.navigate(Screen.GeneralSettings.route) },
                 onDataPrivacyClick = { navController.navigate(Screen.DataPrivacy.route) },
                 onUpgradeToProClick = { navController.navigate(Screen.UpgradeToPro.route) },
+                onAboutClick = { navController.navigate(Screen.AboutOneTask.route) },
                 onHelpFeedbackClick = { navController.navigate(Screen.HelpFeedback.route) },
                 onLogout = {
                     AuthRepository.signOut()
@@ -338,6 +340,7 @@ fun OneTaskNavHost(
                 onGeneralSettingsClick = { navController.navigate(Screen.GeneralSettings.route) },
                 onDataPrivacyClick = { navController.navigate(Screen.DataPrivacy.route) },
                 onUpgradeToProClick = { navController.navigate(Screen.UpgradeToPro.route) },
+                onAboutClick = { navController.navigate(Screen.AboutOneTask.route) },
                 onHelpFeedbackClick = { navController.navigate(Screen.HelpFeedback.route) },
                 onNavigateToTasks = { navController.navigateToBottomNavTab(Screen.Home.route) },
                 onNavigateToProfile = { navController.navigateToBottomNavTab(Screen.Profile.route) },
@@ -391,6 +394,28 @@ fun OneTaskNavHost(
         }
         composable(Screen.PrivacyPolicy.route) {
             PrivacyPolicyScreen(onBackClick = { navController.popBackStack() })
+        }
+        composable(Screen.AboutOneTask.route) {
+            AboutOneTaskScreen(
+                onBackClick = { navController.popBackStack() },
+                onTermsOfServiceClick = { navController.navigate(Screen.TermsOfService.route) },
+                onPrivacyPolicyClick = { navController.navigate(Screen.PrivacyPolicy.route) },
+                onOpenSourceLicensesClick = { navController.navigate(Screen.OpenSourceLicenses.route) }
+            )
+        }
+        composable(Screen.TermsOfService.route) {
+            SettingsComingSoonScreen(
+                title = stringResource(id = R.string.terms_of_service_title),
+                message = stringResource(id = R.string.terms_of_service_placeholder),
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.OpenSourceLicenses.route) {
+            SettingsComingSoonScreen(
+                title = stringResource(id = R.string.open_source_licenses_title),
+                message = stringResource(id = R.string.open_source_licenses_placeholder),
+                onBackClick = { navController.popBackStack() }
+            )
         }
         composable(Screen.GeneralSettings.route) {
             val startScreen by generalSettingsViewModel.startScreen.collectAsState()

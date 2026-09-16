@@ -103,6 +103,7 @@ fun HomeScreen(
     onGeneralSettingsClick: () -> Unit = {},
     onDataPrivacyClick: () -> Unit = {},
     onUpgradeToProClick: () -> Unit = {},
+    onAboutClick: () -> Unit = {},
     onHelpFeedbackClick: () -> Unit = {},
     onLogout: () -> Unit = {},
     weekStartDay: DayOfWeek = DayOfWeek.MONDAY
@@ -154,7 +155,10 @@ fun HomeScreen(
                         scope.launch { drawerState.close() }
                         onUpgradeToProClick()
                     },
-                    onAboutClick = { /* no-op: not implemented yet */ },
+                    onAboutClick = {
+                        scope.launch { drawerState.close() }
+                        onAboutClick()
+                    },
                     onHelpFeedbackClick = {
                         scope.launch { drawerState.close() }
                         onHelpFeedbackClick()
