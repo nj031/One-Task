@@ -1,5 +1,6 @@
 package com.nj031.onetask.ui.screens
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -44,7 +45,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,7 +55,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -77,6 +76,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -148,7 +148,14 @@ fun EditProfileScreen(
     var dateOfBirth by rememberSaveable { mutableStateOf(initialProfile.dateOfBirth) }
     var genderName by rememberSaveable { mutableStateOf(initialProfile.gender?.name) }
     var photoRemoved by rememberSaveable { mutableStateOf(false) }
-    var pickedPhotoUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    // The freshly-picked source (if any) that croppedPhotoBitmap was cropped from - kept around so
+    // tapping the photo again to re-crop starts from the original full-resolution image rather
+    // than re-cropping an already-cropped bitmap. Not rememberSaveable: a content Uri's read
+    // permission doesn't reliably survive process death anyway, and croppedPhotoBitmap (which
+    // isn't Parcelable-safe to save regardless) would be lost together with it.
+    var originalPickedUri by remember { mutableStateOf<Uri?>(null) }
+    var croppedPhotoBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var cropSourceUri by remember { mutableStateOf<Uri?>(null) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var showDiscardConfirm by rememberSaveable { mutableStateOf(false) }
 
@@ -156,7 +163,7 @@ fun EditProfileScreen(
         dateOfBirth != initialProfile.dateOfBirth ||
         genderName != initialProfile.gender?.name ||
         photoRemoved ||
-        pickedPhotoUri != null
+        croppedPhotoBitmap != null
 
     val handleBack = {
         if (hasUnsavedChanges) showDiscardConfirm = true else onDone()
@@ -166,9 +173,18 @@ fun EditProfileScreen(
 
     val photoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
-            pickedPhotoUri = uri
-            photoRemoved = false
+            cropSourceUri = uri
         }
+    }
+
+    // The existing photo (freshly picked-and-cropped this session, or already saved on disk) that
+    // tapping the avatar should re-open the crop step on - null once there's nothing to re-crop,
+    // in which case tapping it opens the picker instead.
+    val recropSource = originalPickedUri
+        ?: initialProfile.photoPath?.takeIf { !photoRemoved }?.let { path -> Uri.fromFile(File(path)) }
+
+    fun onPhotoClick() {
+        if (recropSource != null) cropSourceUri = recropSource else photoLauncher.launch("image/*")
     }
 
     fun onSaveClick() {
@@ -184,7 +200,7 @@ fun EditProfileScreen(
                         ProfilePhotoStorage.delete(context)
                         null
                     }
-                    pickedPhotoUri != null -> ProfilePhotoStorage.saveFrom(context, pickedPhotoUri!!)
+                    croppedPhotoBitmap != null -> ProfilePhotoStorage.saveBitmap(context, croppedPhotoBitmap!!)
                     else -> initialProfile.photoPath
                 }
             }
@@ -231,16 +247,18 @@ fun EditProfileScreen(
             ) {
                 EditablePhoto(
                     existingPhotoPath = if (photoRemoved) null else initialProfile.photoPath,
-                    pickedUri = if (photoRemoved) null else pickedPhotoUri
+                    croppedBitmap = if (photoRemoved) null else croppedPhotoBitmap,
+                    onClick = ::onPhotoClick
                 )
                 Row(modifier = Modifier.padding(top = 12.dp)) {
                     TextButton(onClick = { photoLauncher.launch("image/*") }) {
                         Text(text = stringResource(id = R.string.profile_edit_change_photo))
                     }
-                    if (!photoRemoved && (pickedPhotoUri != null || initialProfile.photoPath != null)) {
+                    if (!photoRemoved && (croppedPhotoBitmap != null || initialProfile.photoPath != null)) {
                         TextButton(onClick = {
                             photoRemoved = true
-                            pickedPhotoUri = null
+                            croppedPhotoBitmap = null
+                            originalPickedUri = null
                         }) {
                             Text(
                                 text = stringResource(id = R.string.profile_edit_remove_photo),
@@ -400,6 +418,22 @@ fun EditProfileScreen(
         }
     }
 
+    cropSourceUri?.let { uri ->
+        ProfilePhotoCropDialog(
+            sourceUri = uri,
+            onCancel = { cropSourceUri = null },
+            onDone = { cropped ->
+                croppedPhotoBitmap = cropped
+                // Only promoted to the re-crop source once a crop is actually applied - a
+                // picked-then-cancelled image must not linger as something "tap the avatar" would
+                // later try to re-crop instead of opening the picker again.
+                originalPickedUri = uri
+                photoRemoved = false
+                cropSourceUri = null
+            }
+        )
+    }
+
     if (showDiscardConfirm) {
         AlertDialog(
             onDismissRequest = { showDiscardConfirm = false },
@@ -428,18 +462,18 @@ fun EditProfileScreen(
 }
 
 @Composable
-private fun EditablePhoto(existingPhotoPath: String?, pickedUri: Uri?) {
-    val previewBitmap = rememberPickedPhotoBitmap(pickedUri)
+private fun EditablePhoto(existingPhotoPath: String?, croppedBitmap: Bitmap?, onClick: () -> Unit) {
     val savedBitmap = remember(existingPhotoPath) {
         existingPhotoPath?.let { path -> BitmapFactory.decodeFile(path)?.asImageBitmap() }
     }
-    val bitmap = previewBitmap ?: savedBitmap
+    val bitmap = croppedBitmap?.asImageBitmap() ?: savedBitmap
 
     Box(
         modifier = Modifier
             .size(96.dp)
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.secondaryContainer),
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         if (bitmap != null) {
@@ -459,26 +493,6 @@ private fun EditablePhoto(existingPhotoPath: String?, pickedUri: Uri?) {
             )
         }
     }
-}
-
-@Composable
-private fun rememberPickedPhotoBitmap(uri: Uri?): ImageBitmap? {
-    val context = LocalContext.current
-    var bitmap by remember(uri) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(uri) {
-        bitmap = if (uri == null) {
-            null
-        } else {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    context.contentResolver.openInputStream(uri)?.use { stream ->
-                        BitmapFactory.decodeStream(stream)?.asImageBitmap()
-                    }
-                }.getOrNull()
-            }
-        }
-    }
-    return bitmap
 }
 
 /** Same pill-shaped selectable chip style used for Tag/Date/Repeat rows in Add/Edit Task. */
