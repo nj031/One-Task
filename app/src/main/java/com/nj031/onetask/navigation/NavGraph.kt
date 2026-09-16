@@ -12,11 +12,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.nj031.onetask.data.auth.AuthRepository
+import com.nj031.onetask.data.feedback.FeedbackType
 import com.nj031.onetask.ui.screens.AddTaskScreen
 import com.nj031.onetask.ui.screens.ArchiveScreen
 import com.nj031.onetask.ui.screens.AuthScreen
 import com.nj031.onetask.ui.screens.DataPrivacyScreen
+import com.nj031.onetask.ui.screens.FeedbackFormScreen
 import com.nj031.onetask.ui.screens.FocusTimerScreen
+import com.nj031.onetask.ui.screens.HelpFaqScreen
+import com.nj031.onetask.ui.screens.HelpFeedbackScreen
 import com.nj031.onetask.ui.screens.HomeScreen
 import com.nj031.onetask.ui.screens.JournalScreen
 import com.nj031.onetask.ui.screens.NoteEditorScreen
@@ -91,6 +95,7 @@ fun OneTaskNavHost(
                 onRecycleBinClick = { navController.navigate(Screen.RecycleBin.route) },
                 onDataPrivacyClick = { navController.navigate(Screen.DataPrivacy.route) },
                 onUpgradeToProClick = { navController.navigate(Screen.UpgradeToPro.route) },
+                onHelpFeedbackClick = { navController.navigate(Screen.HelpFeedback.route) },
                 onLogout = {
                     AuthRepository.signOut()
                     navController.navigate(Screen.Auth.route) {
@@ -153,6 +158,7 @@ fun OneTaskNavHost(
                 onArchiveClick = { navController.navigate(Screen.Archive.route) },
                 onDataPrivacyClick = { navController.navigate(Screen.DataPrivacy.route) },
                 onUpgradeToProClick = { navController.navigate(Screen.UpgradeToPro.route) },
+                onHelpFeedbackClick = { navController.navigate(Screen.HelpFeedback.route) },
                 onNavigateToTasks = { navController.navigateToBottomNavTab(Screen.Home.route) },
                 onNavigateToProfile = { navController.navigateToBottomNavTab(Screen.Profile.route) },
                 onLogout = {
@@ -197,6 +203,35 @@ fun OneTaskNavHost(
         }
         composable(Screen.UpgradeToPro.route) {
             UpgradeToProScreen(onBackClick = { navController.popBackStack() })
+        }
+        composable(Screen.HelpFeedback.route) {
+            HelpFeedbackScreen(
+                onBackClick = { navController.popBackStack() },
+                onHelpFaqClick = { navController.navigate(Screen.HelpFaq.route) },
+                onSuggestFeatureClick = {
+                    navController.navigate(Screen.FeedbackForm.createRoute(FeedbackType.FEATURE.backendValue))
+                },
+                onReportProblemClick = {
+                    navController.navigate(Screen.FeedbackForm.createRoute(FeedbackType.BUG.backendValue))
+                },
+                onSendFeedbackClick = {
+                    navController.navigate(Screen.FeedbackForm.createRoute(FeedbackType.FEEDBACK.backendValue))
+                }
+            )
+        }
+        composable(Screen.HelpFaq.route) {
+            HelpFaqScreen(onBackClick = { navController.popBackStack() })
+        }
+        composable(
+            route = Screen.FeedbackForm.route,
+            arguments = listOf(navArgument("type") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val typeArg = backStackEntry.arguments?.getString("type").orEmpty()
+            FeedbackFormScreen(
+                type = FeedbackType.fromRouteValue(typeArg),
+                onBackClick = { navController.popBackStack() },
+                onDone = { navController.popBackStack() }
+            )
         }
         composable(
             route = Screen.NoteEditor.route,

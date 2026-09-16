@@ -100,6 +100,7 @@ fun HomeScreen(
     onRecycleBinClick: () -> Unit = {},
     onDataPrivacyClick: () -> Unit = {},
     onUpgradeToProClick: () -> Unit = {},
+    onHelpFeedbackClick: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
     var actionMenuTask by remember { mutableStateOf<TaskEntity?>(null) }
@@ -146,7 +147,10 @@ fun HomeScreen(
                         onUpgradeToProClick()
                     },
                     onAboutClick = { /* no-op: not implemented yet */ },
-                    onHelpFeedbackClick = { /* no-op: help & feedback not implemented yet */ }
+                    onHelpFeedbackClick = {
+                        scope.launch { drawerState.close() }
+                        onHelpFeedbackClick()
+                    }
                 )
             }
         }
