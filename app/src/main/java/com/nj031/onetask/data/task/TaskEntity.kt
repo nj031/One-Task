@@ -8,6 +8,11 @@ enum class TaskStatus { NOT_STARTED, IN_PROGRESS, COMPLETED }
 
 enum class TaskRepeat { NONE, DAILY, WEEKLY, MONTHLY }
 
+/** Which tab's manual drag-and-drop order a [TaskRepository.reorderTasks] call updates - each
+ * one is a completely independent ordering over the same tasks, per [TaskEntity]'s three order
+ * columns below. */
+enum class TaskOrderScope { ALL, IN_PROGRESS, DONE }
+
 @Entity(tableName = "tasks")
 data class TaskEntity(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
@@ -28,7 +33,15 @@ data class TaskEntity(
     // Null means "never started" (full timerMinutes duration applies).
     val timerRemainingMillis: Long? = null,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    // Manual drag-and-drop order within each Tasks-homepage tab - kept as three separate
+    // columns (rather than one shared order) so reordering in one tab, e.g. In Progress, never
+    // touches how the same tasks are ordered in All or Done. Each defaults to createdAt, so a
+    // task's position in a tab it has never been manually reordered within still falls back to
+    // creation order - exactly how every tab already behaved before drag-and-drop existed.
+    val orderInAll: Long = createdAt,
+    val orderInProgress: Long = createdAt,
+    val orderInDone: Long = createdAt
 )
 
 @Entity(tableName = "task_tags")

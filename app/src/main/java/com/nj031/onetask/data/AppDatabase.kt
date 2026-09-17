@@ -15,7 +15,7 @@ import com.nj031.onetask.data.task.TaskTagEntity
 
 @Database(
     entities = [JournalNoteEntity::class, TaskEntity::class, TaskTagEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(Converters::class, TaskConverters::class)

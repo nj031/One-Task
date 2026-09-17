@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.nj031.onetask.data.AppDatabase
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
+import com.nj031.onetask.data.task.TaskOrderScope
 import com.nj031.onetask.data.task.TaskRepeat
 import com.nj031.onetask.data.task.TaskRepository
 import com.nj031.onetask.data.task.TaskStatus
@@ -164,5 +165,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun finishTimer(task: TaskEntity) {
         viewModelScope.launch { repository.finishTimer(task) }
+    }
+
+    /** Persists a drag-and-drop reorder within a single tab - see [TaskRepository.reorderTasks]. */
+    fun reorderTasks(scope: TaskOrderScope, orderedTasks: List<TaskEntity>) {
+        viewModelScope.launch { repository.reorderTasks(scope, orderedTasks) }
     }
 }

@@ -240,6 +240,26 @@ class TaskRepository(private val dao: TaskDao) {
         CloudBackupRepository.pushTask(updated)
     }
 
+    /**
+     * Persists a drag-and-drop reorder: [orderedTasks] is the full task list for [scope]'s tab
+     * (e.g. every task currently shown in In Progress) in its new order. Only that scope's own
+     * order column is touched - reordering In Progress never writes orderInAll/orderInDone - so
+     * each tab's manual order stays completely independent, and nothing about a task's status,
+     * timer, or any other field changes.
+     */
+    suspend fun reorderTasks(scope: TaskOrderScope, orderedTasks: List<TaskEntity>) {
+        val now = System.currentTimeMillis()
+        orderedTasks.forEachIndexed { index, task ->
+            val updated = when (scope) {
+                TaskOrderScope.ALL -> task.copy(orderInAll = index.toLong(), updatedAt = now)
+                TaskOrderScope.IN_PROGRESS -> task.copy(orderInProgress = index.toLong(), updatedAt = now)
+                TaskOrderScope.DONE -> task.copy(orderInDone = index.toLong(), updatedAt = now)
+            }
+            dao.update(updated)
+            CloudBackupRepository.pushTask(updated)
+        }
+    }
+
     private companion object {
         const val MILLIS_PER_MINUTE = 60_000L
     }
