@@ -2,6 +2,7 @@ package com.nj031.onetask.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
@@ -72,8 +73,24 @@ private fun NavHostController.navigateToBottomNavTab(route: String) {
 @Composable
 fun OneTaskNavHost(
     navController: NavHostController = rememberNavController(),
-    activeFocusTaskId: String? = null
+    activeFocusTaskId: String? = null,
+    reopenFocusTaskId: String? = null,
+    reopenFocusRequestId: Long = 0L
 ) {
+    // A warm reopen via the running Focus Timer notification's "Open" action (see
+    // MainActivity.onNewIntent): navigates straight to Focus Mode over whatever screen was
+    // showing. Keyed on reopenFocusRequestId (not reopenFocusTaskId) so a second tap for the
+    // same task still re-triggers this, and guarded to a no-op on the very first composition
+    // (requestId 0) so a cold start - already handled below by activeFocusTaskId as the graph's
+    // startDestination - never double-navigates on top of itself.
+    LaunchedEffect(reopenFocusRequestId) {
+        if (reopenFocusRequestId == 0L) return@LaunchedEffect
+        val taskId = reopenFocusTaskId ?: return@LaunchedEffect
+        navController.navigate(Screen.FocusTimer.createRoute(taskId)) {
+            launchSingleTop = true
+        }
+    }
+
     val journalViewModel: JournalViewModel = viewModel()
     val homeViewModel: HomeViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()

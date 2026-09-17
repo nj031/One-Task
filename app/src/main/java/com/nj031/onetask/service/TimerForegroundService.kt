@@ -25,6 +25,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -50,6 +51,13 @@ class TimerForegroundService : Service() {
     private var notificationsEnabled = true
     private var completionNotificationEnabled = true
 
+    // True once startForeground() has actually been called for this service instance. Guards
+    // against re-posting the "--:--" placeholder (and the visible flicker that would cause) on
+    // every Pause/Resume notification-action tap while the service is already alive and already
+    // showing live content - startForeground() only needs to run once per instance; after that,
+    // ordinary notify() calls (see postNotification) keep the same notification up to date.
+    private var hasStartedForeground = false
+
     override fun onCreate() {
         super.onCreate()
         taskRepository = TaskRepository(AppDatabase.getInstance(applicationContext).taskDao())
@@ -66,9 +74,48 @@ class TimerForegroundService : Service() {
             return START_NOT_STICKY
         }
 
-        startForeground(NOTIFICATION_ID_RUNNING, buildRunningNotification(taskName = "", remainingLabel = "--:--"))
-        observeTask(taskId)
+        if (!hasStartedForeground) {
+            startForeground(
+                NOTIFICATION_ID_RUNNING,
+                buildRunningNotification(taskId = taskId, taskName = "", remainingLabel = "--:--", isPaused = false)
+            )
+            hasStartedForeground = true
+        }
+
+        // The notification's own Pause/Resume actions re-enter this same service via a fresh
+        // onStartCommand call rather than a separate broadcast receiver - reusing the exact
+        // TaskRepository methods (pauseTimer/startTimer) that FocusTimerScreen's in-app
+        // Pause/Resume buttons already call, so the DB write - and everything reacting to it,
+        // including this service's own observeTask below and Focus Mode's own live task
+        // observation - is identical regardless of which one triggered it. The write is awaited
+        // before (re)subscribing observeTask so its very first emission already reflects the new
+        // state, rather than racing a stale "still running"/"still paused" snapshot against it.
+        when (intent.action) {
+            ACTION_PAUSE -> serviceScope.launch {
+                applyPauseAction(taskId)
+                observeTask(taskId)
+            }
+            ACTION_RESUME -> serviceScope.launch {
+                applyResumeAction(taskId)
+                observeTask(taskId)
+            }
+            else -> observeTask(taskId)
+        }
         return START_NOT_STICKY
+    }
+
+    private suspend fun applyPauseAction(taskId: String) {
+        val task = taskRepository.observeTaskById(taskId).first() ?: return
+        if (task.timerEndAtMillis != null) {
+            taskRepository.pauseTimer(task)
+        }
+    }
+
+    private suspend fun applyResumeAction(taskId: String) {
+        val task = taskRepository.observeTaskById(taskId).first() ?: return
+        if (task.timerEndAtMillis == null) {
+            taskRepository.startTimer(task)
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -91,11 +138,32 @@ class TimerForegroundService : Service() {
                 if (task != null && isJustCompleted(task) && completionNotificationEnabled) {
                     postCompletionNotification(task)
                 }
-                if (task == null || task.status != TaskStatus.IN_PROGRESS || task.timerEndAtMillis == null) {
-                    stopSelf()
-                    return@collectLatest
+                when {
+                    // Left the session entirely: task gone, marked Done, Reset back to Not
+                    // Started, or (defensively) its timer was removed outright. Nothing left for
+                    // this notification to show, so tear the whole thing down - unchanged from
+                    // this service's original behavior.
+                    task == null || task.status != TaskStatus.IN_PROGRESS || task.timerMinutes == null -> {
+                        stopSelf()
+                    }
+                    // Actively counting down.
+                    task.timerEndAtMillis != null -> {
+                        runCountdown(task)
+                    }
+                    // Just reached zero naturally - isJustCompleted's own notification above
+                    // takes over from here, so the running notification's job is done too.
+                    isJustCompleted(task) -> {
+                        stopSelf()
+                    }
+                    // A genuine mid-session pause (Pause/Break/Leave Focus, from either the
+                    // notification's own Pause action or the in-app Focus Mode controls): keep
+                    // this service and its notification alive - unlike every other case above -
+                    // showing the frozen remaining time and a Resume action, so tapping Resume
+                    // from the notification is possible at all.
+                    else -> {
+                        postPausedNotification(task)
+                    }
                 }
-                runCountdown(task)
             }
         }
     }
@@ -112,6 +180,17 @@ class TimerForegroundService : Service() {
             task.timerRemainingMillis == 0L &&
             task.status == TaskStatus.IN_PROGRESS
 
+    private fun postPausedNotification(task: TaskEntity) {
+        val remainingMillis = task.timerRemainingMillis ?: 0L
+        val notification = buildRunningNotification(
+            taskId = task.id,
+            taskName = task.name,
+            remainingLabel = formatRemaining(remainingMillis),
+            isPaused = true
+        )
+        postNotification(NOTIFICATION_ID_RUNNING, notification)
+    }
+
     private suspend fun runCountdown(task: TaskEntity) {
         val endAtMillis = task.timerEndAtMillis ?: return
         // Android requires a foreground service to keep a notification posted the whole time
@@ -124,9 +203,20 @@ class TimerForegroundService : Service() {
         while (true) {
             val remainingMillis = (endAtMillis - System.currentTimeMillis()).coerceAtLeast(0)
             if (notificationsEnabled) {
-                postNotification(NOTIFICATION_ID_RUNNING, buildRunningNotification(task.name, formatRemaining(remainingMillis)))
+                postNotification(
+                    NOTIFICATION_ID_RUNNING,
+                    buildRunningNotification(
+                        taskId = task.id,
+                        taskName = task.name,
+                        remainingLabel = formatRemaining(remainingMillis),
+                        isPaused = false
+                    )
+                )
             } else if (!staticNotificationPosted) {
-                postNotification(NOTIFICATION_ID_RUNNING, buildRunningNotification(task.name, remainingLabel = null))
+                postNotification(
+                    NOTIFICATION_ID_RUNNING,
+                    buildRunningNotification(taskId = task.id, taskName = task.name, remainingLabel = null, isPaused = false)
+                )
                 staticNotificationPosted = true
             }
             if (remainingMillis <= 0) {
@@ -167,16 +257,33 @@ class TimerForegroundService : Service() {
         }
     }
 
-    private fun buildRunningNotification(taskName: String, remainingLabel: String?): Notification {
+    /**
+     * The running/paused notification's content: just the task name (title) and the remaining
+     * time (text) - no repeated "One Task"/"Focus session running" chrome, since the system
+     * template already shows the app name/icon/timestamp on its own. [isPaused] swaps the
+     * Pause action for Resume; both states otherwise share the exact same compact 2-line layout.
+     *
+     * Typography: setContentTitle/setContentText render through Android's own standard
+     * notification template, which does not support an app-supplied custom typeface here -
+     * forcing one would require a fully custom RemoteViews layout, which this task explicitly
+     * rules out. The system's native notification typography (and its own built-in title/body
+     * hierarchy) is used as-is, per Android's supported notification layout behavior.
+     */
+    private fun buildRunningNotification(
+        taskId: String,
+        taskName: String,
+        remainingLabel: String?,
+        isPaused: Boolean
+    ): Notification {
         val displayName = taskName.ifBlank { getString(R.string.focus_timer_title) }
         val contentText = if (remainingLabel != null) {
-            getString(R.string.focus_timer_notification_running_text, displayName, remainingLabel)
+            getString(R.string.focus_timer_notification_remaining_format, remainingLabel)
         } else {
-            getString(R.string.focus_timer_notification_running_text_minimal, displayName)
+            getString(R.string.focus_timer_notification_running_minimal_text)
         }
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(getString(R.string.focus_timer_notification_running_title))
+            .setSmallIcon(R.drawable.ic_notification_timer)
+            .setContentTitle(displayName)
             .setContentText(contentText)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -188,10 +295,59 @@ class TimerForegroundService : Service() {
             // rather than "show it plainly" - there's no other task information here beyond the
             // task name and remaining time, so there's nothing further to redact.
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setContentIntent(buildContentIntent())
+            .setContentIntent(buildOpenFocusModePendingIntent(taskId))
+            .addAction(buildPauseOrResumeAction(taskId, isPaused))
+            .addAction(buildOpenAction(taskId))
             .build()
     }
 
+    private fun buildPauseOrResumeAction(taskId: String, isPaused: Boolean): NotificationCompat.Action {
+        val action = Intent(this, TimerForegroundService::class.java).apply {
+            this.action = if (isPaused) ACTION_RESUME else ACTION_PAUSE
+            putExtra(EXTRA_TASK_ID, taskId)
+        }
+        // getForegroundService (not the plain getService) is the API Android's docs call for a
+        // notification action that must reliably start/re-enter a foreground service - it's
+        // exempt from the background-service-start restrictions a bare startService() would hit
+        // if this service's process had died while the notification was still showing.
+        val pendingIntent = PendingIntent.getForegroundService(
+            this,
+            if (isPaused) REQUEST_CODE_RESUME else REQUEST_CODE_PAUSE,
+            action,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val icon = if (isPaused) R.drawable.ic_notification_resume else R.drawable.ic_notification_pause
+        val label = getString(if (isPaused) R.string.resume else R.string.pause)
+        return NotificationCompat.Action.Builder(icon, label, pendingIntent).build()
+    }
+
+    private fun buildOpenAction(taskId: String): NotificationCompat.Action {
+        return NotificationCompat.Action.Builder(
+            R.drawable.ic_notification_open,
+            getString(R.string.focus_timer_notification_open_action),
+            buildOpenFocusModePendingIntent(taskId)
+        ).build()
+    }
+
+    /**
+     * Opens One Task straight into this task's Focus Mode, whatever state the app was in: a
+     * cold start already resolves this via FocusSessionState (see MainActivity), while a warm
+     * relaunch - the app process still alive, just not showing Focus Mode right now - is
+     * handled by MainActivity.onNewIntent picking up EXTRA_OPEN_FOCUS_TASK_ID and navigating
+     * there explicitly. Either way it lands on the exact same task/timer state this notification
+     * itself reflects, since both read the same Room row.
+     */
+    private fun buildOpenFocusModePendingIntent(taskId: String): PendingIntent = PendingIntent.getActivity(
+        this,
+        REQUEST_CODE_OPEN_FOCUS,
+        Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(MainActivity.EXTRA_OPEN_FOCUS_TASK_ID, taskId)
+        },
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    )
+
+    /** Used only by the separate Timer Completion notification - unchanged by this task. */
     private fun buildContentIntent(): PendingIntent = PendingIntent.getActivity(
         this,
         0,
@@ -274,6 +430,15 @@ class TimerForegroundService : Service() {
         private const val LEGACY_CHANNEL_ID = "focus_timer_channel"
         private const val LEGACY_COMPLETE_CHANNEL_ID = "focus_timer_complete_channel"
         private const val TICK_INTERVAL_MILLIS = 1_000L
+
+        private const val ACTION_PAUSE = "com.nj031.onetask.action.PAUSE_TIMER"
+        private const val ACTION_RESUME = "com.nj031.onetask.action.RESUME_TIMER"
+        // Distinct request codes per PendingIntent so Android never collapses/reuses one
+        // action's extras for another - all three can be simultaneously "in flight" (posted on
+        // the current notification) at once.
+        private const val REQUEST_CODE_OPEN_FOCUS = 1
+        private const val REQUEST_CODE_PAUSE = 2
+        private const val REQUEST_CODE_RESUME = 3
 
         fun start(context: Context, taskId: String) {
             val intent = Intent(context, TimerForegroundService::class.java)
