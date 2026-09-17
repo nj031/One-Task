@@ -443,10 +443,11 @@ fun OneTaskRecycleBinIcon(
             cornerRadius = CornerRadius(this.size.minDimension * 0.04f),
             style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
         )
+        val bodyInset = this.size.width * 0.04f
         val bodyPath = Path().apply {
             moveTo(bodyLeft, lidY)
-            lineTo(bodyLeft + this.size.width * 0.04f, bodyBottom)
-            lineTo(bodyRight - this.size.width * 0.04f, bodyBottom)
+            lineTo(bodyLeft + bodyInset, bodyBottom)
+            lineTo(bodyRight - bodyInset, bodyBottom)
             lineTo(bodyRight, lidY)
         }
         drawPath(bodyPath, color = tint, style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
@@ -507,13 +508,15 @@ fun OneTaskShieldIcon(
         val bottom = this.size.height * 0.9f
         val centerX = this.size.width / 2f
 
+        val upperY = top + this.size.height * 0.1f
+        val curveY = this.size.height * 0.72f
         val shieldPath = Path().apply {
             moveTo(centerX, top)
-            lineTo(right, top + this.size.height * 0.1f)
+            lineTo(right, upperY)
             lineTo(right, midY)
-            quadraticBezierTo(right, this.size.height * 0.72f, centerX, bottom)
-            quadraticBezierTo(left, this.size.height * 0.72f, left, midY)
-            lineTo(left, top + this.size.height * 0.1f)
+            quadraticBezierTo(right, curveY, centerX, bottom)
+            quadraticBezierTo(left, curveY, left, midY)
+            lineTo(left, upperY)
             close()
         }
         drawPath(shieldPath, color = tint, style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
@@ -561,10 +564,14 @@ fun OneTaskChatIcon(
             cornerRadius = CornerRadius(this.size.minDimension * 0.14f),
             style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
         )
+        val tailStartX = this.size.width * 0.3f
+        val tailTipX = this.size.width * 0.24f
+        val tailTipY = this.size.height * 0.86f
+        val tailEndX = this.size.width * 0.44f
         val tailPath = Path().apply {
-            moveTo(this.size.width * 0.3f, bottom)
-            lineTo(this.size.width * 0.24f, this.size.height * 0.86f)
-            lineTo(this.size.width * 0.44f, bottom)
+            moveTo(tailStartX, bottom)
+            lineTo(tailTipX, tailTipY)
+            lineTo(tailEndX, bottom)
         }
         drawPath(tailPath, color = tint, style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
         listOf(0.36f, 0.5f).forEach { fraction ->
@@ -618,21 +625,29 @@ fun OneTaskCrownIcon(
         val topY = this.size.height * 0.28f
         val midY = this.size.height * 0.46f
 
+        val dipY = this.size.height * 0.56f
+        val x14 = this.size.width * 0.14f
+        val x10 = this.size.width * 0.1f
+        val x30 = this.size.width * 0.3f
+        val x50 = this.size.width * 0.5f
+        val x70 = this.size.width * 0.7f
+        val x90 = this.size.width * 0.9f
+        val x86 = this.size.width * 0.86f
         val crownPath = Path().apply {
-            moveTo(this.size.width * 0.14f, baseY)
-            lineTo(this.size.width * 0.1f, midY)
-            lineTo(this.size.width * 0.3f, this.size.height * 0.56f)
-            lineTo(this.size.width * 0.5f, topY)
-            lineTo(this.size.width * 0.7f, this.size.height * 0.56f)
-            lineTo(this.size.width * 0.9f, midY)
-            lineTo(this.size.width * 0.86f, baseY)
+            moveTo(x14, baseY)
+            lineTo(x10, midY)
+            lineTo(x30, dipY)
+            lineTo(x50, topY)
+            lineTo(x70, dipY)
+            lineTo(x90, midY)
+            lineTo(x86, baseY)
             close()
         }
         drawPath(crownPath, color = tint, style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
         drawLine(
             color = tint,
-            start = Offset(this.size.width * 0.14f, baseY),
-            end = Offset(this.size.width * 0.86f, baseY),
+            start = Offset(x14, baseY),
+            end = Offset(x86, baseY),
             strokeWidth = strokeWidth,
             cap = StrokeCap.Round
         )
@@ -668,10 +683,13 @@ fun OneTaskLogoutIcon(
             strokeWidth = strokeWidth,
             cap = StrokeCap.Round
         )
+        val arrowTipX = this.size.width * 0.66f
+        val arrowEndX = this.size.width * 0.88f
+        val arrowSpread = this.size.height * 0.18f
         val arrowHead = Path().apply {
-            moveTo(this.size.width * 0.66f, arrowY - this.size.height * 0.18f)
-            lineTo(this.size.width * 0.88f, arrowY)
-            lineTo(this.size.width * 0.66f, arrowY + this.size.height * 0.18f)
+            moveTo(arrowTipX, arrowY - arrowSpread)
+            lineTo(arrowEndX, arrowY)
+            lineTo(arrowTipX, arrowY + arrowSpread)
         }
         drawPath(arrowHead, color = tint, style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
