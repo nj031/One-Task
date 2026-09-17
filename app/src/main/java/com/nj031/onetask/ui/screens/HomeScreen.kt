@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
@@ -84,7 +86,6 @@ import kotlinx.coroutines.launch
 // Homepage-only palette (see design reference). Scoped to this file so Journal,
 // Auth, and the Add Task sheet keep their existing theme colors untouched.
 private val HomeBackground = Color(0xFFF4F7FC)
-private val HomeButtonLight = Color(0xFFDBEBFA)
 private val HomeCardWhite = Color(0xFFFFFFFF)
 private val HomePrimaryBlue = Color(0xFF2F6FD6)
 private val HomeDarkText = Color(0xFF17365D)
@@ -108,7 +109,10 @@ fun HomeScreen(
     onLogout: () -> Unit = {},
     weekStartDay: DayOfWeek = DayOfWeek.MONDAY
 ) {
-    var actionMenuTask by remember { mutableStateOf<TaskEntity?>(null) }
+    // Which task's compact Action Row is currently open, if any - only one at a time, replacing
+    // the old large tap-to-open action-sheet popup. Kept as an id (not the TaskEntity) so it
+    // survives the underlying task object changing identity across recompositions/updates.
+    var selectedTaskId by remember { mutableStateOf<String?>(null) }
     var deleteConfirmTask by remember { mutableStateOf<TaskEntity?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -187,7 +191,16 @@ fun HomeScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),
+                    .padding(innerPadding)
+                    // Tapping anywhere in this content area that isn't itself a clickable
+                    // element (a Task Card, an Action Row button, a top-bar icon, ...) closes
+                    // the open Action Row - those nested elements consume their own taps first,
+                    // so this only ever fires for genuinely empty space. No dimming/overlay is
+                    // added; this is a plain background tap, not a modal.
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { selectedTaskId = null },
                 contentAlignment = Alignment.TopCenter
             ) {
                 Column(
@@ -235,11 +248,15 @@ fun HomeScreen(
                                     SectionHeader(text = stringResource(id = R.string.status_in_progress))
                                 }
                                 items(activeTasks, key = { it.id }) { task ->
-                                    TaskCard(
+                                    HomeTaskListItem(
                                         task = task,
-                                        onToggleStatus = { viewModel.toggleTaskStatus(task) },
-                                        onClick = { actionMenuTask = task },
-                                        onToggleSubtask = { subtaskId -> viewModel.toggleSubtask(task, subtaskId) }
+                                        selectedTaskId = selectedTaskId,
+                                        onSelect = { selectedTaskId = task.id },
+                                        onDeselect = { selectedTaskId = null },
+                                        viewModel = viewModel,
+                                        onOpenFocusTimer = onOpenFocusTimer,
+                                        onEditTaskClick = onEditTaskClick,
+                                        onDeleteConfirmRequired = { deleteConfirmTask = it }
                                     )
                                 }
                             }
@@ -251,11 +268,15 @@ fun HomeScreen(
                                     )
                                 }
                                 items(doneTasks, key = { it.id }) { task ->
-                                    TaskCard(
+                                    HomeTaskListItem(
                                         task = task,
-                                        onToggleStatus = { viewModel.toggleTaskStatus(task) },
-                                        onClick = { actionMenuTask = task },
-                                        onToggleSubtask = { subtaskId -> viewModel.toggleSubtask(task, subtaskId) }
+                                        selectedTaskId = selectedTaskId,
+                                        onSelect = { selectedTaskId = task.id },
+                                        onDeselect = { selectedTaskId = null },
+                                        viewModel = viewModel,
+                                        onOpenFocusTimer = onOpenFocusTimer,
+                                        onEditTaskClick = onEditTaskClick,
+                                        onDeleteConfirmRequired = { deleteConfirmTask = it }
                                     )
                                 }
                             }
@@ -272,40 +293,6 @@ fun HomeScreen(
             onDateSelected = { viewModel.selectDate(it) },
             onDismiss = { showDatePicker = false },
             weekStartDay = weekStartDay
-        )
-    }
-
-    actionMenuTask?.let { task ->
-        TaskActionSheet(
-            task = task,
-            onStartOrContinueClick = {
-                actionMenuTask = null
-                onOpenFocusTimer(task.id)
-            },
-            onResetClick = {
-                viewModel.resetTimer(task)
-                actionMenuTask = null
-            },
-            onEditClick = {
-                actionMenuTask = null
-                onEditTaskClick(task.id)
-            },
-            onDoneClick = {
-                viewModel.markTaskDone(task)
-                actionMenuTask = null
-            },
-            onDeleteClick = {
-                actionMenuTask = null
-                // A task with a currently-running timer gets an extra confirmation step, since
-                // deleting it also silently ends the active focus session - everything else
-                // deletes immediately, matching existing behavior.
-                if (task.timerEndAtMillis != null) {
-                    deleteConfirmTask = task
-                } else {
-                    viewModel.deleteTask(task)
-                }
-            },
-            onDismiss = { actionMenuTask = null }
         )
     }
 
@@ -457,6 +444,202 @@ private fun HomeEmptyState(modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Wires a single task's row of callbacks (select/deselect, timer Start/Continue/Reset, Undo,
+ * Edit, and Delete-with-running-timer-confirmation) into [TaskCardWithActionRow]. Pulled out so
+ * both the active-tasks and done-tasks sections of the list share identical wiring, the same way
+ * onToggleStatus/onToggleSubtask were already shared between them before this redesign.
+ */
+@Composable
+private fun HomeTaskListItem(
+    task: TaskEntity,
+    selectedTaskId: String?,
+    onSelect: () -> Unit,
+    onDeselect: () -> Unit,
+    viewModel: HomeViewModel,
+    onOpenFocusTimer: (String) -> Unit,
+    onEditTaskClick: (String) -> Unit,
+    onDeleteConfirmRequired: (TaskEntity) -> Unit
+) {
+    TaskCardWithActionRow(
+        task = task,
+        isSelected = task.id == selectedTaskId,
+        onToggleStatus = { viewModel.toggleTaskStatus(task) },
+        onClick = onSelect,
+        onToggleSubtask = { subtaskId -> viewModel.toggleSubtask(task, subtaskId) },
+        onStart = {
+            onDeselect()
+            onOpenFocusTimer(task.id)
+        },
+        onContinue = {
+            onDeselect()
+            onOpenFocusTimer(task.id)
+        },
+        onReset = {
+            viewModel.resetTimer(task)
+            onDeselect()
+        },
+        onUndo = {
+            viewModel.toggleTaskStatus(task)
+            onDeselect()
+        },
+        onEdit = {
+            onDeselect()
+            onEditTaskClick(task.id)
+        },
+        onDelete = {
+            onDeselect()
+            // A task with a currently-running timer gets an extra confirmation step, since
+            // deleting it also silently ends the active focus session - everything else deletes
+            // immediately, matching existing behavior.
+            if (task.timerEndAtMillis != null) {
+                onDeleteConfirmRequired(task)
+            } else {
+                viewModel.deleteTask(task)
+            }
+        }
+    )
+}
+
+/**
+ * A Task Card plus its compact Action Row, shown directly above the card only while [isSelected]
+ * - i.e. while this is the one task the user tapped. Keeping both in a single LazyColumn item
+ * (rather than a separate item positioned before it) means only this task's own slot grows when
+ * its Action Row opens; the rest of the list isn't rearranged, and nothing here is a popup,
+ * bottom sheet, or dimmed overlay - it's plain content in the normal scroll flow.
+ */
+@Composable
+private fun TaskCardWithActionRow(
+    task: TaskEntity,
+    isSelected: Boolean,
+    onToggleStatus: () -> Unit,
+    onClick: () -> Unit,
+    onToggleSubtask: (String) -> Unit,
+    onStart: () -> Unit,
+    onContinue: () -> Unit,
+    onReset: () -> Unit,
+    onUndo: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        if (isSelected) {
+            TaskActionRow(
+                task = task,
+                onStart = onStart,
+                onContinue = onContinue,
+                onReset = onReset,
+                onUndo = onUndo,
+                onEdit = onEdit,
+                onDelete = onDelete,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+        TaskCard(
+            task = task,
+            onToggleStatus = onToggleStatus,
+            onClick = onClick,
+            onToggleSubtask = onToggleSubtask
+        )
+    }
+}
+
+/**
+ * The compact row of contextual actions for the selected task - Start/Continue/Reset/Undo/Edit/
+ * Delete depending on [task]'s current timer/completion state, per the state table below. Never
+ * includes a Done action: the circular checkbox on the card itself remains the one dedicated
+ * completion control.
+ *
+ * | Timer? | Status      | Actions shown                |
+ * |--------|-------------|-------------------------------|
+ * | no     | not started | Edit, Delete                  |
+ * | no     | completed   | Undo, Edit, Delete             |
+ * | yes    | not started | Start, Edit, Delete            |
+ * | yes    | in progress | Continue, Reset, Edit, Delete  |
+ * | yes    | completed   | Undo, Edit, Delete             |
+ */
+@Composable
+private fun TaskActionRow(
+    task: TaskEntity,
+    onStart: () -> Unit,
+    onContinue: () -> Unit,
+    onReset: () -> Unit,
+    onUndo: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isCompleted = task.status == TaskStatus.COMPLETED
+    val hasTimer = task.timerMinutes != null
+    val isInProgress = task.status == TaskStatus.IN_PROGRESS
+
+    val undoText = stringResource(id = R.string.task_action_undo)
+    val continueText = stringResource(id = R.string.task_action_continue)
+    val resetText = stringResource(id = R.string.reset)
+    val startText = stringResource(id = R.string.task_action_start)
+    val editText = stringResource(id = R.string.edit)
+    val deleteText = stringResource(id = R.string.delete)
+
+    val actions = buildList {
+        when {
+            isCompleted -> add(TaskRowAction(undoText, onUndo))
+            hasTimer && isInProgress -> {
+                add(TaskRowAction(continueText, onContinue))
+                add(TaskRowAction(resetText, onReset))
+            }
+            hasTimer -> add(TaskRowAction(startText, onStart))
+        }
+        add(TaskRowAction(editText, onEdit))
+        add(TaskRowAction(deleteText, onDelete, destructive = true))
+    }
+
+    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = HomeCardWhite,
+            shadowElevation = 1.dp
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                actions.forEachIndexed { index, action ->
+                    if (index > 0) {
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 2.dp)
+                                .width(1.dp)
+                                .height(16.dp)
+                                .background(HomeSecondaryText.copy(alpha = 0.3f))
+                        )
+                    }
+                    TaskRowActionButton(action = action)
+                }
+            }
+        }
+    }
+}
+
+private data class TaskRowAction(
+    val label: String,
+    val onClick: () -> Unit,
+    val destructive: Boolean = false
+)
+
+@Composable
+private fun TaskRowActionButton(action: TaskRowAction) {
+    Text(
+        text = action.label,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = if (action.destructive) MaterialTheme.colorScheme.error else HomePrimaryBlue,
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = action.onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    )
+}
+
 @Composable
 private fun TaskCard(
     task: TaskEntity,
@@ -477,22 +660,23 @@ private fun TaskCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularTaskCheckbox(
+                    checked = isCompleted,
+                    onToggle = onToggleStatus
+                )
                 Text(
                     text = task.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = if (isCompleted) HomeSecondaryText else HomeDarkText,
                     textDecoration = if (isCompleted) TextDecoration.LineThrough else TextDecoration.None,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 12.dp)
                 )
                 task.tag?.let { tag ->
                     TagPill(text = tag, modifier = Modifier.padding(start = 8.dp))
                 }
-                CircularTaskCheckbox(
-                    checked = isCompleted,
-                    onToggle = onToggleStatus,
-                    modifier = Modifier.padding(start = 12.dp)
-                )
             }
 
             Row(
@@ -633,92 +817,6 @@ private fun CircularTaskCheckbox(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TaskActionSheet(
-    task: TaskEntity,
-    onStartOrContinueClick: () -> Unit,
-    onResetClick: () -> Unit,
-    onEditClick: () -> Unit,
-    onDoneClick: () -> Unit,
-    onDeleteClick: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-
-    fun dismissThen(action: () -> Unit) {
-        scope.launch { sheetState.hide() }.invokeOnCompletion {
-            if (!sheetState.isVisible) action()
-        }
-    }
-
-    CompactBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = HomeCardWhite
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = task.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = HomePrimaryBlue,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
-
-            if (task.timerMinutes != null) {
-                val hasStarted = task.status != TaskStatus.NOT_STARTED
-                TaskActionButton(
-                    text = "▶  " + stringResource(
-                        id = if (hasStarted) R.string.task_action_continue else R.string.task_action_start
-                    ),
-                    onClick = { dismissThen(onStartOrContinueClick) }
-                )
-                TaskActionButton(
-                    text = "↻  " + stringResource(id = R.string.reset),
-                    onClick = { dismissThen(onResetClick) },
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-
-            TaskActionButton(
-                text = "✎  " + stringResource(id = R.string.edit),
-                onClick = { dismissThen(onEditClick) },
-                modifier = Modifier.padding(top = 8.dp)
-            )
-            TaskActionButton(
-                text = "✓  " + stringResource(id = R.string.task_action_done),
-                onClick = { dismissThen(onDoneClick) },
-                modifier = Modifier.padding(top = 8.dp)
-            )
-            TaskActionButton(
-                text = "🗑  " + stringResource(id = R.string.delete),
-                onClick = { dismissThen(onDeleteClick) },
-                isDestructive = true,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-
-            TextButton(
-                onClick = { dismissThen(onDismiss) },
-                modifier = Modifier.padding(top = 4.dp)
-            ) {
-                Text(
-                    stringResource(id = R.string.cancel),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = HomeSecondaryText
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
 private fun DeleteRunningTimerConfirmationSheet(
     onDelete: () -> Unit,
     onCancel: () -> Unit
@@ -781,35 +879,6 @@ private fun DeleteRunningTimerConfirmationSheet(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun TaskActionButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    isDestructive: Boolean = false
-) {
-    FilledTonalButton(
-        onClick = onClick,
-        modifier = modifier
-            .fillMaxWidth()
-            .height(44.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = if (isDestructive) {
-            ButtonDefaults.filledTonalButtonColors(
-                containerColor = MaterialTheme.colorScheme.error,
-                contentColor = MaterialTheme.colorScheme.onError
-            )
-        } else {
-            ButtonDefaults.filledTonalButtonColors(
-                containerColor = HomeButtonLight,
-                contentColor = HomeDarkText
-            )
-        }
-    ) {
-        Text(text, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
     }
 }
 
