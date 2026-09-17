@@ -31,19 +31,15 @@ import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -71,7 +67,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
-import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskOrderScope
@@ -80,10 +75,10 @@ import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.ui.components.HomeCalendarDialog
 import com.nj031.onetask.ui.components.OneTaskBottomNav
+import com.nj031.onetask.ui.components.ProfileAvatar
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.ui.theme.OneTaskAddIcon
 import com.nj031.onetask.ui.theme.OneTaskCalendarIcon
-import com.nj031.onetask.ui.theme.OneTaskHamburgerIcon
 import com.nj031.onetask.ui.theme.OneTaskTheme
 import com.nj031.onetask.viewmodel.HomeViewModel
 import java.time.DayOfWeek
@@ -104,19 +99,13 @@ private val HomeSecondaryText = Color(0xFF6B7C93)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
+    profilePhotoPath: String? = null,
     onNavigateToJournal: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {},
+    onOpenTimerPlaceholder: () -> Unit = {},
+    onProfileAvatarClick: () -> Unit = {},
     onOpenFocusTimer: (String) -> Unit = {},
     onAddTaskClick: () -> Unit = {},
     onEditTaskClick: (String) -> Unit = {},
-    onArchiveClick: () -> Unit = {},
-    onRecycleBinClick: () -> Unit = {},
-    onGeneralSettingsClick: () -> Unit = {},
-    onDataPrivacyClick: () -> Unit = {},
-    onUpgradeToProClick: () -> Unit = {},
-    onAboutClick: () -> Unit = {},
-    onHelpFeedbackClick: () -> Unit = {},
-    onLogout: () -> Unit = {},
     weekStartDay: DayOfWeek = DayOfWeek.MONDAY
 ) {
     // Which task's compact Action Row is currently open, if any - only one at a time, replacing
@@ -128,8 +117,6 @@ fun HomeScreen(
     // All is the default per spec - every task for the day is visible until the user narrows
     // it down, matching what this screen always showed before tabs existed.
     var selectedTab by remember { mutableStateOf(TaskOrderScope.ALL) }
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
     val hapticTick = rememberHapticTick()
     val listState = rememberLazyListState()
 
@@ -141,10 +128,6 @@ fun HomeScreen(
     var draggedTaskId by remember { mutableStateOf<String?>(null) }
     var dragOffsetY by remember { mutableStateOf(0f) }
     var displayedTasks by remember { mutableStateOf<List<TaskEntity>>(emptyList()) }
-
-    BackHandler(enabled = drawerState.isOpen) {
-        scope.launch { drawerState.close() }
-    }
 
     val selectedDate by viewModel.selectedDate.collectAsState()
     val tasks by viewModel.tasksForSelectedDate.collectAsState()
@@ -168,174 +151,131 @@ fun HomeScreen(
         }
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(
-                modifier = Modifier.fillMaxWidth(0.6f),
-                drawerContainerColor = MaterialTheme.colorScheme.background
-            ) {
-                OneTaskDrawerContent(
-                    userEmail = AuthRepository.currentUser?.email
-                        ?: stringResource(id = R.string.sample_user_email),
-                    onLogoutClick = onLogout,
-                    onArchiveClick = {
-                        scope.launch { drawerState.close() }
-                        onArchiveClick()
-                    },
-                    onRecycleBinClick = {
-                        scope.launch { drawerState.close() }
-                        onRecycleBinClick()
-                    },
-                    onGeneralSettingsClick = {
-                        scope.launch { drawerState.close() }
-                        onGeneralSettingsClick()
-                    },
-                    onDataPrivacyClick = {
-                        scope.launch { drawerState.close() }
-                        onDataPrivacyClick()
-                    },
-                    onUpgradeToProClick = {
-                        scope.launch { drawerState.close() }
-                        onUpgradeToProClick()
-                    },
-                    onAboutClick = {
-                        scope.launch { drawerState.close() }
-                        onAboutClick()
-                    },
-                    onHelpFeedbackClick = {
-                        scope.launch { drawerState.close() }
-                        onHelpFeedbackClick()
-                    }
-                )
-            }
+    Scaffold(
+        containerColor = HomeBackground,
+        bottomBar = {
+            OneTaskBottomNav(
+                activeTab = BottomNavTab.TASKS,
+                onJournalClick = onNavigateToJournal,
+                onTasksClick = {},
+                onTimerClick = onOpenTimerPlaceholder
+            )
         }
-    ) {
-        Scaffold(
-            containerColor = HomeBackground,
-            bottomBar = {
-                OneTaskBottomNav(
-                    activeTab = BottomNavTab.TASKS,
-                    onJournalClick = onNavigateToJournal,
-                    onTasksClick = {},
-                    onProfileClick = onNavigateToProfile
-                )
-            }
-        ) { innerPadding ->
-            Box(
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                // Tapping anywhere in this content area that isn't itself a clickable
+                // element (a Task Card, an Action Row button, a top-bar icon, ...) closes
+                // the open Action Row - those nested elements consume their own taps first,
+                // so this only ever fires for genuinely empty space. No dimming/overlay is
+                // added; this is a plain background tap, not a modal.
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { selectedTaskId = null },
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    // Tapping anywhere in this content area that isn't itself a clickable
-                    // element (a Task Card, an Action Row button, a top-bar icon, ...) closes
-                    // the open Action Row - those nested elements consume their own taps first,
-                    // so this only ever fires for genuinely empty space. No dimming/overlay is
-                    // added; this is a plain background tap, not a modal.
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { selectedTaskId = null },
-                contentAlignment = Alignment.TopCenter
+                    .widthIn(max = 640.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
-                Column(
+                HomeTopBar(
+                    profilePhotoPath = profilePhotoPath,
+                    onAvatarClick = onProfileAvatarClick,
+                    onCalendarClick = { showDatePicker = true }
+                )
+
+                DateNavigationRow(
+                    selectedDate = selectedDate,
+                    onPreviousDay = viewModel::goToPreviousDay,
+                    onNextDay = viewModel::goToNextDay,
+                    modifier = Modifier.padding(top = 24.dp)
+                )
+
+                val completedCount = tasks.count { it.status == TaskStatus.COMPLETED }
+                Text(
                     modifier = Modifier
-                        .widthIn(max = 640.dp)
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp)
-                ) {
-                    HomeTopBar(
-                        onMenuClick = { scope.launch { drawerState.open() } },
-                        onCalendarClick = { showDatePicker = true }
-                    )
+                        .padding(top = 20.dp)
+                        .fillMaxWidth(),
+                    text = stringResource(id = R.string.tasks_completed, completedCount, tasks.size),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = HomePrimaryBlue,
+                    textAlign = TextAlign.Center
+                )
 
-                    DateNavigationRow(
-                        selectedDate = selectedDate,
-                        onPreviousDay = viewModel::goToPreviousDay,
-                        onNextDay = viewModel::goToNextDay,
-                        modifier = Modifier.padding(top = 24.dp)
-                    )
+                HomeAddTaskBar(
+                    onClick = onAddTaskClick,
+                    modifier = Modifier.padding(top = 16.dp)
+                )
 
-                    val completedCount = tasks.count { it.status == TaskStatus.COMPLETED }
-                    Text(
+                HomeTaskTabRow(
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it },
+                    modifier = Modifier.padding(top = 16.dp)
+                )
+
+                if (visibleTasks.isEmpty()) {
+                    HomeEmptyState(modifier = Modifier.padding(top = 40.dp))
+                } else {
+                    LazyColumn(
+                        state = listState,
                         modifier = Modifier
-                            .padding(top = 20.dp)
-                            .fillMaxWidth(),
-                        text = stringResource(id = R.string.tasks_completed, completedCount, tasks.size),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = HomePrimaryBlue,
-                        textAlign = TextAlign.Center
-                    )
-
-                    HomeAddTaskBar(
-                        onClick = onAddTaskClick,
-                        modifier = Modifier.padding(top = 16.dp)
-                    )
-
-                    HomeTaskTabRow(
-                        selectedTab = selectedTab,
-                        onTabSelected = { selectedTab = it },
-                        modifier = Modifier.padding(top = 16.dp)
-                    )
-
-                    if (visibleTasks.isEmpty()) {
-                        HomeEmptyState(modifier = Modifier.padding(top = 40.dp))
-                    } else {
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                                .padding(top = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(displayedTasks, key = { it.id }) { task ->
-                                val isDragged = task.id == draggedTaskId
-                                HomeTaskListItem(
-                                    task = task,
-                                    selectedTaskId = selectedTaskId,
-                                    onSelect = {
-                                        selectedTaskId = if (selectedTaskId == task.id) null else task.id
-                                    },
-                                    onDeselect = { selectedTaskId = null },
-                                    viewModel = viewModel,
-                                    onOpenFocusTimer = onOpenFocusTimer,
-                                    onEditTaskClick = onEditTaskClick,
-                                    onDeleteConfirmRequired = { deleteConfirmTask = it },
-                                    isDragged = isDragged,
-                                    dragOffsetY = if (isDragged) dragOffsetY else 0f,
-                                    onDragStart = {
-                                        // A drag always wins over an open Action Row - opening
-                                        // one is a short-tap-only action (see HomeTaskListItem's
-                                        // onSelect toggle) and dragging is a completely separate
-                                        // long-press interaction, so nothing else about tapping
-                                        // this or any other card changes.
-                                        selectedTaskId = null
-                                        draggedTaskId = task.id
-                                        dragOffsetY = 0f
-                                        hapticTick()
-                                    },
-                                    onDrag = { deltaY ->
-                                        dragOffsetY += deltaY
-                                        val (reordered, correctedOffset) = dragSwapIfNeeded(
-                                            tasks = displayedTasks,
-                                            draggedTaskId = task.id,
-                                            dragOffsetY = dragOffsetY,
-                                            listState = listState
-                                        )
-                                        displayedTasks = reordered
-                                        dragOffsetY = correctedOffset
-                                    },
-                                    onDragEnd = {
-                                        val finalOrder = displayedTasks
-                                        draggedTaskId = null
-                                        dragOffsetY = 0f
-                                        viewModel.reorderTasks(selectedTab, finalOrder)
-                                    },
-                                    listState = listState,
-                                    modifier = if (isDragged) Modifier else Modifier.animateItem()
-                                )
-                            }
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .padding(top = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(displayedTasks, key = { it.id }) { task ->
+                            val isDragged = task.id == draggedTaskId
+                            HomeTaskListItem(
+                                task = task,
+                                selectedTaskId = selectedTaskId,
+                                onSelect = {
+                                    selectedTaskId = if (selectedTaskId == task.id) null else task.id
+                                },
+                                onDeselect = { selectedTaskId = null },
+                                viewModel = viewModel,
+                                onOpenFocusTimer = onOpenFocusTimer,
+                                onEditTaskClick = onEditTaskClick,
+                                onDeleteConfirmRequired = { deleteConfirmTask = it },
+                                isDragged = isDragged,
+                                dragOffsetY = if (isDragged) dragOffsetY else 0f,
+                                onDragStart = {
+                                    // A drag always wins over an open Action Row - opening
+                                    // one is a short-tap-only action (see HomeTaskListItem's
+                                    // onSelect toggle) and dragging is a completely separate
+                                    // long-press interaction, so nothing else about tapping
+                                    // this or any other card changes.
+                                    selectedTaskId = null
+                                    draggedTaskId = task.id
+                                    dragOffsetY = 0f
+                                    hapticTick()
+                                },
+                                onDrag = { deltaY ->
+                                    dragOffsetY += deltaY
+                                    val (reordered, correctedOffset) = dragSwapIfNeeded(
+                                        tasks = displayedTasks,
+                                        draggedTaskId = task.id,
+                                        dragOffsetY = dragOffsetY,
+                                        listState = listState
+                                    )
+                                    displayedTasks = reordered
+                                    dragOffsetY = correctedOffset
+                                },
+                                onDragEnd = {
+                                    val finalOrder = displayedTasks
+                                    draggedTaskId = null
+                                    dragOffsetY = 0f
+                                    viewModel.reorderTasks(selectedTab, finalOrder)
+                                },
+                                listState = listState,
+                                modifier = if (isDragged) Modifier else Modifier.animateItem()
+                            )
                         }
                     }
                 }
@@ -447,18 +387,18 @@ private fun HomeTaskTabRow(
 }
 
 @Composable
-private fun HomeTopBar(onMenuClick: () -> Unit, onCalendarClick: () -> Unit) {
-    val menuDescription = stringResource(id = R.string.menu)
+private fun HomeTopBar(profilePhotoPath: String?, onAvatarClick: () -> Unit, onCalendarClick: () -> Unit) {
+    val profileDescription = stringResource(id = R.string.nav_profile)
     val calendarDescription = stringResource(id = R.string.calendar)
 
     Box(modifier = Modifier.fillMaxWidth()) {
         IconButton(
-            onClick = onMenuClick,
+            onClick = onAvatarClick,
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .semantics { contentDescription = menuDescription }
+                .semantics { contentDescription = profileDescription }
         ) {
-            OneTaskHamburgerIcon(tint = HomePrimaryBlue)
+            ProfileAvatar(photoPath = profilePhotoPath, size = 32.dp)
         }
 
         Column(

@@ -49,6 +49,7 @@ import com.nj031.onetask.ui.screens.SettingsComingSoonScreen
 import com.nj031.onetask.ui.screens.SetUpProfileScreen
 import com.nj031.onetask.ui.screens.StartScreenSettingScreen
 import com.nj031.onetask.ui.screens.TimeFormatSettingScreen
+import com.nj031.onetask.ui.screens.TimerPlaceholderScreen
 import com.nj031.onetask.ui.screens.UpgradeToProScreen
 import com.nj031.onetask.ui.screens.VerifyEmailScreen
 import com.nj031.onetask.ui.screens.WeekStartsOnSettingScreen
@@ -266,10 +267,13 @@ fun OneTaskNavHost(
         }
         composable(Screen.Home.route) {
             val weekStartDay by generalSettingsViewModel.weekStartDay.collectAsState()
+            val profile by profileViewModel.profile.collectAsState()
             HomeScreen(
                 viewModel = homeViewModel,
+                profilePhotoPath = profile.photoPath,
                 onNavigateToJournal = { navController.navigateToBottomNavTab(Screen.Journal.route) },
-                onNavigateToProfile = { navController.navigateToBottomNavTab(Screen.Profile.route) },
+                onOpenTimerPlaceholder = { navController.navigateToBottomNavTab(Screen.TimerPlaceholder.route) },
+                onProfileAvatarClick = { navController.navigate(Screen.Profile.route) },
                 onOpenFocusTimer = { taskId ->
                     navController.navigate(Screen.FocusTimer.createRoute(taskId))
                 },
@@ -277,20 +281,13 @@ fun OneTaskNavHost(
                 onEditTaskClick = { taskId ->
                     navController.navigate(Screen.AddTask.createRoute(taskId))
                 },
-                onArchiveClick = { navController.navigate(Screen.Archive.route) },
-                onRecycleBinClick = { navController.navigate(Screen.RecycleBin.route) },
-                onGeneralSettingsClick = { navController.navigate(Screen.GeneralSettings.route) },
-                onDataPrivacyClick = { navController.navigate(Screen.DataPrivacy.route) },
-                onUpgradeToProClick = { navController.navigate(Screen.UpgradeToPro.route) },
-                onAboutClick = { navController.navigate(Screen.AboutOneTask.route) },
-                onHelpFeedbackClick = { navController.navigate(Screen.HelpFeedback.route) },
-                onLogout = {
-                    AuthRepository.signOut()
-                    navController.navigate(Screen.Auth.route) {
-                        popUpTo(0)
-                    }
-                },
                 weekStartDay = weekStartDay
+            )
+        }
+        composable(Screen.TimerPlaceholder.route) {
+            TimerPlaceholderScreen(
+                onNavigateToJournal = { navController.navigateToBottomNavTab(Screen.Journal.route) },
+                onNavigateToTasks = { navController.navigateToBottomNavTab(Screen.Home.route) }
             )
         }
         composable(
@@ -346,39 +343,40 @@ fun OneTaskNavHost(
         }
         composable(Screen.Journal.route) {
             val timeFormat by generalSettingsViewModel.timeFormat.collectAsState()
+            val profile by profileViewModel.profile.collectAsState()
             NotesScreen(
                 viewModel = journalViewModel,
+                profilePhotoPath = profile.photoPath,
                 onAddNoteClick = { noteType ->
                     navController.navigate(Screen.NoteEditor.createRoute(noteType = noteType.name))
                 },
                 onNoteClick = { noteId ->
                     navController.navigate(Screen.NoteEditor.createRoute(noteId))
                 },
-                onRecycleBinClick = { navController.navigate(Screen.RecycleBin.route) },
-                onArchiveClick = { navController.navigate(Screen.Archive.route) },
-                onGeneralSettingsClick = { navController.navigate(Screen.GeneralSettings.route) },
-                onDataPrivacyClick = { navController.navigate(Screen.DataPrivacy.route) },
-                onUpgradeToProClick = { navController.navigate(Screen.UpgradeToPro.route) },
-                onAboutClick = { navController.navigate(Screen.AboutOneTask.route) },
-                onHelpFeedbackClick = { navController.navigate(Screen.HelpFeedback.route) },
                 onNavigateToTasks = { navController.navigateToBottomNavTab(Screen.Home.route) },
-                onNavigateToProfile = { navController.navigateToBottomNavTab(Screen.Profile.route) },
-                onLogout = {
-                    AuthRepository.signOut()
-                    navController.navigate(Screen.Auth.route) {
-                        popUpTo(0)
-                    }
-                },
+                onOpenTimerPlaceholder = { navController.navigateToBottomNavTab(Screen.TimerPlaceholder.route) },
+                onProfileAvatarClick = { navController.navigate(Screen.Profile.route) },
                 timeFormat = timeFormat
             )
         }
         composable(Screen.Profile.route) {
             ProfileScreen(
                 viewModel = profileViewModel,
-                onNavigateToJournal = { navController.navigateToBottomNavTab(Screen.Journal.route) },
-                onNavigateToTasks = { navController.navigateToBottomNavTab(Screen.Home.route) },
+                onBackClick = { navController.popBackStack() },
                 onEditProfileClick = { navController.navigate(Screen.EditProfile.route) },
-                onUpgradeToProClick = { navController.navigate(Screen.UpgradeToPro.route) }
+                onUpgradeToProClick = { navController.navigate(Screen.UpgradeToPro.route) },
+                onArchiveClick = { navController.navigate(Screen.Archive.route) },
+                onRecycleBinClick = { navController.navigate(Screen.RecycleBin.route) },
+                onGeneralSettingsClick = { navController.navigate(Screen.GeneralSettings.route) },
+                onDataPrivacyClick = { navController.navigate(Screen.DataPrivacy.route) },
+                onAboutClick = { navController.navigate(Screen.AboutOneTask.route) },
+                onHelpFeedbackClick = { navController.navigate(Screen.HelpFeedback.route) },
+                onLogout = {
+                    AuthRepository.signOut()
+                    navController.navigate(Screen.Auth.route) {
+                        popUpTo(0)
+                    }
+                }
             )
         }
         composable(Screen.EditProfile.route) {

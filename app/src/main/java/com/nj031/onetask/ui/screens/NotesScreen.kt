@@ -29,24 +29,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -70,7 +65,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
-import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.JournalNoteType
 import com.nj031.onetask.data.settings.NotesViewMode
@@ -78,6 +72,7 @@ import com.nj031.onetask.data.settings.TimeFormat
 import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.ui.components.OneTaskBottomNav
+import com.nj031.onetask.ui.components.ProfileAvatar
 import com.nj031.onetask.ui.theme.OneTaskCardViewIcon
 import com.nj031.onetask.ui.theme.OneTaskListViewIcon
 import com.nj031.onetask.ui.theme.OneTaskSearchIcon
@@ -91,18 +86,12 @@ import kotlinx.coroutines.launch
 @Composable
 fun NotesScreen(
     viewModel: JournalViewModel = viewModel(),
+    profilePhotoPath: String? = null,
     onAddNoteClick: (JournalNoteType) -> Unit = {},
     onNoteClick: (String) -> Unit = {},
-    onRecycleBinClick: () -> Unit = {},
-    onArchiveClick: () -> Unit = {},
-    onGeneralSettingsClick: () -> Unit = {},
-    onDataPrivacyClick: () -> Unit = {},
-    onUpgradeToProClick: () -> Unit = {},
-    onAboutClick: () -> Unit = {},
-    onHelpFeedbackClick: () -> Unit = {},
     onNavigateToTasks: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {},
-    onLogout: () -> Unit = {},
+    onOpenTimerPlaceholder: () -> Unit = {},
+    onProfileAvatarClick: () -> Unit = {},
     timeFormat: TimeFormat = TimeFormat.SYSTEM_DEFAULT
 ) {
     val notes by viewModel.notes.collectAsState()
@@ -110,15 +99,10 @@ fun NotesScreen(
     val viewMode by viewModel.viewMode.collectAsState()
     var showAddChoice by remember { mutableStateOf(false) }
     var actionMenuNote by remember { mutableStateOf<JournalNoteEntity?>(null) }
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
 
-    // System back priority: drawer > add-choice dialog > long-press action menu > (default)
-    // return to the previous screen. Only one of these is ever open at a time in practice, so
+    // System back priority: add-choice dialog > long-press action menu > (default) return to
+    // the previous screen. Only one of these is ever open at a time in practice, so
     // registration order among them doesn't matter.
-    BackHandler(enabled = drawerState.isOpen) {
-        scope.launch { drawerState.close() }
-    }
     BackHandler(enabled = showAddChoice) {
         showAddChoice = false
     }
@@ -126,157 +110,113 @@ fun NotesScreen(
         actionMenuNote = null
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(
-                modifier = Modifier.fillMaxWidth(0.6f),
-                drawerContainerColor = MaterialTheme.colorScheme.background
-            ) {
-                OneTaskDrawerContent(
-                    userEmail = AuthRepository.currentUser?.email
-                        ?: stringResource(id = R.string.sample_user_email),
-                    onLogoutClick = onLogout,
-                    onArchiveClick = {
-                        scope.launch { drawerState.close() }
-                        onArchiveClick()
-                    },
-                    onRecycleBinClick = {
-                        scope.launch { drawerState.close() }
-                        onRecycleBinClick()
-                    },
-                    onGeneralSettingsClick = {
-                        scope.launch { drawerState.close() }
-                        onGeneralSettingsClick()
-                    },
-                    onDataPrivacyClick = {
-                        scope.launch { drawerState.close() }
-                        onDataPrivacyClick()
-                    },
-                    onUpgradeToProClick = {
-                        scope.launch { drawerState.close() }
-                        onUpgradeToProClick()
-                    },
-                    onAboutClick = {
-                        scope.launch { drawerState.close() }
-                        onAboutClick()
-                    },
-                    onHelpFeedbackClick = {
-                        scope.launch { drawerState.close() }
-                        onHelpFeedbackClick()
-                    }
-                )
-            }
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            OneTaskBottomNav(
+                activeTab = BottomNavTab.JOURNAL,
+                onJournalClick = {},
+                onTasksClick = onNavigateToTasks,
+                onTimerClick = onOpenTimerPlaceholder
+            )
         }
-    ) {
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
-            bottomBar = {
-                OneTaskBottomNav(
-                    activeTab = BottomNavTab.JOURNAL,
-                    onJournalClick = {},
-                    onTasksClick = onNavigateToTasks,
-                    onProfileClick = onNavigateToProfile
-                )
-            }
-        ) { innerPadding ->
-            Box(
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.TopCenter
+                    .widthIn(max = 640.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
-                Column(
+                NotesTopBar(profilePhotoPath = profilePhotoPath, onAvatarClick = onProfileAvatarClick)
+
+                NotesViewToggle(
+                    viewMode = viewMode,
+                    onViewModeChange = viewModel::setViewMode,
+                    modifier = Modifier.padding(top = 20.dp)
+                )
+
+                NotesSearchField(
+                    query = searchQuery,
+                    onQueryChange = viewModel::setSearchQuery,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+
+                Button(
+                    onClick = { showAddChoice = true },
                     modifier = Modifier
-                        .widthIn(max = 640.dp)
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                        .padding(top = 16.dp)
+                        .height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.White
+                    )
                 ) {
-                    NotesTopBar(onMenuClick = { scope.launch { drawerState.open() } })
-
-                    NotesViewToggle(
-                        viewMode = viewMode,
-                        onViewModeChange = viewModel::setViewMode,
-                        modifier = Modifier.padding(top = 20.dp)
-                    )
-
-                    NotesSearchField(
-                        query = searchQuery,
-                        onQueryChange = viewModel::setSearchQuery,
-                        modifier = Modifier.padding(top = 12.dp)
-                    )
-
-                    Button(
-                        onClick = { showAddChoice = true },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 16.dp)
-                            .height(56.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Icon(imageVector = Icons.Filled.Add, contentDescription = null, tint = Color.White)
-                        Text(
-                            text = stringResource(id = R.string.notes_add_button),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
-                    }
-
+                    Icon(imageVector = Icons.Filled.Add, contentDescription = null, tint = Color.White)
                     Text(
-                        text = stringResource(id = R.string.notes_list_heading),
+                        text = stringResource(id = R.string.notes_add_button),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.padding(top = 24.dp, bottom = 12.dp)
+                        modifier = Modifier.padding(start = 8.dp)
                     )
+                }
 
-                    if (notes.isEmpty()) {
-                        Text(
-                            text = stringResource(id = R.string.no_notes_yet),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 24.dp)
-                        )
-                    } else {
-                        when (viewMode) {
-                            NotesViewMode.LIST -> {
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxWidth().weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    items(notes, key = { it.id }) { note ->
-                                        NoteListRow(
-                                            note = note,
-                                            timeFormat = timeFormat,
-                                            onClick = { onNoteClick(note.id) },
-                                            onLongClick = { actionMenuNote = note }
-                                        )
-                                    }
+                Text(
+                    text = stringResource(id = R.string.notes_list_heading),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(top = 24.dp, bottom = 12.dp)
+                )
+
+                if (notes.isEmpty()) {
+                    Text(
+                        text = stringResource(id = R.string.no_notes_yet),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 24.dp)
+                    )
+                } else {
+                    when (viewMode) {
+                        NotesViewMode.LIST -> {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxWidth().weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(notes, key = { it.id }) { note ->
+                                    NoteListRow(
+                                        note = note,
+                                        timeFormat = timeFormat,
+                                        onClick = { onNoteClick(note.id) },
+                                        onLongClick = { actionMenuNote = note }
+                                    )
                                 }
                             }
-                            NotesViewMode.CARD -> {
-                                LazyVerticalGrid(
-                                    columns = GridCells.Fixed(2),
-                                    modifier = Modifier.fillMaxWidth().weight(1f),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    gridItems(notes, key = { it.id }) { note ->
-                                        NoteCard(
-                                            note = note,
-                                            timeFormat = timeFormat,
-                                            onClick = { onNoteClick(note.id) },
-                                            onLongClick = { actionMenuNote = note }
-                                        )
-                                    }
+                        }
+                        NotesViewMode.CARD -> {
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(2),
+                                modifier = Modifier.fillMaxWidth().weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                gridItems(notes, key = { it.id }) { note ->
+                                    NoteCard(
+                                        note = note,
+                                        timeFormat = timeFormat,
+                                        onClick = { onNoteClick(note.id) },
+                                        onLongClick = { actionMenuNote = note }
+                                    )
                                 }
                             }
                         }
@@ -318,17 +258,17 @@ fun NotesScreen(
 }
 
 @Composable
-private fun NotesTopBar(onMenuClick: () -> Unit) {
+private fun NotesTopBar(profilePhotoPath: String?, onAvatarClick: () -> Unit) {
+    val profileDescription = stringResource(id = R.string.nav_profile)
+
     Box(modifier = Modifier.fillMaxWidth()) {
         IconButton(
-            onClick = onMenuClick,
-            modifier = Modifier.align(Alignment.CenterStart)
+            onClick = onAvatarClick,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .semantics { contentDescription = profileDescription }
         ) {
-            Icon(
-                imageVector = Icons.Filled.Menu,
-                contentDescription = stringResource(id = R.string.menu),
-                tint = MaterialTheme.colorScheme.primary
-            )
+            ProfileAvatar(photoPath = profilePhotoPath, size = 32.dp)
         }
 
         Text(
