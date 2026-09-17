@@ -24,26 +24,28 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
 import com.nj031.onetask.ui.theme.OneTaskJournalIcon
-import com.nj031.onetask.ui.theme.OneTaskProfileIcon
 import com.nj031.onetask.ui.theme.OneTaskTasksIcon
+import com.nj031.onetask.ui.theme.OneTaskTimerIcon
 
-enum class BottomNavTab { JOURNAL, TASKS, PROFILE }
+enum class BottomNavTab { JOURNAL, TASKS, TIMER }
 
 /**
- * The One Task bottom navigation bar (Journal / Tasks / Profile), shared by every screen
+ * The One Task bottom navigation bar (Journal / Tasks / Timer), shared by every screen
  * that's reachable from it, so it's always visible and consistent instead of disappearing
- * when navigating between those screens.
+ * when navigating between those screens. The third tab is an intentionally empty placeholder
+ * screen - Profile & Settings is reached separately, via the avatar icon in the Journal/Tasks
+ * top bars, not through this bottom nav.
  */
 @Composable
 fun OneTaskBottomNav(
     activeTab: BottomNavTab,
     onJournalClick: () -> Unit,
     onTasksClick: () -> Unit,
-    onProfileClick: () -> Unit
+    onTimerClick: () -> Unit
 ) {
     val journalLabel = stringResource(id = R.string.nav_journal)
     val tasksLabel = stringResource(id = R.string.nav_tasks)
-    val profileLabel = stringResource(id = R.string.nav_profile)
+    val timerLabel = stringResource(id = R.string.nav_timer)
 
     // The system navigation area (3-button bar or gesture bar) draws on top of app
     // content since the app opts into edge-to-edge. windowInsetsPadding here keeps the
@@ -83,12 +85,10 @@ fun OneTaskBottomNav(
                 selected = activeTab == BottomNavTab.TASKS
             )
             OneTaskBottomNavItem(
-                icon = {
-                    OneTaskProfileIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 28.dp)
-                },
-                label = profileLabel,
-                onClick = onProfileClick,
-                selected = activeTab == BottomNavTab.PROFILE
+                icon = { OneTaskTimerIcon(active = activeTab == BottomNavTab.TIMER, size = 28.dp) },
+                label = timerLabel,
+                onClick = onTimerClick,
+                selected = activeTab == BottomNavTab.TIMER
             )
         }
     }

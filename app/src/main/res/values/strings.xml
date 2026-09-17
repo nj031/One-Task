@@ -44,7 +44,7 @@
     <string name="nav_journal">Notes</string>
     <string name="nav_tasks">Tasks</string>
     <string name="nav_profile">Profile</string>
-    <string name="menu">Menu</string>
+    <string name="nav_timer">Timer</string>
     <string name="calendar">Calendar</string>
     <string name="add_task">Add Task</string>
     <string name="today">Today</string>
@@ -104,16 +104,12 @@
     <string name="pending_task_description">Show every day until completed.</string>
     <string name="cancel">Cancel</string>
 
-    <string name="drawer_section_account">ACCOUNT</string>
     <string name="logout_confirm_title">Log out?</string>
     <string name="logout_confirm_message">You\'ll need to log in again to access your One Task account.</string>
     <string name="logout_confirm_action">Log Out</string>
-    <string name="drawer_section_journal">JOURNAL</string>
-    <string name="drawer_section_settings">SETTINGS</string>
     <string name="drawer_settings_general">General</string>
     <string name="drawer_data_privacy">Data &amp; Privacy</string>
     <string name="drawer_upgrade_to_pro">Upgrade to Pro</string>
-    <string name="drawer_section_about">ABOUT</string>
     <string name="drawer_about_one_task">About One Task</string>
     <string name="drawer_help_feedback">Help &amp; Feedback</string>
     <string name="drawer_rate_app">Rate One Task</string>
@@ -122,13 +118,15 @@
     <string name="rate_app_maybe_later">Maybe Later</string>
     <string name="rate_app_not_available_message">One Task isn\'t on Google Play yet. You\'ll be able to rate it here once it\'s published.</string>
 
+    <string name="profile_settings_title">Profile &amp; Settings</string>
+    <string name="profile_settings_subtitle">Manage your account and app preferences.</string>
     <string name="profile_edit_profile">Edit Profile</string>
-    <string name="profile_section_pro">ONE TASK PRO</string>
+    <string name="profile_section_plan">PLAN</string>
     <string name="profile_pro_free_plan">Free Plan</string>
     <string name="profile_pro_description">Upgrade to unlock Custom Task Tags, Cloud Sync, and more.</string>
+    <string name="profile_section_notes">NOTES</string>
+    <string name="profile_section_settings">SETTINGS</string>
     <string name="profile_section_account">ACCOUNT</string>
-    <string name="profile_account_status">Status</string>
-    <string name="profile_account_signed_in">Signed in</string>
     <string name="profile_section_about">ABOUT</string>
     <string name="profile_app_version">App Version</string>
     <string name="profile_edit_change_photo">Change Photo</string>
@@ -189,9 +187,7 @@
     <string name="feedback_form_char_count">%1$d / %2$d</string>
     <string name="feedback_form_generic_error">Something went wrong. Please try again.</string>
 
-    <string name="logged_in_as">Logged in as</string>
     <string name="log_out">Log out</string>
-    <string name="sample_user_email">spideysince97@gmail.com</string>
 
     <string name="continue_action">Continue</string>
 

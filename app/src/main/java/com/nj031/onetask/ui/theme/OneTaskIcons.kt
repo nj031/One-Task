@@ -363,3 +363,362 @@ fun OneTaskTasksIcon(
         }
     }
 }
+
+@Composable
+fun OneTaskArchiveIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.08f
+        val lidTop = this.size.height * 0.2f
+        val lidBottom = this.size.height * 0.38f
+        val left = this.size.width * 0.1f
+        val right = this.size.width * 0.9f
+        val bodyBottom = this.size.height * 0.82f
+
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(left, lidTop),
+            size = Size(right - left, lidBottom - lidTop),
+            cornerRadius = CornerRadius(this.size.minDimension * 0.06f),
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+        drawLine(
+            color = tint,
+            start = Offset(left * 1.3f, lidBottom),
+            end = Offset(left * 1.3f, bodyBottom),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = tint,
+            start = Offset(right - left * 0.3f, lidBottom),
+            end = Offset(right - left * 0.3f, bodyBottom),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = tint,
+            start = Offset(left * 1.3f, bodyBottom),
+            end = Offset(right - left * 0.3f, bodyBottom),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = tint,
+            start = Offset(this.size.width * 0.38f, this.size.height * 0.58f),
+            end = Offset(this.size.width * 0.62f, this.size.height * 0.58f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+@Composable
+fun OneTaskRecycleBinIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.08f
+        val lidY = this.size.height * 0.28f
+        val bodyLeft = this.size.width * 0.22f
+        val bodyRight = this.size.width * 0.78f
+        val bodyBottom = this.size.height * 0.88f
+
+        drawLine(
+            color = tint,
+            start = Offset(this.size.width * 0.12f, lidY),
+            end = Offset(this.size.width * 0.88f, lidY),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(this.size.width * 0.38f, this.size.height * 0.12f),
+            size = Size(this.size.width * 0.24f, this.size.height * 0.16f),
+            cornerRadius = CornerRadius(this.size.minDimension * 0.04f),
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+        )
+        val bodyPath = Path().apply {
+            moveTo(bodyLeft, lidY)
+            lineTo(bodyLeft + this.size.width * 0.04f, bodyBottom)
+            lineTo(bodyRight - this.size.width * 0.04f, bodyBottom)
+            lineTo(bodyRight, lidY)
+        }
+        drawPath(bodyPath, color = tint, style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        listOf(0.4f, 0.5f, 0.6f).forEach { fraction ->
+            drawLine(
+                color = tint,
+                start = Offset(this.size.width * fraction, lidY + this.size.height * 0.12f),
+                end = Offset(this.size.width * fraction, bodyBottom - this.size.height * 0.08f),
+                strokeWidth = strokeWidth * 0.8f,
+                cap = StrokeCap.Round
+            )
+        }
+    }
+}
+
+@Composable
+fun OneTaskSettingsGearIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.09f
+        val center = Offset(this.size.width / 2f, this.size.height / 2f)
+        val outerRadius = this.size.minDimension * 0.3f
+        val toothRadius = this.size.minDimension * 0.42f
+
+        drawCircle(color = tint, radius = outerRadius, center = center, style = Stroke(width = strokeWidth))
+        drawCircle(color = tint, radius = this.size.minDimension * 0.08f, center = center)
+
+        for (i in 0 until 8) {
+            val angle = (i * 45f) * (Math.PI / 180f)
+            val start = Offset(
+                center.x + (outerRadius * 0.95f) * kotlin.math.cos(angle).toFloat(),
+                center.y + (outerRadius * 0.95f) * kotlin.math.sin(angle).toFloat()
+            )
+            val end = Offset(
+                center.x + toothRadius * kotlin.math.cos(angle).toFloat(),
+                center.y + toothRadius * kotlin.math.sin(angle).toFloat()
+            )
+            drawLine(color = tint, start = start, end = end, strokeWidth = strokeWidth, cap = StrokeCap.Round)
+        }
+    }
+}
+
+@Composable
+fun OneTaskShieldIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.09f
+        val left = this.size.width * 0.16f
+        val right = this.size.width * 0.84f
+        val top = this.size.height * 0.14f
+        val midY = this.size.height * 0.5f
+        val bottom = this.size.height * 0.9f
+        val centerX = this.size.width / 2f
+
+        val shieldPath = Path().apply {
+            moveTo(centerX, top)
+            lineTo(right, top + this.size.height * 0.1f)
+            lineTo(right, midY)
+            quadraticBezierTo(right, this.size.height * 0.72f, centerX, bottom)
+            quadraticBezierTo(left, this.size.height * 0.72f, left, midY)
+            lineTo(left, top + this.size.height * 0.1f)
+            close()
+        }
+        drawPath(shieldPath, color = tint, style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+}
+
+@Composable
+fun OneTaskInfoIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.08f
+        val center = Offset(this.size.width / 2f, this.size.height / 2f)
+        drawCircle(color = tint, radius = this.size.minDimension * 0.42f, center = center, style = Stroke(width = strokeWidth))
+        drawLine(
+            color = tint,
+            start = Offset(center.x, this.size.height * 0.46f),
+            end = Offset(center.x, this.size.height * 0.72f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        drawCircle(color = tint, radius = strokeWidth * 0.6f, center = Offset(center.x, this.size.height * 0.3f))
+    }
+}
+
+@Composable
+fun OneTaskChatIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.08f
+        val left = this.size.width * 0.12f
+        val right = this.size.width * 0.88f
+        val top = this.size.height * 0.18f
+        val bottom = this.size.height * 0.68f
+
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(left, top),
+            size = Size(right - left, bottom - top),
+            cornerRadius = CornerRadius(this.size.minDimension * 0.14f),
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+        val tailPath = Path().apply {
+            moveTo(this.size.width * 0.3f, bottom)
+            lineTo(this.size.width * 0.24f, this.size.height * 0.86f)
+            lineTo(this.size.width * 0.44f, bottom)
+        }
+        drawPath(tailPath, color = tint, style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        listOf(0.36f, 0.5f).forEach { fraction ->
+            drawLine(
+                color = tint,
+                start = Offset(this.size.width * 0.26f, this.size.height * fraction),
+                end = Offset(this.size.width * 0.74f, this.size.height * fraction),
+                strokeWidth = strokeWidth * 0.85f,
+                cap = StrokeCap.Round
+            )
+        }
+    }
+}
+
+@Composable
+fun OneTaskStarIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.07f
+        val center = Offset(this.size.width / 2f, this.size.height / 2f)
+        val outerRadius = this.size.minDimension * 0.46f
+        val innerRadius = outerRadius * 0.42f
+
+        val path = Path()
+        for (i in 0 until 10) {
+            val radius = if (i % 2 == 0) outerRadius else innerRadius
+            val angle = (i * 36f - 90f) * (Math.PI / 180f)
+            val point = Offset(
+                center.x + radius * kotlin.math.cos(angle).toFloat(),
+                center.y + radius * kotlin.math.sin(angle).toFloat()
+            )
+            if (i == 0) path.moveTo(point.x, point.y) else path.lineTo(point.x, point.y)
+        }
+        path.close()
+        drawPath(path, color = tint, style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+}
+
+@Composable
+fun OneTaskCrownIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.08f
+        val baseY = this.size.height * 0.74f
+        val topY = this.size.height * 0.28f
+        val midY = this.size.height * 0.46f
+
+        val crownPath = Path().apply {
+            moveTo(this.size.width * 0.14f, baseY)
+            lineTo(this.size.width * 0.1f, midY)
+            lineTo(this.size.width * 0.3f, this.size.height * 0.56f)
+            lineTo(this.size.width * 0.5f, topY)
+            lineTo(this.size.width * 0.7f, this.size.height * 0.56f)
+            lineTo(this.size.width * 0.9f, midY)
+            lineTo(this.size.width * 0.86f, baseY)
+            close()
+        }
+        drawPath(crownPath, color = tint, style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawLine(
+            color = tint,
+            start = Offset(this.size.width * 0.14f, baseY),
+            end = Offset(this.size.width * 0.86f, baseY),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+@Composable
+fun OneTaskLogoutIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.09f
+        val doorLeft = this.size.width * 0.16f
+        val doorRight = this.size.width * 0.52f
+        val top = this.size.height * 0.16f
+        val bottom = this.size.height * 0.84f
+
+        val doorPath = Path().apply {
+            moveTo(doorRight, top)
+            lineTo(doorLeft, top)
+            lineTo(doorLeft, bottom)
+            lineTo(doorRight, bottom)
+        }
+        drawPath(doorPath, color = tint, style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+
+        val arrowY = this.size.height / 2f
+        drawLine(
+            color = tint,
+            start = Offset(this.size.width * 0.38f, arrowY),
+            end = Offset(this.size.width * 0.88f, arrowY),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        val arrowHead = Path().apply {
+            moveTo(this.size.width * 0.66f, arrowY - this.size.height * 0.18f)
+            lineTo(this.size.width * 0.88f, arrowY)
+            lineTo(this.size.width * 0.66f, arrowY + this.size.height * 0.18f)
+        }
+        drawPath(arrowHead, color = tint, style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+}
+
+/** A simple stopwatch face - used only for the bottom nav's placeholder Timer tab, which has no
+ * functionality of its own yet. */
+@Composable
+fun OneTaskTimerIcon(
+    modifier: Modifier = Modifier,
+    active: Boolean = true,
+    size: Dp = 24.dp
+) {
+    val tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.08f
+        val center = Offset(this.size.width / 2f, this.size.height * 0.56f)
+        val radius = this.size.minDimension * 0.36f
+
+        drawLine(
+            color = tint,
+            start = Offset(this.size.width * 0.4f, this.size.height * 0.06f),
+            end = Offset(this.size.width * 0.6f, this.size.height * 0.06f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = tint,
+            start = Offset(center.x, this.size.height * 0.06f),
+            end = Offset(center.x, this.size.height * 0.2f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        drawCircle(color = tint, radius = radius, center = center, style = Stroke(width = strokeWidth))
+        drawLine(
+            color = tint,
+            start = center,
+            end = Offset(center.x, center.y - radius * 0.6f),
+            strokeWidth = strokeWidth * 0.85f,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = tint,
+            start = center,
+            end = Offset(center.x + radius * 0.45f, center.y),
+            strokeWidth = strokeWidth * 0.85f,
+            cap = StrokeCap.Round
+        )
+    }
+}
