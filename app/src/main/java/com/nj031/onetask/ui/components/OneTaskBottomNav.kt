@@ -30,10 +30,10 @@ import com.nj031.onetask.ui.theme.OneTaskTimerIcon
 enum class BottomNavTab { JOURNAL, TASKS, TIMER }
 
 /**
- * The One Task bottom navigation bar (Journal / Tasks / Timer), shared by every screen
+ * The One Task bottom navigation bar (Tasks / Timer / Notes), shared by every screen
  * that's reachable from it, so it's always visible and consistent instead of disappearing
- * when navigating between those screens. The third tab is an intentionally empty placeholder
- * screen - Profile & Settings is reached separately, via the avatar icon in the Journal/Tasks
+ * when navigating between those screens. The middle tab is an intentionally empty placeholder
+ * screen - Profile & Settings is reached separately, via the avatar icon in the Tasks/Notes
  * top bars, not through this bottom nav.
  */
 @Composable
@@ -71,14 +71,6 @@ fun OneTaskBottomNav(
             verticalAlignment = Alignment.CenterVertically
         ) {
             OneTaskBottomNavItem(
-                icon = {
-                    OneTaskJournalIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 28.dp)
-                },
-                label = journalLabel,
-                onClick = onJournalClick,
-                selected = activeTab == BottomNavTab.JOURNAL
-            )
-            OneTaskBottomNavItem(
                 icon = { OneTaskTasksIcon(active = activeTab == BottomNavTab.TASKS, size = 28.dp) },
                 label = tasksLabel,
                 onClick = onTasksClick,
@@ -89,6 +81,19 @@ fun OneTaskBottomNav(
                 label = timerLabel,
                 onClick = onTimerClick,
                 selected = activeTab == BottomNavTab.TIMER
+            )
+            OneTaskBottomNavItem(
+                icon = {
+                    val tint = if (activeTab == BottomNavTab.JOURNAL) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                    OneTaskJournalIcon(tint = tint, size = 28.dp)
+                },
+                label = journalLabel,
+                onClick = onJournalClick,
+                selected = activeTab == BottomNavTab.JOURNAL
             )
         }
     }

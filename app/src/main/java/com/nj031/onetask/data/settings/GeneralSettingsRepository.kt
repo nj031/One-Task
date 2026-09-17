@@ -3,7 +3,7 @@ package com.nj031.onetask.data.settings
 import android.content.Context
 import java.time.DayOfWeek
 
-enum class StartScreen { TASKS, JOURNAL }
+enum class StartScreen { TASKS, JOURNAL, TIMER }
 
 enum class TimeFormat { SYSTEM_DEFAULT, HOUR_12, HOUR_24 }
 
@@ -20,6 +20,7 @@ private const val KEY_WEEK_START_DAY = "week_start_day"
 private const val KEY_TIME_FORMAT = "time_format"
 private const val KEY_HAPTIC_FEEDBACK_ENABLED = "haptic_feedback_enabled"
 private const val KEY_NOTES_VIEW_MODE = "notes_view_mode"
+private const val KEY_LAST_CLOUD_BACKUP_AT = "last_cloud_backup_at"
 
 /**
  * Stores General Settings in a private SharedPreferences file, the same choice made for
@@ -120,5 +121,15 @@ class GeneralSettingsRepository(context: Context) {
 
     fun setNotesViewMode(mode: NotesViewMode) {
         prefs.edit().putString(KEY_NOTES_VIEW_MODE, mode.name).apply()
+    }
+
+    /** null means a cloud "Backup Now" has never completed on this device. */
+    fun getLastCloudBackupAtMillis(): Long? {
+        val millis = prefs.getLong(KEY_LAST_CLOUD_BACKUP_AT, 0L)
+        return if (millis > 0) millis else null
+    }
+
+    fun setLastCloudBackupAtMillis(millis: Long) {
+        prefs.edit().putLong(KEY_LAST_CLOUD_BACKUP_AT, millis).apply()
     }
 }

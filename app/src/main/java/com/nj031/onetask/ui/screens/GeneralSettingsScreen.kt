@@ -50,7 +50,11 @@ fun GeneralSettingsScreen(
     onHapticFeedbackClick: () -> Unit
 ) {
     val startScreenLabel = stringResource(
-        id = if (startScreen == StartScreen.TASKS) R.string.start_screen_option_tasks else R.string.start_screen_option_journal
+        id = when (startScreen) {
+            StartScreen.TASKS -> R.string.start_screen_option_tasks
+            StartScreen.TIMER -> R.string.start_screen_option_timer
+            StartScreen.JOURNAL -> R.string.start_screen_option_journal
+        }
     )
     val weekStartDayLabel = weekStartDay.getDisplayName(TextStyle.FULL, Locale.getDefault())
     val timeFormatLabel = stringResource(

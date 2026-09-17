@@ -15,10 +15,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -28,6 +30,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +49,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.viewmodel.DataPrivacyViewModel
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.launch
 
 private const val DELETE_STAGE_NONE = 0
@@ -56,8 +63,9 @@ private const val DELETE_STAGE_FINAL = 2
  * Settings > Data & Privacy. Cloud Sync / Automatic Backup are visual-only for now (always ON,
  * taps are no-ops) - the app's existing per-write cloud mirroring (CloudBackupRepository, wired
  * into TaskRepository/JournalRepository) keeps running exactly as before regardless of this
- * screen. Export/Restore/Delete All Data operate on that same Task/Journal data; Delete Account
- * additionally removes the Firebase Auth account itself.
+ * screen. "Backup Now" is functional: it pushes every task/note to Cloud Firestore on demand via
+ * the same CloudBackupRepository. Create/Restore Local Backup and Delete All Data operate on that
+ * same Task/Journal data; Delete Account additionally removes the Firebase Auth account itself.
  */
 @Composable
 fun DataPrivacyScreen(
@@ -70,6 +78,7 @@ fun DataPrivacyScreen(
     val scope = rememberCoroutineScope()
     var isBusy by remember { mutableStateOf(false) }
     val hapticTick = rememberHapticTick()
+    val lastBackupAtMillis by viewModel.lastBackupAtMillis.collectAsState()
 
     var restoreUri by remember { mutableStateOf<Uri?>(null) }
     var deleteAllStage by remember { mutableStateOf(DELETE_STAGE_NONE) }
@@ -141,22 +150,59 @@ fun DataPrivacyScreen(
                         title = stringResource(id = R.string.data_privacy_automatic_backup),
                         description = stringResource(id = R.string.data_privacy_automatic_backup_description)
                     )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    BackupActionRow(
+                        title = stringResource(id = R.string.data_privacy_backup_now),
+                        subtitle = lastBackupAtMillis?.let {
+                            stringResource(id = R.string.data_privacy_last_backed_up, it.toLastBackedUpText())
+                        } ?: stringResource(id = R.string.data_privacy_never_backed_up),
+                        onClick = {
+                            scope.launch {
+                                isBusy = true
+                                try {
+                                    viewModel.backupNow()
+                                    Toast.makeText(context, context.getString(R.string.data_privacy_backup_now_success), Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.data_privacy_backup_now_failed, e.message ?: e.toString()),
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                } finally {
+                                    isBusy = false
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+
+            SectionLabel(text = stringResource(id = R.string.data_privacy_section_local_backup), topPadding = 24.dp)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    BackupActionRow(
+                        title = stringResource(id = R.string.data_privacy_export_data),
+                        subtitle = stringResource(id = R.string.data_privacy_export_data_description),
+                        onClick = { exportLauncher.launch("one_task_backup.json") }
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    BackupActionRow(
+                        title = stringResource(id = R.string.data_privacy_restore_data),
+                        subtitle = stringResource(id = R.string.data_privacy_restore_data_description),
+                        onClick = {
+                            restoreLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain"))
+                        }
+                    )
                 }
             }
 
             NavRow(
-                text = stringResource(id = R.string.data_privacy_export_data),
-                modifier = Modifier.padding(top = 20.dp),
-                onClick = { exportLauncher.launch("one_task_backup.json") }
-            )
-            NavRow(
-                text = stringResource(id = R.string.data_privacy_restore_data),
-                onClick = {
-                    restoreLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain"))
-                }
-            )
-            NavRow(
                 text = stringResource(id = R.string.data_privacy_delete_all_data),
+                modifier = Modifier.padding(top = 20.dp),
                 destructive = true,
                 onClick = { deleteAllStage = DELETE_STAGE_FIRST }
             )
@@ -353,6 +399,45 @@ private fun ToggleRow(title: String, description: String) {
         // must keep doing so regardless of what's tapped here.
         Switch(checked = true, onCheckedChange = { /* not functional yet - stays ON */ })
     }
+}
+
+/** A title + status/description subtitle + trailing chevron row, for backup actions that are
+ * fully functional (unlike [ToggleRow]'s always-on switches) - tapping it triggers real work. */
+@Composable
+private fun BackupActionRow(title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+        Icon(
+            imageVector = Icons.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+private fun Long.toLastBackedUpText(): String {
+    val formatter = DateTimeFormatter.ofPattern("MMM d, h:mm a", Locale.getDefault())
+    val formatted = Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault()).format(formatter)
+    return formatted
 }
 
 @Composable
