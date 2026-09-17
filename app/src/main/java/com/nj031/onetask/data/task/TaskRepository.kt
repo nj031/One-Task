@@ -6,6 +6,9 @@ import kotlinx.coroutines.flow.Flow
 class TaskRepository(private val dao: TaskDao) {
     fun observeTasksByDate(date: Long): Flow<List<TaskEntity>> = dao.getByDate(date)
 
+    fun observeDatesWithTasksBetween(startDate: Long, endDate: Long): Flow<List<Long>> =
+        dao.getDatesWithTasksBetween(startDate, endDate)
+
     fun observeTaskById(id: String): Flow<TaskEntity?> = dao.getById(id)
 
     fun observeCustomTags(): Flow<List<String>> = dao.getCustomTags()

@@ -6,14 +6,19 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,9 +32,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,37 +57,50 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlin.math.abs
+import kotlinx.coroutines.launch
 
 /**
  * The Tasks homepage's own calendar entry point: a centered dialog (not the compact bottom-sheet
  * [OneTaskCalendarSheet] Journal/Add Task still use - this is deliberately a separate component
- * so those two screens are completely unaffected) with a full month grid plus a Jump to Date
- * shortcut. Every color comes from [MaterialTheme.colorScheme] rather than a hardcoded palette,
- * so this follows whichever theme (light/dark) is currently active, including if it changes.
+ * so those two screens are completely unaffected). Every color comes from
+ * [MaterialTheme.colorScheme] rather than a hardcoded palette, so this follows whichever theme
+ * (light/dark) is currently active, including if it changes.
  *
- * [onDateSelected] fires (and the whole dialog closes) either when a day in the grid is tapped,
- * or when Jump to Date's own "Go to Date" is used - both go through the exact same callback the
- * Tasks homepage already used for its date navigation, so nothing about how a selected date
- * reaches the task list changed.
+ * Always opens on the current real-world month, regardless of what date is currently selected on
+ * the Tasks homepage or what month was last browsed - [selectedDate] only controls which day (if
+ * any, if it's in the visible month) shows the selected-date highlight, never where the calendar
+ * opens. [markedDates] draws a small dot under any date that actually has a task, driven by
+ * [onVisibleMonthChanged] telling the caller which month's tasks to look up as the user
+ * navigates - the same reactive Flow-backed pattern already used for the rest of this screen's
+ * date data, not a separate one-off query.
+ *
+ * [onDateSelected] fires (and the whole dialog closes) when a day in the grid is tapped, or when
+ * Jump to Date's "Go to Date" is used - both go through the exact same callback the Tasks
+ * homepage already used for its date navigation.
  */
 @Composable
 fun HomeCalendarDialog(
-    initialDate: LocalDate,
+    selectedDate: LocalDate,
     onDateSelected: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
+    markedDates: Set<LocalDate> = emptySet(),
+    onVisibleMonthChanged: (YearMonth) -> Unit = {},
     weekStartDay: DayOfWeek = DayOfWeek.MONDAY
 ) {
-    var visibleMonth by remember { mutableStateOf(YearMonth.from(initialDate)) }
+    val today = remember { LocalDate.now() }
+    var visibleMonth by remember { mutableStateOf(YearMonth.from(today)) }
     var showJumpToDate by remember { mutableStateOf(false) }
     val hapticTick = rememberHapticTick()
+
+    LaunchedEffect(visibleMonth) { onVisibleMonthChanged(visibleMonth) }
 
     if (showJumpToDate) {
         // A separate Dialog layered in place of the calendar (not on top of it) - its own
         // back-press/outside-tap only returns here to the month grid, never all the way out to
-        // the Tasks page, matching the two-level "back closes one step at a time" behavior the
-        // spec calls for.
+        // the Tasks page, matching the two-level "back closes one step at a time" behavior.
         JumpToDateDialog(
-            initialDate = initialDate,
+            initialDate = selectedDate,
             onDismiss = { showJumpToDate = false },
             onGoToDate = { date ->
                 showJumpToDate = false
@@ -111,7 +131,9 @@ fun HomeCalendarDialog(
 
                     HomeCalendarMonthGrid(
                         visibleMonth = visibleMonth,
-                        selectedDate = initialDate,
+                        selectedDate = selectedDate,
+                        today = today,
+                        markedDates = markedDates,
                         weekStartDay = weekStartDay,
                         onDayClick = { date ->
                             hapticTick()
@@ -121,15 +143,20 @@ fun HomeCalendarDialog(
                     )
 
                     TextButton(
-                        onClick = onDismiss,
+                        onClick = {
+                            hapticTick()
+                            visibleMonth = YearMonth.from(today)
+                            onDateSelected(today)
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 4.dp)
                     ) {
                         Text(
-                            text = stringResource(id = R.string.close),
+                            text = stringResource(id = R.string.jump_to_today),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -279,6 +306,8 @@ private fun buildCalendarCells(visibleMonth: YearMonth, weekStartDay: DayOfWeek)
 private fun HomeCalendarMonthGrid(
     visibleMonth: YearMonth,
     selectedDate: LocalDate,
+    today: LocalDate,
+    markedDates: Set<LocalDate>,
     weekStartDay: DayOfWeek,
     onDayClick: (LocalDate) -> Unit
 ) {
@@ -295,6 +324,8 @@ private fun HomeCalendarMonthGrid(
                     HomeCalendarDayCell(
                         cell = cell,
                         isSelected = cell is HomeCalendarCell.InMonth && cell.date == selectedDate,
+                        isToday = cell is HomeCalendarCell.InMonth && cell.date == today,
+                        isMarked = cell is HomeCalendarCell.InMonth && markedDates.contains(cell.date),
                         onClick = onDayClick,
                         modifier = Modifier.weight(1f)
                     )
@@ -308,6 +339,8 @@ private fun HomeCalendarMonthGrid(
 private fun HomeCalendarDayCell(
     cell: HomeCalendarCell,
     isSelected: Boolean,
+    isToday: Boolean,
+    isMarked: Boolean,
     onClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -331,25 +364,49 @@ private fun HomeCalendarDayCell(
                         .fillMaxSize()
                         .clip(CircleShape)
                         .then(
-                            if (isSelected) {
-                                Modifier.background(MaterialTheme.colorScheme.primary)
-                            } else {
-                                Modifier
+                            when {
+                                isSelected -> Modifier.background(MaterialTheme.colorScheme.primary)
+                                // Today's own highlight is deliberately lighter than the selected
+                                // fill - a tinted background plus a thin outline - so it never
+                                // reads as "selected" when it isn't.
+                                isToday -> Modifier
+                                    .background(MaterialTheme.colorScheme.secondaryContainer)
+                                    .border(1.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                else -> Modifier
                             }
                         )
                         .clickable { onClick(cell.date) },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = cell.date.dayOfMonth.toString(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected) {
-                            MaterialTheme.colorScheme.onPrimary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        }
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = cell.date.dayOfMonth.toString(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
+                            color = when {
+                                isSelected -> MaterialTheme.colorScheme.onPrimary
+                                isToday -> MaterialTheme.colorScheme.primary
+                                else -> MaterialTheme.colorScheme.onSurface
+                            }
+                        )
+                        Box(
+                            modifier = Modifier
+                                .padding(top = 1.dp)
+                                .size(4.dp)
+                                .then(
+                                    if (isMarked) {
+                                        val dotColor = if (isSelected) {
+                                            MaterialTheme.colorScheme.onPrimary
+                                        } else {
+                                            MaterialTheme.colorScheme.primary
+                                        }
+                                        Modifier.background(dotColor, CircleShape)
+                                    } else {
+                                        Modifier
+                                    }
+                                )
+                        )
+                    }
                 }
             }
         }
@@ -360,10 +417,12 @@ private val calendarMonthYearFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
 
 /**
- * The Jump to Date experience: pick a month, day, and year via three tap-to-step columns (tap
- * the value above the highlighted one to step back, tap the value below to step forward), then
- * commit with Go to Date. Changing month or year clamps the picked day down when it would
- * otherwise land past the end of the new month (e.g. Jan 31 -> Feb keeps a valid Feb 28/29).
+ * The Jump to Date experience: independently scrollable Month/Day/Year columns, each keeping its
+ * selected value centered and highlighted, then a Go to Date button. There is no separate date
+ * readout field above the columns (deliberately removed per spec). Changing month or year clamps
+ * the picked day down when it would otherwise land past the end of the new month, so Go to Date
+ * can never build an invalid date (e.g. Feb 30) - the day column's own range always reflects
+ * exactly the valid days for whatever month/year is currently picked.
  */
 @Composable
 private fun JumpToDateDialog(
@@ -381,9 +440,14 @@ private fun JumpToDateDialog(
     if (pickedDay > daysInPickedMonth) {
         pickedDay = daysInPickedMonth
     }
-    val pickedDate = remember(pickedYear, pickedMonth, pickedDay) {
-        LocalDate.of(pickedYear, pickedMonth, pickedDay)
+
+    val currentYear = remember { LocalDate.now().year }
+    val monthLabels = remember { (1..12).map(::monthShortName) }
+    val dayLabels = remember(daysInPickedMonth) { (1..daysInPickedMonth).map(Int::toString) }
+    val yearLabels = remember(currentYear) {
+        (currentYear - JUMP_TO_DATE_YEAR_SPAN..currentYear + JUMP_TO_DATE_YEAR_SPAN).map(Int::toString)
     }
+    val minYear = currentYear - JUMP_TO_DATE_YEAR_SPAN
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -426,58 +490,28 @@ private fun JumpToDateDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 16.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OneTaskCalendarIcon(size = 18.dp)
-                    Text(
-                        text = pickedDate.format(jumpToDateReadoutFormatter),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(start = 10.dp)
-                    )
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp)
+                        .padding(top = 20.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
                 ) {
                     JumpToDateWheelColumn(
-                        previousLabel = monthShortName(if (pickedMonth == 1) 12 else pickedMonth - 1),
-                        currentLabel = monthShortName(pickedMonth),
-                        nextLabel = monthShortName(if (pickedMonth == 12) 1 else pickedMonth + 1),
-                        onPrevious = { pickedMonth = if (pickedMonth == 1) 12 else pickedMonth - 1 },
-                        onNext = { pickedMonth = if (pickedMonth == 12) 1 else pickedMonth + 1 },
+                        items = monthLabels,
+                        selectedIndex = pickedMonth - 1,
+                        onSelectedIndexChange = { pickedMonth = it + 1 },
                         modifier = Modifier.weight(1f)
                     )
                     JumpToDateColumnDivider()
                     JumpToDateWheelColumn(
-                        previousLabel = (if (pickedDay == 1) daysInPickedMonth else pickedDay - 1).toString(),
-                        currentLabel = pickedDay.toString(),
-                        nextLabel = (if (pickedDay == daysInPickedMonth) 1 else pickedDay + 1).toString(),
-                        onPrevious = {
-                            pickedDay = if (pickedDay == 1) daysInPickedMonth else pickedDay - 1
-                        },
-                        onNext = {
-                            pickedDay = if (pickedDay == daysInPickedMonth) 1 else pickedDay + 1
-                        },
+                        items = dayLabels,
+                        selectedIndex = pickedDay - 1,
+                        onSelectedIndexChange = { pickedDay = it + 1 },
                         modifier = Modifier.weight(1f)
                     )
                     JumpToDateColumnDivider()
                     JumpToDateWheelColumn(
-                        previousLabel = (pickedYear - 1).toString(),
-                        currentLabel = pickedYear.toString(),
-                        nextLabel = (pickedYear + 1).toString(),
-                        onPrevious = { pickedYear -= 1 },
-                        onNext = { pickedYear += 1 },
+                        items = yearLabels,
+                        selectedIndex = pickedYear - minYear,
+                        onSelectedIndexChange = { pickedYear = minYear + it },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -488,7 +522,9 @@ private fun JumpToDateDialog(
                         .padding(top = 20.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(MaterialTheme.colorScheme.primary)
-                        .clickable { onGoToDate(pickedDate) }
+                        .clickable {
+                            onGoToDate(LocalDate.of(pickedYear, pickedMonth, pickedDay))
+                        }
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -504,6 +540,10 @@ private fun JumpToDateDialog(
     }
 }
 
+private const val JUMP_TO_DATE_YEAR_SPAN = 100
+private val JUMP_TO_DATE_ROW_HEIGHT = 44.dp
+private const val JUMP_TO_DATE_VISIBLE_ROWS = 3
+
 @Composable
 private fun JumpToDateColumnDivider() {
     Box(
@@ -514,57 +554,99 @@ private fun JumpToDateColumnDivider() {
     )
 }
 
+/**
+ * One independently-scrollable wheel: [items] rendered as a vertical list, [selectedIndex]
+ * always kept in the visually centered row (a fixed highlighted band drawn behind the list, not
+ * per-item styling, so it never jumps between items while scrolling). Dragging and letting go
+ * settles on whichever item ends up nearest that center via [androidx.compose.foundation.lazy.LazyListState]'s own
+ * real, per-item layout info - the same "find what's nearest a target position" technique the
+ * drag-and-drop task reordering already uses - then reports that item's index back through
+ * [onSelectedIndexChange]. Tapping any row scrolls straight to it as a shortcut.
+ */
 @Composable
 private fun JumpToDateWheelColumn(
-    previousLabel: String,
-    currentLabel: String,
-    nextLabel: String,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
+    items: List<String>,
+    selectedIndex: Int,
+    onSelectedIndexChange: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier.padding(vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = previousLabel,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex)
+    val scope = rememberCoroutineScope()
+
+    // Keeps the wheel in sync whenever selectedIndex changes for a reason other than the user's
+    // own scroll (e.g. the day column's range shrinking when the month changes) - a no-op while
+    // the user is actively dragging this exact wheel.
+    LaunchedEffect(selectedIndex, items) {
+        if (!listState.isScrollInProgress) {
+            listState.scrollToItem(selectedIndex)
+        }
+    }
+
+    // Once a drag/fling settles, snap to whichever item ended up closest to the column's center
+    // and report it as the new selection.
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (!listState.isScrollInProgress) {
+            val viewportCenter =
+                (listState.layoutInfo.viewportStartOffset + listState.layoutInfo.viewportEndOffset) / 2
+            val centered = listState.layoutInfo.visibleItemsInfo.minByOrNull { info ->
+                abs((info.offset + info.size / 2) - viewportCenter)
+            }
+            if (centered != null) {
+                if (centered.index != selectedIndex) {
+                    onSelectedIndexChange(centered.index)
+                }
+                listState.animateScrollToItem(centered.index)
+            }
+        }
+    }
+
+    Box(modifier = modifier.height(JUMP_TO_DATE_ROW_HEIGHT * JUMP_TO_DATE_VISIBLE_ROWS)) {
+        Box(
             modifier = Modifier
+                .align(Alignment.Center)
                 .fillMaxWidth()
-                .clickable(onClick = onPrevious)
-                .padding(vertical = 10.dp)
-        )
-        Text(
-            text = currentLabel,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .fillMaxWidth()
+                .height(JUMP_TO_DATE_ROW_HEIGHT)
                 .padding(horizontal = 4.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(MaterialTheme.colorScheme.secondaryContainer)
-                .padding(vertical = 10.dp)
         )
-        Text(
-            text = nextLabel,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onNext)
-                .padding(vertical = 10.dp)
-        )
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(vertical = JUMP_TO_DATE_ROW_HEIGHT)
+        ) {
+            itemsIndexed(items) { index, label ->
+                val isSelected = index == selectedIndex
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(JUMP_TO_DATE_ROW_HEIGHT)
+                        .clickable {
+                            onSelectedIndexChange(index)
+                            scope.launch { listState.animateScrollToItem(index) }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = label,
+                        style = if (isSelected) {
+                            MaterialTheme.typography.titleMedium
+                        } else {
+                            MaterialTheme.typography.bodyMedium
+                        },
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isSelected) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
     }
 }
 
 private fun monthShortName(month: Int): String =
     Month.of(month).getDisplayName(TextStyle.SHORT, Locale.getDefault())
-
-private val jumpToDateReadoutFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault())

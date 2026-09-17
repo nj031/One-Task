@@ -12,6 +12,7 @@ import com.nj031.onetask.data.task.TaskRepository
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.service.TimerForegroundService
 import java.time.LocalDate
+import java.time.YearMonth
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -36,6 +38,26 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val customTags: StateFlow<List<String>> =
         repository.observeCustomTags()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Which month the Tasks calendar currently has open - drives datesWithTasksInCalendarMonth
+    // below. Defaults to the current month so the very first query (before the calendar is even
+    // opened) is still meaningful; the calendar itself always reopens on today's month regardless
+    // of this value.
+    private val _calendarVisibleMonth = MutableStateFlow(YearMonth.now())
+
+    /** The set of dates within [_calendarVisibleMonth] that have at least one task - backs the
+     * calendar's per-date task indicator dot. Reactive: any task change that adds/removes a date
+     * from this set updates the dots automatically, the same way tasksForSelectedDate already
+     * reacts to task changes. */
+    val datesWithTasksInCalendarMonth: StateFlow<Set<LocalDate>> =
+        _calendarVisibleMonth.flatMapLatest { month ->
+            repository.observeDatesWithTasksBetween(month.atDay(1).toEpochDay(), month.atEndOfMonth().toEpochDay())
+        }.map { epochDays -> epochDays.map(LocalDate::ofEpochDay).toSet() }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    fun setCalendarVisibleMonth(month: YearMonth) {
+        _calendarVisibleMonth.value = month
+    }
 
     init {
         viewModelScope.launch {

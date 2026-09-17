@@ -22,6 +22,11 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE date = :date ORDER BY createdAt ASC")
     fun getByDate(date: Long): Flow<List<TaskEntity>>
 
+    // Backs the calendar's per-date task indicator dot - only which dates have at least one
+    // task, not the tasks themselves, for whatever month range the calendar currently has open.
+    @Query("SELECT DISTINCT date FROM tasks WHERE date BETWEEN :startDate AND :endDate")
+    fun getDatesWithTasksBetween(startDate: Long, endDate: Long): Flow<List<Long>>
+
     @Query("SELECT * FROM tasks")
     suspend fun getAll(): List<TaskEntity>
 
