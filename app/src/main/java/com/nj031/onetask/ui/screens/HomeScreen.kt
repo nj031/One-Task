@@ -341,10 +341,13 @@ fun HomeScreen(
     }
 
     if (showDatePicker) {
+        val datesWithTasks by viewModel.datesWithTasksInCalendarMonth.collectAsState()
         HomeCalendarDialog(
-            initialDate = selectedDate,
+            selectedDate = selectedDate,
             onDateSelected = { viewModel.selectDate(it) },
             onDismiss = { showDatePicker = false },
+            markedDates = datesWithTasks,
+            onVisibleMonthChanged = viewModel::setCalendarVisibleMonth,
             weekStartDay = weekStartDay
         )
     }

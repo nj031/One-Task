@@ -337,6 +337,7 @@
     <string name="next_month">Next month</string>
     <string name="jump_to_date">Jump to Date</string>
     <string name="go_to_date">Go to Date</string>
+    <string name="jump_to_today">Jump to Today</string>
 
     <string name="focus_timer_title">Focus Timer</string>
     <string name="focus_timer_total_format">Total %1$s</string>
