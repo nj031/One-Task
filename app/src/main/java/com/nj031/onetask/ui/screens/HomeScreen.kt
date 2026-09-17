@@ -68,10 +68,10 @@ import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
-import com.nj031.onetask.ui.components.OneTaskAddButton
 import com.nj031.onetask.ui.components.OneTaskBottomNav
 import com.nj031.onetask.ui.components.OneTaskCalendarSheet
 import com.nj031.onetask.ui.haptics.rememberHapticTick
+import com.nj031.onetask.ui.theme.OneTaskAddIcon
 import com.nj031.onetask.ui.theme.OneTaskCalendarIcon
 import com.nj031.onetask.ui.theme.OneTaskHamburgerIcon
 import com.nj031.onetask.ui.theme.OneTaskTheme
@@ -173,12 +173,6 @@ fun HomeScreen(
     ) {
         Scaffold(
             containerColor = HomeBackground,
-            floatingActionButton = {
-                OneTaskAddButton(
-                    onClick = onAddTaskClick,
-                    contentDescription = stringResource(id = R.string.add_task)
-                )
-            },
             bottomBar = {
                 OneTaskBottomNav(
                     activeTab = BottomNavTab.TASKS,
@@ -231,6 +225,11 @@ fun HomeScreen(
                         fontWeight = FontWeight.Medium,
                         color = HomePrimaryBlue,
                         textAlign = TextAlign.Center
+                    )
+
+                    HomeAddTaskBar(
+                        onClick = onAddTaskClick,
+                        modifier = Modifier.padding(top = 16.dp)
                     )
 
                     if (tasks.isEmpty()) {
@@ -308,6 +307,39 @@ fun HomeScreen(
                 deleteConfirmTask = null
             },
             onCancel = { deleteConfirmTask = null }
+        )
+    }
+}
+
+/**
+ * The Tasks screen's Add Task control - a horizontal rounded bar in the normal page flow,
+ * replacing the old circular floating action button. It's a general/global control (not part of
+ * the In Progress section below it) and triggers the exact same [onClick] the FAB used to call;
+ * only its shape and position changed. Uses the same HomePrimaryBlue/white pairing the old FAB
+ * used (OneTaskAddButton's own AddButtonBlue is this same color), so it stays visually consistent
+ * with the rest of this screen's existing palette.
+ */
+@Composable
+private fun HomeAddTaskBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val addTaskDescription = stringResource(id = R.string.add_task)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(HomePrimaryBlue)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = addTaskDescription }
+            .padding(vertical = 14.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OneTaskAddIcon(size = 20.dp, drawContainer = false, plusColor = Color.White)
+        Text(
+            text = addTaskDescription,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            modifier = Modifier.padding(start = 8.dp)
         )
     }
 }
