@@ -72,7 +72,7 @@
     <string name="task_name_label">Task</string>
     <string name="task_name_placeholder">Enter a task name</string>
     <string name="subtasks_label">Subtasks</string>
-    <string name="add_subtask">+ Add Subtask</string>
+    <string name="add_subtask">Add Subtask</string>
     <string name="timer_label">Timer</string>
     <string name="option_no_timer">No Timer</string>
     <string name="option_custom">Custom</string>
