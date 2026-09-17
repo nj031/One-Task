@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,9 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -35,7 +31,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,13 +46,10 @@ import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.ui.theme.OneTaskCalendarIcon
 import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.Month
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
-import kotlin.math.abs
-import kotlinx.coroutines.launch
 
 /**
  * The Tasks homepage's own calendar entry point: a centered dialog (not the compact bottom-sheet
@@ -493,21 +485,21 @@ private fun JumpToDateDialog(
                         .clip(RoundedCornerShape(16.dp))
                         .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
                 ) {
-                    JumpToDateWheelColumn(
+                    DateWheelColumn(
                         items = monthLabels,
                         selectedIndex = pickedMonth - 1,
                         onSelectedIndexChange = { pickedMonth = it + 1 },
                         modifier = Modifier.weight(1f)
                     )
-                    JumpToDateColumnDivider()
-                    JumpToDateWheelColumn(
+                    DateWheelColumnDivider()
+                    DateWheelColumn(
                         items = dayLabels,
                         selectedIndex = pickedDay - 1,
                         onSelectedIndexChange = { pickedDay = it + 1 },
                         modifier = Modifier.weight(1f)
                     )
-                    JumpToDateColumnDivider()
-                    JumpToDateWheelColumn(
+                    DateWheelColumnDivider()
+                    DateWheelColumn(
                         items = yearLabels,
                         selectedIndex = pickedYear - minYear,
                         onSelectedIndexChange = { pickedYear = minYear + it },
@@ -540,118 +532,3 @@ private fun JumpToDateDialog(
 }
 
 private const val JUMP_TO_DATE_YEAR_SPAN = 100
-private val JUMP_TO_DATE_ROW_HEIGHT = 44.dp
-private const val JUMP_TO_DATE_VISIBLE_ROWS = 3
-
-@Composable
-private fun JumpToDateColumnDivider() {
-    // An explicit height matching the wheel columns' own fixed height, not fillMaxHeight(): the
-    // enclosing Row sits inside a Column with no bounded height of its own, so fillMaxHeight()
-    // here would resolve against the Dialog's full available height instead of the wheel
-    // columns' actual size - stretching the whole dialog to near-screen height and pushing Go to
-    // Date off the bottom. This was the actual cause of both the oversized dialog and the
-    // missing-looking action.
-    Box(
-        modifier = Modifier
-            .height(JUMP_TO_DATE_ROW_HEIGHT * JUMP_TO_DATE_VISIBLE_ROWS)
-            .width(1.dp)
-            .background(MaterialTheme.colorScheme.outline)
-    )
-}
-
-/**
- * One independently-scrollable wheel: [items] rendered as a vertical list, [selectedIndex]
- * always kept in the visually centered row (a fixed highlighted band drawn behind the list, not
- * per-item styling, so it never jumps between items while scrolling). Dragging and letting go
- * settles on whichever item ends up nearest that center via [androidx.compose.foundation.lazy.LazyListState]'s own
- * real, per-item layout info - the same "find what's nearest a target position" technique the
- * drag-and-drop task reordering already uses - then reports that item's index back through
- * [onSelectedIndexChange]. Tapping any row scrolls straight to it as a shortcut.
- */
-@Composable
-private fun JumpToDateWheelColumn(
-    items: List<String>,
-    selectedIndex: Int,
-    onSelectedIndexChange: (Int) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex)
-    val scope = rememberCoroutineScope()
-
-    // Keeps the wheel in sync whenever selectedIndex changes for a reason other than the user's
-    // own scroll (e.g. the day column's range shrinking when the month changes) - a no-op while
-    // the user is actively dragging this exact wheel.
-    LaunchedEffect(selectedIndex, items) {
-        if (!listState.isScrollInProgress) {
-            listState.scrollToItem(selectedIndex)
-        }
-    }
-
-    // Once a drag/fling settles, snap to whichever item ended up closest to the column's center
-    // and report it as the new selection.
-    LaunchedEffect(listState.isScrollInProgress) {
-        if (!listState.isScrollInProgress) {
-            val viewportCenter =
-                (listState.layoutInfo.viewportStartOffset + listState.layoutInfo.viewportEndOffset) / 2
-            val centered = listState.layoutInfo.visibleItemsInfo.minByOrNull { info ->
-                abs((info.offset + info.size / 2) - viewportCenter)
-            }
-            if (centered != null) {
-                if (centered.index != selectedIndex) {
-                    onSelectedIndexChange(centered.index)
-                }
-                listState.animateScrollToItem(centered.index)
-            }
-        }
-    }
-
-    Box(modifier = modifier.height(JUMP_TO_DATE_ROW_HEIGHT * JUMP_TO_DATE_VISIBLE_ROWS)) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .fillMaxWidth()
-                .height(JUMP_TO_DATE_ROW_HEIGHT)
-                .padding(horizontal = 4.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(MaterialTheme.colorScheme.secondaryContainer)
-        )
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(vertical = JUMP_TO_DATE_ROW_HEIGHT)
-        ) {
-            itemsIndexed(items) { index, label ->
-                val isSelected = index == selectedIndex
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(JUMP_TO_DATE_ROW_HEIGHT)
-                        .clickable {
-                            onSelectedIndexChange(index)
-                            scope.launch { listState.animateScrollToItem(index) }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = label,
-                        style = if (isSelected) {
-                            MaterialTheme.typography.titleMedium
-                        } else {
-                            MaterialTheme.typography.bodyMedium
-                        },
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected) {
-                            MaterialTheme.colorScheme.onSurface
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-        }
-    }
-}
-
-private fun monthShortName(month: Int): String =
-    Month.of(month).getDisplayName(TextStyle.SHORT, Locale.getDefault())
