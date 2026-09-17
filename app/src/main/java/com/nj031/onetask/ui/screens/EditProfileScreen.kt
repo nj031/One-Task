@@ -29,6 +29,8 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -37,8 +39,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -58,7 +64,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.profile.Gender
 import com.nj031.onetask.data.profile.ProfilePhotoStorage
-import com.nj031.onetask.ui.components.OneTaskCalendarSheet
+import com.nj031.onetask.ui.theme.OneTaskBackground
+import com.nj031.onetask.ui.theme.OneTaskBorder
+import com.nj031.onetask.ui.theme.OneTaskDarkText
+import com.nj031.onetask.ui.theme.OneTaskLightBlue
+import com.nj031.onetask.ui.theme.OneTaskPrimary
+import com.nj031.onetask.ui.theme.OneTaskSecondaryText
+import com.nj031.onetask.ui.theme.OneTaskSurface
 import com.nj031.onetask.viewmodel.ProfileViewModel
 import java.time.Instant
 import java.time.LocalDate
@@ -68,6 +80,52 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/**
+ * Material3's DatePicker reads several color roles (primaryContainer, tertiaryContainer,
+ * outlineVariant, surface containers, ...) that OneTaskTheme's own color scheme never overrides
+ * since no other screen needs them - left alone, they silently fall back to Material3's default
+ * lavender/purple baseline instead of One Task's blue. This is a fully-specified scheme (not a
+ * partial .copy()) wrapped locally around just the DOB dialog, so the fix stays scoped to this
+ * one screen instead of touching the app's global Theme.kt.
+ */
+private val DatePickerColorScheme = lightColorScheme(
+    primary = OneTaskPrimary,
+    onPrimary = Color.White,
+    primaryContainer = OneTaskLightBlue,
+    onPrimaryContainer = OneTaskDarkText,
+    secondary = OneTaskPrimary,
+    onSecondary = Color.White,
+    secondaryContainer = OneTaskLightBlue,
+    onSecondaryContainer = OneTaskDarkText,
+    tertiary = OneTaskPrimary,
+    onTertiary = Color.White,
+    tertiaryContainer = OneTaskLightBlue,
+    onTertiaryContainer = OneTaskDarkText,
+    background = OneTaskBackground,
+    onBackground = OneTaskDarkText,
+    surface = OneTaskSurface,
+    onSurface = OneTaskDarkText,
+    surfaceVariant = OneTaskLightBlue,
+    onSurfaceVariant = OneTaskSecondaryText,
+    surfaceTint = OneTaskPrimary,
+    outline = OneTaskBorder,
+    outlineVariant = OneTaskBorder,
+    inverseSurface = OneTaskDarkText,
+    inverseOnSurface = OneTaskSurface,
+    inversePrimary = OneTaskLightBlue
+)
+
+/** The DOB picker's latest selectable day is today - tomorrow and beyond are disabled in both
+ * the calendar grid and the year picker, not merely rejected after the fact. */
+@OptIn(ExperimentalMaterial3Api::class)
+private object PastOrTodaySelectableDates : SelectableDates {
+    override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis <= todayUtcMillis()
+    override fun isSelectableYear(year: Int): Boolean = year <= LocalDate.now().year
+}
+
+private fun todayUtcMillis(): Long =
+    LocalDate.now().atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
 
 /**
  * Full-screen profile editor. Name/DOB/Gender/photo edits live entirely in local composable
@@ -329,19 +387,35 @@ fun EditProfileScreen(
     }
 
     if (showDatePicker) {
-        // Same shared calendar presentation used everywhere else in One Task (Homepage/Journal/
-        // Add Task) instead of Material3's own DatePickerDialog, per the app-wide calendar
-        // consistency requirement - it already uses the One Task palette and already supports
-        // capping selectable dates (maxSelectableDate), which is exactly what "DOB can't be in
-        // the future" needs. dateOfBirth itself stays a UTC-epoch-millis Long (unchanged
-        // persistence shape); only this picker's own input/output is converted to/from
-        // LocalDate at the UI boundary.
-        OneTaskCalendarSheet(
-            initialDate = dateOfBirth?.let(::epochMillisToUtcLocalDate) ?: LocalDate.now(),
-            onDateSelected = { date -> dateOfBirth = date.utcEpochMillis() },
-            onDismiss = { showDatePicker = false },
-            maxSelectableDate = LocalDate.now()
-        )
+        MaterialTheme(colorScheme = DatePickerColorScheme) {
+            val datePickerState = rememberDatePickerState(
+                initialSelectedDateMillis = dateOfBirth,
+                selectableDates = PastOrTodaySelectableDates
+            )
+            DatePickerDialog(
+                onDismissRequest = { showDatePicker = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val selected = datePickerState.selectedDateMillis
+                            if (selected != null) {
+                                dateOfBirth = selected
+                            }
+                            showDatePicker = false
+                        }
+                    ) {
+                        Text(text = stringResource(id = R.string.profile_edit_dob_confirm))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDatePicker = false }) {
+                        Text(text = stringResource(id = R.string.cancel))
+                    }
+                }
+            ) {
+                DatePicker(state = datePickerState)
+            }
+        }
     }
 
     cropSourceUri?.let { uri ->
@@ -446,14 +520,7 @@ private fun GenderChip(text: String, selected: Boolean, onClick: () -> Unit) {
     )
 }
 
-private fun formatDate(epochMillis: Long): String =
-    epochMillisToUtcLocalDate(epochMillis).format(DateTimeFormatter.ofPattern("d MMM yyyy"))
-
-/** [dateOfBirth] is stored as UTC-epoch millis (its original Material3 DatePicker shape, kept
- * as-is here since only the picker UI changed, not the persisted representation) - these two
- * converters are the sole bridge to/from OneTaskCalendarSheet's LocalDate-based API. */
-private fun epochMillisToUtcLocalDate(epochMillis: Long): LocalDate =
-    Instant.ofEpochMilli(epochMillis).atZone(ZoneId.of("UTC")).toLocalDate()
-
-private fun LocalDate.utcEpochMillis(): Long =
-    atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
+private fun formatDate(epochMillis: Long): String {
+    val date = Instant.ofEpochMilli(epochMillis).atZone(ZoneId.of("UTC")).toLocalDate()
+    return date.format(DateTimeFormatter.ofPattern("d MMM yyyy"))
+}
