@@ -134,6 +134,13 @@ class TaskRepository(private val dao: TaskDao) {
         dao.insertTag(TaskTagEntity(name = name))
     }
 
+    /** Removes the tag from the available custom-tags list only - deliberately never touches
+     * the tasks table, so any existing task that already used this tag keeps displaying it
+     * exactly as before; it just stops being offered for new/edited tasks going forward. */
+    suspend fun deleteCustomTag(name: String) {
+        dao.deleteTag(name)
+    }
+
     /** Upserts (by id) the given tasks/tags into local storage and mirrors the tasks to the
      * cloud backup, without touching any existing task/tag not present in [tasks]/[tags]. Used
      * by Data & Privacy's Restore flow, which merges a backup file into the current account

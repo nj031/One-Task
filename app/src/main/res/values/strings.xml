@@ -90,6 +90,14 @@
     <string name="tag_study">Study</string>
     <string name="tag_health">Health</string>
     <string name="add_tag">+ Add Tag</string>
+    <string name="default_tags_group_label">Default Tags</string>
+    <string name="custom_tags_section">Custom Tags</string>
+    <string name="add_custom_tag_button">Add Custom Tag</string>
+    <string name="custom_tag_name_hint">Tag name</string>
+    <string name="custom_tag_error_duplicate">This tag already exists</string>
+    <string name="delete_custom_tag_confirm_title">Delete %1$s?</string>
+    <string name="delete_custom_tag_confirm_message">This tag will be removed from your available tags.</string>
+    <string name="add">Add</string>
     <string name="postpone_if_incomplete">Pending Task</string>
     <string name="pending_task_description">Show every day until completed.</string>
     <string name="cancel">Cancel</string>

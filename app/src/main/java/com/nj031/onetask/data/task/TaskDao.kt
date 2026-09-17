@@ -40,6 +40,11 @@ interface TaskDao {
     @Query("SELECT name FROM task_tags ORDER BY name ASC")
     suspend fun getCustomTagsOnce(): List<String>
 
+    // Only removes the tag from the available-tags list (task_tags) - never touches the tasks
+    // table, so any task that already used this tag keeps its tag string exactly as before.
+    @Query("DELETE FROM task_tags WHERE name = :name")
+    suspend fun deleteTag(name: String)
+
     @Query("DELETE FROM tasks")
     suspend fun deleteAllTasks()
 
