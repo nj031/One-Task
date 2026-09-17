@@ -144,7 +144,11 @@ class TimerForegroundService : Service() {
             .setContentTitle(getString(R.string.focus_timer_notification_complete_title, task.name))
             .setContentText(getString(R.string.focus_timer_notification_complete_text, durationLabel))
             .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            // HIGH is required (not just requested) for this to pop up as a heads-up banner -
+            // on API 26+ the channel's own importance below is what Android actually honors for
+            // that, but this keeps any legacy/OEM path that still reads the notification-level
+            // field from falling back to a silent, shade-only default.
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(buildContentIntent())
             .build()
@@ -203,6 +207,11 @@ class TimerForegroundService : Service() {
         // device that already ran an earlier build doesn't end up with two identically-named
         // "Focus timer" entries under system notification settings.
         manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
+        // Same reasoning as LEGACY_CHANNEL_ID above: the pre-fix complete channel was created
+        // with IMPORTANCE_DEFAULT, which never shows a heads-up banner no matter what this
+        // method sets on it afterward - only a fresh channel id (COMPLETE_CHANNEL_ID's own v2
+        // bump below) actually picks up IMPORTANCE_HIGH on a device that already has the old one.
+        manager.deleteNotificationChannel(LEGACY_COMPLETE_CHANNEL_ID)
 
         val runningChannel = NotificationChannel(
             CHANNEL_ID,
@@ -218,14 +227,16 @@ class TimerForegroundService : Service() {
         }
         manager.createNotificationChannel(runningChannel)
 
-        // A separate, normal-importance channel for the one-shot "session complete" alert - it's
-        // a discrete event the user likely wants to actually notice (sound/visual), unlike the
-        // silent, continuously-updating running-session notification above, which deliberately
-        // stays low-importance so it doesn't re-alert on every tick.
+        // A separate, high-importance channel for the one-shot "session complete" alert - it's a
+        // discrete event the user likely wants to actually notice (heads-up popup + sound),
+        // unlike the silent, continuously-updating running-session notification above, which
+        // deliberately stays low-importance so it doesn't re-alert on every tick. HIGH (not
+        // DEFAULT) is required for Android to show it as a heads-up banner rather than just
+        // silently adding it to the shade.
         val completeChannel = NotificationChannel(
             COMPLETE_CHANNEL_ID,
             getString(R.string.focus_timer_notification_complete_channel_name),
-            NotificationManager.IMPORTANCE_DEFAULT
+            NotificationManager.IMPORTANCE_HIGH
         ).apply {
             lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
         }
@@ -256,8 +267,12 @@ class TimerForegroundService : Service() {
         // already ran an earlier build with the un-fixed channel) to get these settings, since
         // a channel's own properties can't be changed once it exists.
         private const val CHANNEL_ID = "focus_timer_channel_v2"
-        private const val COMPLETE_CHANNEL_ID = "focus_timer_complete_channel"
+        // v2: bumped from IMPORTANCE_DEFAULT to IMPORTANCE_HIGH so the completion alert actually
+        // shows as a heads-up banner - see createNotificationChannel(). Same "properties are
+        // frozen at creation" reasoning as CHANNEL_ID's own v2 bump above.
+        private const val COMPLETE_CHANNEL_ID = "focus_timer_complete_channel_v2"
         private const val LEGACY_CHANNEL_ID = "focus_timer_channel"
+        private const val LEGACY_COMPLETE_CHANNEL_ID = "focus_timer_complete_channel"
         private const val TICK_INTERVAL_MILLIS = 1_000L
 
         fun start(context: Context, taskId: String) {
