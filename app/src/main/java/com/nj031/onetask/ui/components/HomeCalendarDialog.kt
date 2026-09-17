@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -546,9 +545,15 @@ private const val JUMP_TO_DATE_VISIBLE_ROWS = 3
 
 @Composable
 private fun JumpToDateColumnDivider() {
+    // An explicit height matching the wheel columns' own fixed height, not fillMaxHeight(): the
+    // enclosing Row sits inside a Column with no bounded height of its own, so fillMaxHeight()
+    // here would resolve against the Dialog's full available height instead of the wheel
+    // columns' actual size - stretching the whole dialog to near-screen height and pushing Go to
+    // Date off the bottom. This was the actual cause of both the oversized dialog and the
+    // missing-looking action.
     Box(
         modifier = Modifier
-            .fillMaxHeight()
+            .height(JUMP_TO_DATE_ROW_HEIGHT * JUMP_TO_DATE_VISIBLE_ROWS)
             .width(1.dp)
             .background(MaterialTheme.colorScheme.outline)
     )
