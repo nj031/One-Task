@@ -25,12 +25,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -39,11 +38,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,78 +51,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.profile.Gender
 import com.nj031.onetask.data.profile.ProfilePhotoStorage
-import com.nj031.onetask.ui.theme.OneTaskBackground
-import com.nj031.onetask.ui.theme.OneTaskBorder
-import com.nj031.onetask.ui.theme.OneTaskDarkText
-import com.nj031.onetask.ui.theme.OneTaskLightBlue
-import com.nj031.onetask.ui.theme.OneTaskPrimary
-import com.nj031.onetask.ui.theme.OneTaskSecondaryText
-import com.nj031.onetask.ui.theme.OneTaskSurface
+import com.nj031.onetask.ui.components.DateWheelColumn
+import com.nj031.onetask.ui.components.DateWheelColumnDivider
+import com.nj031.onetask.ui.components.monthShortName
 import com.nj031.onetask.viewmodel.ProfileViewModel
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-/**
- * Material3's DatePicker reads several color roles (primaryContainer, tertiaryContainer,
- * outlineVariant, surface containers, ...) that OneTaskTheme's own color scheme never overrides
- * since no other screen needs them - left alone, they silently fall back to Material3's default
- * lavender/purple baseline instead of One Task's blue. This is a fully-specified scheme (not a
- * partial .copy()) wrapped locally around just the DOB dialog, so the fix stays scoped to this
- * one screen instead of touching the app's global Theme.kt.
- */
-private val DatePickerColorScheme = lightColorScheme(
-    primary = OneTaskPrimary,
-    onPrimary = Color.White,
-    primaryContainer = OneTaskLightBlue,
-    onPrimaryContainer = OneTaskDarkText,
-    secondary = OneTaskPrimary,
-    onSecondary = Color.White,
-    secondaryContainer = OneTaskLightBlue,
-    onSecondaryContainer = OneTaskDarkText,
-    tertiary = OneTaskPrimary,
-    onTertiary = Color.White,
-    tertiaryContainer = OneTaskLightBlue,
-    onTertiaryContainer = OneTaskDarkText,
-    background = OneTaskBackground,
-    onBackground = OneTaskDarkText,
-    surface = OneTaskSurface,
-    onSurface = OneTaskDarkText,
-    surfaceVariant = OneTaskLightBlue,
-    onSurfaceVariant = OneTaskSecondaryText,
-    surfaceTint = OneTaskPrimary,
-    outline = OneTaskBorder,
-    outlineVariant = OneTaskBorder,
-    inverseSurface = OneTaskDarkText,
-    inverseOnSurface = OneTaskSurface,
-    inversePrimary = OneTaskLightBlue
-)
-
-/** The DOB picker's latest selectable day is today - tomorrow and beyond are disabled in both
- * the calendar grid and the year picker, not merely rejected after the fact. */
-@OptIn(ExperimentalMaterial3Api::class)
-private object PastOrTodaySelectableDates : SelectableDates {
-    override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis <= todayUtcMillis()
-    override fun isSelectableYear(year: Int): Boolean = year <= LocalDate.now().year
-}
-
-private fun todayUtcMillis(): Long =
-    LocalDate.now().atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
 
 /**
  * Full-screen profile editor. Name/DOB/Gender/photo edits live entirely in local composable
@@ -387,35 +335,13 @@ fun EditProfileScreen(
     }
 
     if (showDatePicker) {
-        MaterialTheme(colorScheme = DatePickerColorScheme) {
-            val datePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = dateOfBirth,
-                selectableDates = PastOrTodaySelectableDates
-            )
-            DatePickerDialog(
-                onDismissRequest = { showDatePicker = false },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            val selected = datePickerState.selectedDateMillis
-                            if (selected != null) {
-                                dateOfBirth = selected
-                            }
-                            showDatePicker = false
-                        }
-                    ) {
-                        Text(text = stringResource(id = R.string.profile_edit_dob_confirm))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDatePicker = false }) {
-                        Text(text = stringResource(id = R.string.cancel))
-                    }
-                }
-            ) {
-                DatePicker(state = datePickerState)
+        DobPickerDialog(
+            onDismiss = { showDatePicker = false },
+            onSelect = { millis ->
+                dateOfBirth = millis
+                showDatePicker = false
             }
-        }
+        )
     }
 
     cropSourceUri?.let { uri ->
@@ -460,6 +386,141 @@ fun EditProfileScreen(
         )
     }
 }
+
+/**
+ * Compact three-column Month/Day/Year wheel picker for Date of Birth, reusing the same
+ * DateWheelColumn mechanism as the Tasks homepage's Jump to Date. Always opens on today's date
+ * (never the previously saved DOB) and structurally excludes every future date - the current
+ * year's future months and the current month's future days are simply absent from their wheels,
+ * not merely disabled - so no invalid combination is ever selectable through the picker itself.
+ */
+@Composable
+private fun DobPickerDialog(
+    onDismiss: () -> Unit,
+    onSelect: (Long) -> Unit
+) {
+    val today = remember { LocalDate.now() }
+
+    var pickedYear by remember { mutableStateOf(today.year) }
+    var pickedMonth by remember { mutableStateOf(today.monthValue) }
+    var pickedDay by remember { mutableStateOf(today.dayOfMonth) }
+
+    val maxMonth = if (pickedYear == today.year) today.monthValue else 12
+    if (pickedMonth > maxMonth) {
+        pickedMonth = maxMonth
+    }
+
+    val daysInPickedMonth = YearMonth.of(pickedYear, pickedMonth).lengthOfMonth()
+    val maxDay = if (pickedYear == today.year && pickedMonth == today.monthValue) {
+        today.dayOfMonth
+    } else {
+        daysInPickedMonth
+    }
+    if (pickedDay > maxDay) {
+        pickedDay = maxDay
+    }
+
+    val minYear = today.year - DOB_PICKER_MIN_YEAR_SPAN
+    val monthLabels = remember(maxMonth) { (1..maxMonth).map(::monthShortName) }
+    val dayLabels = remember(maxDay) { (1..maxDay).map(Int::toString) }
+    val yearLabels = remember(minYear) { (minYear..today.year).map(Int::toString) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 20.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.profile_edit_dob_label),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .clickable(onClick = onDismiss),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(id = R.string.close),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 20.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+                ) {
+                    DateWheelColumn(
+                        items = monthLabels,
+                        selectedIndex = pickedMonth - 1,
+                        onSelectedIndexChange = { pickedMonth = it + 1 },
+                        modifier = Modifier.weight(1f)
+                    )
+                    DateWheelColumnDivider()
+                    DateWheelColumn(
+                        items = dayLabels,
+                        selectedIndex = pickedDay - 1,
+                        onSelectedIndexChange = { pickedDay = it + 1 },
+                        modifier = Modifier.weight(1f)
+                    )
+                    DateWheelColumnDivider()
+                    DateWheelColumn(
+                        items = yearLabels,
+                        selectedIndex = pickedYear - minYear,
+                        onSelectedIndexChange = { pickedYear = minYear + it },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 20.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.primary)
+                        .clickable {
+                            val epochMillis = LocalDate.of(pickedYear, pickedMonth, pickedDay)
+                                .atStartOfDay(ZoneId.of("UTC"))
+                                .toInstant()
+                                .toEpochMilli()
+                            onSelect(epochMillis)
+                        }
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.profile_edit_dob_confirm),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
+        }
+    }
+}
+
+private const val DOB_PICKER_MIN_YEAR_SPAN = 120
 
 @Composable
 private fun EditablePhoto(existingPhotoPath: String?, croppedBitmap: Bitmap?, onClick: () -> Unit) {
