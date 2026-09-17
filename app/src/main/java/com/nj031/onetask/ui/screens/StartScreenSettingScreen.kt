@@ -29,10 +29,12 @@ import com.nj031.onetask.R
 import com.nj031.onetask.data.settings.StartScreen
 
 /**
- * General Settings > Start Screen. Tasks/Journal are the only two options per spec (no Profile)
- * - Tasks is the default for both existing and new users, matching the app's launch behavior
- * before this setting existed. The selected value is written through immediately on tap, no
- * separate "Save" step.
+ * General Settings > Start Screen. Tasks/Timer/Notes are the three launch destinations - Tasks
+ * is the default for both existing and new users, matching the app's launch behavior before this
+ * setting existed. The selected value is written through immediately on tap, no separate "Save"
+ * step. [StartScreen.JOURNAL] is the underlying enum constant's name (kept for backward
+ * compatibility with values already persisted on existing installs) but is labeled "Notes"
+ * everywhere in this UI, matching the section that replaced the old Journal.
  */
 @Composable
 fun StartScreenSettingScreen(
@@ -81,6 +83,11 @@ fun StartScreenSettingScreen(
                         label = stringResource(id = R.string.start_screen_option_tasks),
                         selected = selected == StartScreen.TASKS,
                         onClick = { onSelect(StartScreen.TASKS) }
+                    )
+                    StartScreenOptionRow(
+                        label = stringResource(id = R.string.start_screen_option_timer),
+                        selected = selected == StartScreen.TIMER,
+                        onClick = { onSelect(StartScreen.TIMER) }
                     )
                     StartScreenOptionRow(
                         label = stringResource(id = R.string.start_screen_option_journal),

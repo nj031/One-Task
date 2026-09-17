@@ -8,7 +8,12 @@ import com.nj031.onetask.data.AppDatabase
 import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.backup.DataExportFormat
 import com.nj031.onetask.data.journal.JournalRepository
+import com.nj031.onetask.data.settings.GeneralSettingsRepository
+import com.nj031.onetask.data.sync.CloudBackupRepository
 import com.nj031.onetask.data.task.TaskRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Backs the Data & Privacy screen: export/restore/wipe operate on the same TaskRepository/
@@ -18,6 +23,23 @@ import com.nj031.onetask.data.task.TaskRepository
 class DataPrivacyViewModel(application: Application) : AndroidViewModel(application) {
     private val taskRepository = TaskRepository(AppDatabase.getInstance(application).taskDao())
     private val journalRepository = JournalRepository(AppDatabase.getInstance(application).journalNoteDao())
+    private val settingsRepository = GeneralSettingsRepository(application)
+
+    private val _lastBackupAtMillis = MutableStateFlow(settingsRepository.getLastCloudBackupAtMillis())
+    val lastBackupAtMillis: StateFlow<Long?> = _lastBackupAtMillis.asStateFlow()
+
+    /** Pushes every task and note up to Cloud Firestore right now, on top of the app's existing
+     * always-on per-write mirroring - useful right after a bulk restore, or simply to confirm
+     * everything's up to date - then records when it finished. */
+    suspend fun backupNow() {
+        val tasks = taskRepository.getAllTasksOnce()
+        val notes = journalRepository.getAllNotesOnce()
+        CloudBackupRepository.pushAllTasks(tasks)
+        CloudBackupRepository.pushAllNotes(notes)
+        val now = System.currentTimeMillis()
+        settingsRepository.setLastCloudBackupAtMillis(now)
+        _lastBackupAtMillis.value = now
+    }
 
     suspend fun exportDataJson(): String {
         val tasks = taskRepository.getAllTasksOnce()

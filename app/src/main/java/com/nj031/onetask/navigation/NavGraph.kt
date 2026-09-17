@@ -111,6 +111,7 @@ fun OneTaskNavHost(
         // the user is mid-task, not just launching the app fresh.
         activeFocusTaskId != null -> Screen.FocusTimer.createRoute(activeFocusTaskId)
         generalSettingsViewModel.startScreen.value == StartScreen.JOURNAL -> Screen.Journal.route
+        generalSettingsViewModel.startScreen.value == StartScreen.TIMER -> Screen.TimerPlaceholder.route
         else -> Screen.Home.route
     }
 

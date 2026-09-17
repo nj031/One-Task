@@ -176,11 +176,11 @@ val faqCategories: List<FaqCategory> = listOf(
             ),
             FaqQuestion(
                 "Can I export my One Task data?",
-                "Yes. Use Export My Data in Data & Privacy and choose where you want to save your exported data."
+                "Yes. Use Create Local Backup in Data & Privacy and choose where you want to save your exported data."
             ),
             FaqQuestion(
                 "Can I restore my data from a backup?",
-                "Yes. Use Restore Data and select a compatible One Task backup file from your device."
+                "Yes. Use Restore from Local Backup and select a compatible One Task backup file from your device."
             ),
             FaqQuestion(
                 "Is my data safe?",
