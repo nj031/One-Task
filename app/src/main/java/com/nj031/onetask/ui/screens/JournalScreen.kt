@@ -61,7 +61,7 @@ import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.ui.components.OneTaskAddButton
 import com.nj031.onetask.ui.components.OneTaskBottomNav
-import com.nj031.onetask.ui.components.OneTaskCalendarSheet
+import com.nj031.onetask.ui.components.OneTaskCalendarDialog
 import com.nj031.onetask.viewmodel.JournalViewModel
 import java.time.DayOfWeek
 import java.time.Instant
@@ -233,7 +233,7 @@ fun JournalScreen(
     }
 
     if (showDatePicker) {
-        OneTaskCalendarSheet(
+        OneTaskCalendarDialog(
             initialDate = selectedDate,
             markedDates = activeNoteDates,
             maxSelectableDate = LocalDate.now(),

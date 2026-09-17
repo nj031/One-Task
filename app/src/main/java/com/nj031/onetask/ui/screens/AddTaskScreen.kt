@@ -67,7 +67,7 @@ import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskRepeat
 import com.nj031.onetask.ui.components.CompactBottomSheet
-import com.nj031.onetask.ui.components.OneTaskCalendarSheet
+import com.nj031.onetask.ui.components.OneTaskCalendarDialog
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.viewmodel.HomeViewModel
 import java.time.DayOfWeek
@@ -556,7 +556,7 @@ private fun AddTaskScreenContent(
     }
 
     if (showDatePickerSheet) {
-        OneTaskCalendarSheet(
+        OneTaskCalendarDialog(
             initialDate = selectedTaskDate,
             onDateSelected = { selectedTaskDate = it },
             onDismiss = { showDatePickerSheet = false },
