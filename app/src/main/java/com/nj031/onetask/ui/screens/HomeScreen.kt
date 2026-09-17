@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -52,6 +53,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -330,6 +332,7 @@ fun HomeScreen(
                                         dragOffsetY = 0f
                                         viewModel.reorderTasks(selectedTab, finalOrder)
                                     },
+                                    listState = listState,
                                     modifier = if (isDragged) Modifier else Modifier.animateItem()
                                 )
                             }
@@ -632,6 +635,7 @@ private fun HomeTaskListItem(
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
+    listState: LazyListState,
     modifier: Modifier = Modifier
 ) {
     TaskCardWithActionRow(
@@ -676,6 +680,7 @@ private fun HomeTaskListItem(
         onDragStart = onDragStart,
         onDrag = onDrag,
         onDragEnd = onDragEnd,
+        listState = listState,
         modifier = modifier
     )
 }
@@ -705,6 +710,7 @@ private fun TaskCardWithActionRow(
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
+    listState: LazyListState,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -729,7 +735,8 @@ private fun TaskCardWithActionRow(
             dragOffsetY = dragOffsetY,
             onDragStart = onDragStart,
             onDrag = onDrag,
-            onDragEnd = onDragEnd
+            onDragEnd = onDragEnd,
+            listState = listState
         )
     }
 }
@@ -840,11 +847,35 @@ private fun TaskCard(
     dragOffsetY: Float,
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
-    onDragEnd: () -> Unit
+    onDragEnd: () -> Unit,
+    listState: LazyListState
 ) {
     var subtasksExpanded by remember(task.id) { mutableStateOf(false) }
     val isCompleted = task.status == TaskStatus.COMPLETED
     val subtasksInteractive = task.timerMinutes == null
+
+    // When expanding reveals subtasks that would otherwise run off the bottom of the visible
+    // list area (e.g. under the bottom navigation, which the Scaffold already keeps the list's
+    // own viewport clear of), scroll up just enough to bring them into view. Waits a couple of
+    // frames first so this card's newly-expanded height has actually been measured and laid out
+    // before reading listState.layoutInfo - reading it too early would still see the pre-expansion
+    // size. Never fires on collapse, and never scrolls the card's own header off the top: for a
+    // subtask list taller than the whole viewport, this settles with the header pinned at the top
+    // and the rest reachable by the user's own scroll, exactly as before.
+    LaunchedEffect(subtasksExpanded) {
+        if (!subtasksExpanded) return@LaunchedEffect
+        repeat(2) { withFrameNanos {} }
+        val info = listState.layoutInfo
+        val item = info.visibleItemsInfo.find { it.key == task.id } ?: return@LaunchedEffect
+        val overflow = (item.offset + item.size) - info.viewportEndOffset
+        if (overflow > 0) {
+            val maxScroll = (item.offset - info.viewportStartOffset).coerceAtLeast(0)
+            val scrollAmount = overflow.coerceAtMost(maxScroll).toFloat()
+            if (scrollAmount > 0f) {
+                listState.animateScrollBy(scrollAmount)
+            }
+        }
+    }
 
     Card(
         onClick = onClick,
