@@ -1,5 +1,6 @@
 package com.nj031.onetask.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -19,13 +21,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
-import com.nj031.onetask.ui.theme.OneTaskJournalIcon
-import com.nj031.onetask.ui.theme.OneTaskTasksIcon
-import com.nj031.onetask.ui.theme.OneTaskTimerIcon
 
 enum class BottomNavTab { JOURNAL, TASKS, TIMER }
 
@@ -35,6 +35,10 @@ enum class BottomNavTab { JOURNAL, TASKS, TIMER }
  * when navigating between those screens. The middle tab is an intentionally empty placeholder
  * screen - Profile & Settings is reached separately, via the avatar icon in the Tasks/Notes
  * top bars, not through this bottom nav.
+ *
+ * The three tab icons are the exact supplied bitmap assets (R.drawable.ic_nav_*_active /
+ * _inactive, cropped directly from the provided reference sheet with their original colors
+ * intact), not custom-drawn vectors - swapped by [selected] state rather than tinted.
  */
 @Composable
 fun OneTaskBottomNav(
@@ -71,25 +75,45 @@ fun OneTaskBottomNav(
             verticalAlignment = Alignment.CenterVertically
         ) {
             OneTaskBottomNavItem(
-                icon = { OneTaskTasksIcon(active = activeTab == BottomNavTab.TASKS, size = 28.dp) },
+                icon = {
+                    val tasksSelected = activeTab == BottomNavTab.TASKS
+                    Image(
+                        painter = painterResource(
+                            id = if (tasksSelected) R.drawable.ic_nav_tasks_active else R.drawable.ic_nav_tasks_inactive
+                        ),
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp)
+                    )
+                },
                 label = tasksLabel,
                 onClick = onTasksClick,
                 selected = activeTab == BottomNavTab.TASKS
             )
             OneTaskBottomNavItem(
-                icon = { OneTaskTimerIcon(active = activeTab == BottomNavTab.TIMER, size = 28.dp) },
+                icon = {
+                    val timerSelected = activeTab == BottomNavTab.TIMER
+                    Image(
+                        painter = painterResource(
+                            id = if (timerSelected) R.drawable.ic_nav_timer_active else R.drawable.ic_nav_timer_inactive
+                        ),
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp)
+                    )
+                },
                 label = timerLabel,
                 onClick = onTimerClick,
                 selected = activeTab == BottomNavTab.TIMER
             )
             OneTaskBottomNavItem(
                 icon = {
-                    val tint = if (activeTab == BottomNavTab.JOURNAL) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                    OneTaskJournalIcon(tint = tint, size = 28.dp)
+                    val notesSelected = activeTab == BottomNavTab.JOURNAL
+                    Image(
+                        painter = painterResource(
+                            id = if (notesSelected) R.drawable.ic_nav_notes_active else R.drawable.ic_nav_notes_inactive
+                        ),
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp)
+                    )
                 },
                 label = journalLabel,
                 onClick = onJournalClick,
