@@ -115,6 +115,9 @@ fun HomeScreen(
     var selectedTaskId by remember { mutableStateOf<String?>(null) }
     var deleteConfirmTask by remember { mutableStateOf<TaskEntity?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
+    // All is the default per spec - every task for the day is visible until the user narrows
+    // it down, matching what this screen always showed before tabs existed.
+    var selectedTab by remember { mutableStateOf(HomeTaskTab.ALL) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val hapticTick = rememberHapticTick()
@@ -125,8 +128,13 @@ fun HomeScreen(
 
     val selectedDate by viewModel.selectedDate.collectAsState()
     val tasks by viewModel.tasksForSelectedDate.collectAsState()
-    val activeTasks = tasks.filter { it.status != TaskStatus.COMPLETED }
-    val doneTasks = tasks.filter { it.status == TaskStatus.COMPLETED }
+    // A view/filter over the same createdAt-ordered list, never a re-sort - switching tabs or
+    // completing a task never changes a task's position within it.
+    val visibleTasks = when (selectedTab) {
+        HomeTaskTab.ALL -> tasks
+        HomeTaskTab.IN_PROGRESS -> tasks.filter { it.status == TaskStatus.IN_PROGRESS }
+        HomeTaskTab.DONE -> tasks.filter { it.status == TaskStatus.COMPLETED }
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -232,7 +240,13 @@ fun HomeScreen(
                         modifier = Modifier.padding(top = 16.dp)
                     )
 
-                    if (tasks.isEmpty()) {
+                    HomeTaskTabRow(
+                        selectedTab = selectedTab,
+                        onTabSelected = { selectedTab = it },
+                        modifier = Modifier.padding(top = 16.dp)
+                    )
+
+                    if (visibleTasks.isEmpty()) {
                         HomeEmptyState(modifier = Modifier.padding(top = 40.dp))
                     } else {
                         LazyColumn(
@@ -242,46 +256,19 @@ fun HomeScreen(
                                 .padding(top = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            if (activeTasks.isNotEmpty()) {
-                                item(key = "section_in_progress") {
-                                    SectionHeader(text = stringResource(id = R.string.status_in_progress))
-                                }
-                                items(activeTasks, key = { it.id }) { task ->
-                                    HomeTaskListItem(
-                                        task = task,
-                                        selectedTaskId = selectedTaskId,
-                                        onSelect = {
-                                            selectedTaskId = if (selectedTaskId == task.id) null else task.id
-                                        },
-                                        onDeselect = { selectedTaskId = null },
-                                        viewModel = viewModel,
-                                        onOpenFocusTimer = onOpenFocusTimer,
-                                        onEditTaskClick = onEditTaskClick,
-                                        onDeleteConfirmRequired = { deleteConfirmTask = it }
-                                    )
-                                }
-                            }
-                            if (doneTasks.isNotEmpty()) {
-                                item(key = "section_done") {
-                                    SectionHeader(
-                                        text = stringResource(id = R.string.section_done),
-                                        modifier = Modifier.padding(top = if (activeTasks.isNotEmpty()) 8.dp else 0.dp)
-                                    )
-                                }
-                                items(doneTasks, key = { it.id }) { task ->
-                                    HomeTaskListItem(
-                                        task = task,
-                                        selectedTaskId = selectedTaskId,
-                                        onSelect = {
-                                            selectedTaskId = if (selectedTaskId == task.id) null else task.id
-                                        },
-                                        onDeselect = { selectedTaskId = null },
-                                        viewModel = viewModel,
-                                        onOpenFocusTimer = onOpenFocusTimer,
-                                        onEditTaskClick = onEditTaskClick,
-                                        onDeleteConfirmRequired = { deleteConfirmTask = it }
-                                    )
-                                }
+                            items(visibleTasks, key = { it.id }) { task ->
+                                HomeTaskListItem(
+                                    task = task,
+                                    selectedTaskId = selectedTaskId,
+                                    onSelect = {
+                                        selectedTaskId = if (selectedTaskId == task.id) null else task.id
+                                    },
+                                    onDeselect = { selectedTaskId = null },
+                                    viewModel = viewModel,
+                                    onOpenFocusTimer = onOpenFocusTimer,
+                                    onEditTaskClick = onEditTaskClick,
+                                    onDeleteConfirmRequired = { deleteConfirmTask = it }
+                                )
                             }
                         }
                     }
@@ -313,10 +300,10 @@ fun HomeScreen(
 
 /**
  * The Tasks screen's Add Task control - a horizontal rounded bar in the normal page flow,
- * replacing the old circular floating action button. It's a general/global control (not part of
- * the In Progress section below it) and triggers the exact same [onClick] the FAB used to call;
- * only its shape and position changed. Uses the same HomePrimaryBlue/white pairing the old FAB
- * used (OneTaskAddButton's own AddButtonBlue is this same color), so it stays visually consistent
+ * replacing the old circular floating action button. It's a general/global control (not scoped
+ * to any one tab below it) and triggers the exact same [onClick] the FAB used to call; only its
+ * shape and position changed. Uses the same HomePrimaryBlue/white pairing the old FAB used
+ * (OneTaskAddButton's own AddButtonBlue is this same color), so it stays visually consistent
  * with the rest of this screen's existing palette.
  */
 @Composable
@@ -344,15 +331,52 @@ private fun HomeAddTaskBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
+/** The three ways [HomeTaskTabRow] can filter the day's task list - a view over the existing
+ * createdAt-ordered list, never a separate list or a re-sort. */
+private enum class HomeTaskTab { ALL, IN_PROGRESS, DONE }
+
+/**
+ * Replaces the old In Progress/Done section headings with a 3-way filter over the same task
+ * list. IN_PROGRESS and DONE reuse [TaskStatus] exactly as it already worked before this change
+ * (status == IN_PROGRESS covers a running, paused, or finished-but-not-completed timer; status ==
+ * COMPLETED only ever changes via the task's own checkbox) - no new completion/timer logic was
+ * introduced, this is purely a presentation change.
+ */
 @Composable
-private fun SectionHeader(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.Bold,
-        color = HomePrimaryBlue,
-        modifier = modifier.padding(bottom = 4.dp)
+private fun HomeTaskTabRow(
+    selectedTab: HomeTaskTab,
+    onTabSelected: (HomeTaskTab) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val tabs = listOf(
+        HomeTaskTab.ALL to stringResource(id = R.string.tab_all),
+        HomeTaskTab.IN_PROGRESS to stringResource(id = R.string.status_in_progress),
+        HomeTaskTab.DONE to stringResource(id = R.string.section_done)
     )
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(HomeCardWhite)
+            .padding(4.dp)
+    ) {
+        tabs.forEach { (tab, label) ->
+            val isSelected = tab == selectedTab
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = if (isSelected) Color.White else HomeSecondaryText,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(16.dp))
+                    .then(if (isSelected) Modifier.background(HomePrimaryBlue) else Modifier)
+                    .clickable { onTabSelected(tab) }
+                    .padding(vertical = 8.dp)
+            )
+        }
+    }
 }
 
 @Composable

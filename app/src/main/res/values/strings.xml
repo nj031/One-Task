@@ -52,6 +52,7 @@
     <string name="previous_day">Previous day</string>
     <string name="next_day">Next day</string>
     <string name="tasks_completed">%1$d / %2$d tasks completed</string>
+    <string name="tab_all">All</string>
     <string name="status_not_started">Not Started</string>
     <string name="status_in_progress">In Progress</string>
     <string name="status_completed">Completed</string>
