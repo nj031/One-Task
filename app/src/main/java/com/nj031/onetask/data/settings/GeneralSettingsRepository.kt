@@ -82,7 +82,7 @@ class GeneralSettingsRepository(context: Context) {
     }
 
     /** Monday is the default per spec - this only affects calendar/week presentation
-     * (OneTaskCalendarDialog's column order), never task dates or recurring-task logic. */
+     * (OneTaskCalendarSheet's column order), never task dates or recurring-task logic. */
     fun getWeekStartDay(): DayOfWeek {
         val raw = prefs.getString(KEY_WEEK_START_DAY, null) ?: return DayOfWeek.MONDAY
         return runCatching { DayOfWeek.valueOf(raw) }.getOrDefault(DayOfWeek.MONDAY)

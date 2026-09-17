@@ -58,7 +58,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.profile.Gender
 import com.nj031.onetask.data.profile.ProfilePhotoStorage
-import com.nj031.onetask.ui.components.OneTaskCalendarDialog
+import com.nj031.onetask.ui.components.OneTaskCalendarSheet
 import com.nj031.onetask.viewmodel.ProfileViewModel
 import java.time.Instant
 import java.time.LocalDate
@@ -329,12 +329,14 @@ fun EditProfileScreen(
     }
 
     if (showDatePicker) {
-        // Same shared calendar dialog used everywhere else in One Task (Homepage/Journal/Add
-        // Task) - it already uses the One Task palette and already supports capping selectable
-        // dates (maxSelectableDate), which is exactly what "DOB can't be in the future" needs.
-        // dateOfBirth itself stays a UTC-epoch-millis Long (unchanged persistence shape); only
-        // this picker's own input/output is converted to/from LocalDate at the UI boundary.
-        OneTaskCalendarDialog(
+        // Same shared calendar presentation used everywhere else in One Task (Homepage/Journal/
+        // Add Task) instead of Material3's own DatePickerDialog, per the app-wide calendar
+        // consistency requirement - it already uses the One Task palette and already supports
+        // capping selectable dates (maxSelectableDate), which is exactly what "DOB can't be in
+        // the future" needs. dateOfBirth itself stays a UTC-epoch-millis Long (unchanged
+        // persistence shape); only this picker's own input/output is converted to/from
+        // LocalDate at the UI boundary.
+        OneTaskCalendarSheet(
             initialDate = dateOfBirth?.let(::epochMillisToUtcLocalDate) ?: LocalDate.now(),
             onDateSelected = { date -> dateOfBirth = date.utcEpochMillis() },
             onDismiss = { showDatePicker = false },
@@ -449,7 +451,7 @@ private fun formatDate(epochMillis: Long): String =
 
 /** [dateOfBirth] is stored as UTC-epoch millis (its original Material3 DatePicker shape, kept
  * as-is here since only the picker UI changed, not the persisted representation) - these two
- * converters are the sole bridge to/from OneTaskCalendarDialog's LocalDate-based API. */
+ * converters are the sole bridge to/from OneTaskCalendarSheet's LocalDate-based API. */
 private fun epochMillisToUtcLocalDate(epochMillis: Long): LocalDate =
     Instant.ofEpochMilli(epochMillis).atZone(ZoneId.of("UTC")).toLocalDate()
 

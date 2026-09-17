@@ -34,7 +34,7 @@ import java.util.Locale
 
 /**
  * General Settings > Week Starts On. Purely presentational - only reorders the columns
- * OneTaskCalendarDialog renders (see its weekStartDay param); never touches task dates or
+ * OneTaskCalendarSheet renders (see its weekStartDay param); never touches task dates or
  * recurring-task logic. DayOfWeek.values() is already in Monday..Sunday order, matching the
  * exact order the spec lists all 7 days in.
  */

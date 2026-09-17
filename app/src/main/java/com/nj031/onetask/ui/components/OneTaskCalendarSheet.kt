@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,15 +18,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,7 +38,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.nj031.onetask.R
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 import java.time.DayOfWeek
@@ -44,6 +46,7 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 // The single calendar color palette used everywhere a date picker appears in One Task.
 private val CalendarPrimaryBlue = Color(0xFF2F6FD6)
@@ -54,22 +57,16 @@ private val CalendarSecondaryText = Color(0xFF6B7C93)
 
 /**
  * The single calendar/date-picker presentation used everywhere in One Task (Homepage, Journal,
- * Profile's Date of Birth, Add/Edit Task): a centered rounded dialog with a month/year header,
- * prev/next navigation, weekday labels, a date grid, and Cancel/OK actions - matching Android's
- * standard date-picker structure, restyled with the One Task palette instead of a default
- * Material lavender theme. There is no separate large "selected date" display above the grid -
- * the selected day is shown only via its own highlighted cell inside the grid.
- *
- * Tapping a day only previews a selection inside the grid; nothing is applied via
- * [onDateSelected] until the user taps OK, and the preview is discarded entirely on Cancel or on
- * dismissing the dialog any other way (back press/tapping outside). [markedDates] draws a small
- * dot under a day (e.g. Journal's "has notes" indicator); [maxSelectableDate], when set, dims and
- * disables any day after it (e.g. Journal/Profile disallow picking a future date).
- * [weekStartDay] only reorders which column each weekday lands in (General Settings > Week
- * Starts On) - it never changes a date's actual value.
+ * Add/Edit Task): a compact floating bottom panel. Tapping a day selects it and closes the
+ * sheet immediately - there is no separate confirm step, matching the Homepage calendar this
+ * was modeled on. [markedDates] draws a small dot under a day (e.g. Journal's "has notes"
+ * indicator); [maxSelectableDate], when set, dims and disables any day after it (e.g. Journal
+ * disallows picking a future date). [weekStartDay] only reorders which column each weekday
+ * lands in (General Settings > Week Starts On) - it never changes a date's actual value.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OneTaskCalendarDialog(
+fun OneTaskCalendarSheet(
     initialDate: LocalDate,
     onDateSelected: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
@@ -77,85 +74,71 @@ fun OneTaskCalendarDialog(
     maxSelectableDate: LocalDate? = null,
     weekStartDay: DayOfWeek = DayOfWeek.MONDAY
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
     var visibleMonth by remember { mutableStateOf(YearMonth.from(initialDate)) }
-    var pendingDate by remember { mutableStateOf(initialDate) }
     val hapticTick = rememberHapticTick()
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = CalendarCardWhite,
-            shadowElevation = 6.dp
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 16.dp)
+    fun dismiss() {
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            if (!sheetState.isVisible) onDismiss()
+        }
+    }
+
+    CompactBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = CalendarCardWhite
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CalendarNavButton(
-                        icon = Icons.Filled.KeyboardArrowLeft,
-                        contentDescription = stringResource(id = R.string.previous_month),
-                        onClick = { visibleMonth = visibleMonth.minusMonths(1) }
-                    )
-                    Text(
-                        text = visibleMonth.format(calendarMonthYearFormatter),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = CalendarPrimaryBlue
-                    )
-                    CalendarNavButton(
-                        icon = Icons.Filled.KeyboardArrowRight,
-                        contentDescription = stringResource(id = R.string.next_month),
-                        onClick = { visibleMonth = visibleMonth.plusMonths(1) }
-                    )
-                }
-
-                CalendarWeekdayHeader(weekStartDay = weekStartDay)
-
-                CalendarMonthGrid(
-                    visibleMonth = visibleMonth,
-                    selectedDate = pendingDate,
-                    markedDates = markedDates,
-                    maxSelectableDate = maxSelectableDate,
-                    weekStartDay = weekStartDay,
-                    onDayClick = { date ->
-                        hapticTick()
-                        pendingDate = date
-                    }
+                CalendarNavButton(
+                    icon = Icons.Filled.KeyboardArrowLeft,
+                    contentDescription = stringResource(id = R.string.previous_month),
+                    onClick = { visibleMonth = visibleMonth.minusMonths(1) }
                 )
+                Text(
+                    text = visibleMonth.format(calendarMonthYearFormatter),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = CalendarPrimaryBlue
+                )
+                CalendarNavButton(
+                    icon = Icons.Filled.KeyboardArrowRight,
+                    contentDescription = stringResource(id = R.string.next_month),
+                    onClick = { visibleMonth = visibleMonth.plusMonths(1) }
+                )
+            }
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(
-                            text = stringResource(id = R.string.cancel),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = CalendarSecondaryText
-                        )
-                    }
-                    TextButton(
-                        onClick = {
-                            onDateSelected(pendingDate)
-                            onDismiss()
-                        }
-                    ) {
-                        Text(
-                            text = stringResource(id = R.string.date_picker_ok),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = CalendarPrimaryBlue
-                        )
-                    }
+            CalendarWeekdayHeader(weekStartDay = weekStartDay)
+
+            CalendarMonthGrid(
+                visibleMonth = visibleMonth,
+                selectedDate = initialDate,
+                markedDates = markedDates,
+                maxSelectableDate = maxSelectableDate,
+                weekStartDay = weekStartDay,
+                onDayClick = { date ->
+                    hapticTick()
+                    onDateSelected(date)
+                    dismiss()
                 }
+            )
+
+            TextButton(
+                onClick = ::dismiss,
+                contentPadding = PaddingValues(vertical = 6.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = stringResource(id = R.string.close),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = CalendarSecondaryText
+                )
             }
         }
     }
@@ -174,7 +157,7 @@ private fun CalendarNavButton(
 ) {
     Box(
         modifier = Modifier
-            .size(32.dp)
+            .size(28.dp)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -182,7 +165,7 @@ private fun CalendarNavButton(
             imageVector = icon,
             contentDescription = contentDescription,
             tint = CalendarPrimaryBlue,
-            modifier = Modifier.size(22.dp)
+            modifier = Modifier.size(20.dp)
         )
     }
 }
@@ -197,7 +180,7 @@ private fun CalendarWeekdayHeader(weekStartDay: DayOfWeek) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 12.dp)
+            .padding(top = 4.dp)
     ) {
         labels.forEach { label ->
             Text(
@@ -231,11 +214,7 @@ private fun CalendarMonthGrid(
     val firstDayOffset = (firstDayOfMonth.value - weekStartDay.value + 7) % 7
     val totalWeeks = (firstDayOffset + daysInMonth + 6) / 7
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp)
-    ) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         for (week in 0 until totalWeeks) {
             Row(modifier = Modifier.fillMaxWidth()) {
                 for (dayOfWeek in 0 until 7) {
@@ -256,9 +235,6 @@ private fun CalendarMonthGrid(
     }
 }
 
-/** A circular selected-date treatment (matching Android's standard date-picker convention)
- * instead of a filled rounded-square highlight - also consistent with the circular
- * checkbox/subtask indicators already used elsewhere in One Task (HomeScreen, FocusTimerScreen). */
 @Composable
 private fun CalendarDayCell(
     date: LocalDate?,
@@ -270,8 +246,12 @@ private fun CalendarDayCell(
 ) {
     Box(
         modifier = modifier
-            .aspectRatio(1f)
-            .padding(2.dp)
+            // Slightly wider than tall: the touch-target WIDTH (and the date number's own
+            // size) stays exactly what it was, but each row takes noticeably less vertical
+            // space - this is the main lever for the grid's overall height, since there's no
+            // separate per-row gap to trim (cells already sit edge-to-edge).
+            .aspectRatio(1.3f)
+            .padding(1.dp)
             .then(if (date != null && !isDisabled) Modifier.clickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center
     ) {
@@ -279,11 +259,12 @@ private fun CalendarDayCell(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(1.dp)
                     .then(
                         if (isSelected) {
                             Modifier
-                                .background(CalendarHighlightBlue, CircleShape)
-                                .border(1.5.dp, CalendarPrimaryBlue, CircleShape)
+                                .background(CalendarHighlightBlue, RoundedCornerShape(8.dp))
+                                .border(1.dp, CalendarPrimaryBlue, RoundedCornerShape(8.dp))
                         } else {
                             Modifier
                         }
@@ -293,7 +274,7 @@ private fun CalendarDayCell(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text = date.dayOfMonth.toString(),
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                         color = when {
                             isDisabled -> CalendarSecondaryText.copy(alpha = 0.4f)

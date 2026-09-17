@@ -70,7 +70,7 @@ import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.ui.components.OneTaskAddButton
 import com.nj031.onetask.ui.components.OneTaskBottomNav
-import com.nj031.onetask.ui.components.OneTaskCalendarDialog
+import com.nj031.onetask.ui.components.OneTaskCalendarSheet
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.ui.theme.OneTaskCalendarIcon
 import com.nj031.onetask.ui.theme.OneTaskHamburgerIcon
@@ -288,7 +288,7 @@ fun HomeScreen(
     }
 
     if (showDatePicker) {
-        OneTaskCalendarDialog(
+        OneTaskCalendarSheet(
             initialDate = selectedDate,
             onDateSelected = { viewModel.selectDate(it) },
             onDismiss = { showDatePicker = false },

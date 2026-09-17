@@ -56,6 +56,7 @@
     <string name="status_in_progress">In Progress</string>
     <string name="status_completed">Completed</string>
     <string name="section_done">Done</string>
+    <string name="close">Close</string>
     <string name="timer_minutes_format">%1$d min</string>
     <string name="custom_timer_minutes_hint">Minutes</string>
     <string name="remove">Remove</string>
