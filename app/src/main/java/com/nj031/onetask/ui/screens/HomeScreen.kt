@@ -251,7 +251,9 @@ fun HomeScreen(
                                     HomeTaskListItem(
                                         task = task,
                                         selectedTaskId = selectedTaskId,
-                                        onSelect = { selectedTaskId = task.id },
+                                        onSelect = {
+                                            selectedTaskId = if (selectedTaskId == task.id) null else task.id
+                                        },
                                         onDeselect = { selectedTaskId = null },
                                         viewModel = viewModel,
                                         onOpenFocusTimer = onOpenFocusTimer,
@@ -271,7 +273,9 @@ fun HomeScreen(
                                     HomeTaskListItem(
                                         task = task,
                                         selectedTaskId = selectedTaskId,
-                                        onSelect = { selectedTaskId = task.id },
+                                        onSelect = {
+                                            selectedTaskId = if (selectedTaskId == task.id) null else task.id
+                                        },
                                         onDeselect = { selectedTaskId = null },
                                         viewModel = viewModel,
                                         onOpenFocusTimer = onOpenFocusTimer,
