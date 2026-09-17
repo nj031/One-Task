@@ -122,6 +122,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.addCustomTag(name) }
     }
 
+    fun deleteCustomTag(name: String) {
+        viewModelScope.launch { repository.deleteCustomTag(name) }
+    }
+
     fun toggleSubtask(task: TaskEntity, subtaskId: String) {
         viewModelScope.launch { repository.toggleSubtask(task, subtaskId) }
     }

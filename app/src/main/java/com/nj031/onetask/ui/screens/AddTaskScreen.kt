@@ -193,6 +193,12 @@ private fun AddTaskScreenContent(
     var selectedRepeat by remember { mutableStateOf(existingTask?.repeat ?: TaskRepeat.NONE) }
     var selectedTag by remember { mutableStateOf(initialTag) }
     var showAddTagSheet by remember { mutableStateOf(false) }
+    val defaultTagNames = listOf(
+        stringResource(id = R.string.tag_personal),
+        stringResource(id = R.string.tag_study),
+        stringResource(id = R.string.tag_health),
+        stringResource(id = R.string.tag_work)
+    )
 
     var postponeIfIncomplete by remember {
         mutableStateOf(initialPostponeIfIncomplete)
@@ -267,29 +273,41 @@ private fun AddTaskScreenContent(
                     label = stringResource(id = R.string.tag_label),
                     modifier = Modifier.padding(top = 26.dp)
                 ) {
-                    val defaultTags = listOf(
-                        stringResource(id = R.string.tag_personal),
-                        stringResource(id = R.string.tag_study),
-                        stringResource(id = R.string.tag_health),
-                        stringResource(id = R.string.tag_work)
-                    )
-                    val allTags = (defaultTags + customTags).distinct()
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        allTags.forEach { tag ->
+                    Column {
+                        TagGroupLabel(text = stringResource(id = R.string.default_tags_group_label))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            defaultTagNames.forEach { tag ->
+                                SelectionChip(
+                                    text = tag,
+                                    selected = tag == selectedTag,
+                                    onClick = { selectedTag = if (selectedTag == tag) null else tag }
+                                )
+                            }
+                        }
+                        TagGroupLabel(
+                            text = stringResource(id = R.string.custom_tags_section),
+                            topPadding = 14.dp
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            customTags.forEach { tag ->
+                                SelectionChip(
+                                    text = tag,
+                                    selected = tag == selectedTag,
+                                    onClick = { selectedTag = if (selectedTag == tag) null else tag }
+                                )
+                            }
                             SelectionChip(
-                                text = tag,
-                                selected = tag == selectedTag,
-                                onClick = { selectedTag = if (selectedTag == tag) null else tag }
+                                text = stringResource(id = R.string.option_custom),
+                                selected = false,
+                                onClick = { showAddTagSheet = true }
                             )
                         }
-                        SelectionChip(
-                            text = stringResource(id = R.string.option_custom),
-                            selected = false,
-                            onClick = { showAddTagSheet = true }
-                        )
                     }
                 }
 
@@ -548,6 +566,7 @@ private fun AddTaskScreenContent(
 
     if (showAddTagSheet) {
         AddTagSheet(
+            existingTags = defaultTagNames + customTags,
             onAdd = { name ->
                 onAddCustomTag(name)
                 selectedTag = name
@@ -615,6 +634,18 @@ private fun RowLabel(text: String, topPadding: Dp = 0.dp) {
     )
 }
 
+/** Small header above the Default Tags / Custom Tags chip groups in the Tag row. */
+@Composable
+private fun TagGroupLabel(text: String, topPadding: Dp = 0.dp) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = topPadding, bottom = 6.dp)
+    )
+}
+
 /** A pill-shaped selectable option used by the Tag/Date/Repeat/Timer rows - light-blue fill
  * with bold primary-colored text when selected, plain white otherwise, no borders. */
 @Composable
@@ -678,10 +709,13 @@ private fun taskFieldColors() = TextFieldDefaults.colors(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddTagSheet(onAdd: (String) -> Unit, onDismiss: () -> Unit) {
+private fun AddTagSheet(existingTags: List<String>, onAdd: (String) -> Unit, onDismiss: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     var tagName by remember { mutableStateOf("") }
+    val trimmedName = tagName.trim()
+    val isDuplicate = trimmedName.isNotEmpty() &&
+        existingTags.any { it.equals(trimmedName, ignoreCase = true) }
 
     fun dismissThen(action: () -> Unit) {
         scope.launch { sheetState.hide() }.invokeOnCompletion {
@@ -710,14 +744,23 @@ private fun AddTagSheet(onAdd: (String) -> Unit, onDismiss: () -> Unit) {
                 onValueChange = { tagName = it },
                 placeholder = { Text(stringResource(id = R.string.tag_label)) },
                 singleLine = true,
+                isError = isDuplicate,
+                supportingText = if (isDuplicate) {
+                    {
+                        Text(
+                            text = stringResource(id = R.string.custom_tag_error_duplicate),
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                } else null,
                 textStyle = MaterialTheme.typography.bodyMedium,
                 shape = RoundedCornerShape(12.dp),
                 colors = taskFieldColors(),
                 modifier = Modifier.fillMaxWidth()
             )
             Button(
-                onClick = { dismissThen { onAdd(tagName.trim()) } },
-                enabled = tagName.isNotBlank(),
+                onClick = { dismissThen { onAdd(trimmedName) } },
+                enabled = trimmedName.isNotEmpty() && !isDuplicate,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 10.dp)

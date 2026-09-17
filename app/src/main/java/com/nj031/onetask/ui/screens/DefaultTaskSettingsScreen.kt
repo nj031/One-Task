@@ -1,5 +1,7 @@
 package com.nj031.onetask.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -8,12 +10,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -22,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -31,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -57,9 +66,12 @@ fun DefaultTaskSettingsScreen(
     defaultTimerMinutes: Int?,
     defaultTag: String?,
     defaultPostponeIfIncomplete: Boolean,
+    customTags: List<String>,
     onDefaultTimerMinutesChange: (Int?) -> Unit,
     onDefaultTagChange: (String?) -> Unit,
     onDefaultPostponeIfIncompleteChange: (Boolean) -> Unit,
+    onAddCustomTag: (String) -> Unit,
+    onDeleteCustomTag: (String) -> Unit,
     onBackClick: () -> Unit
 ) {
     val isInitialCustomTimer = defaultTimerMinutes != null && defaultTimerMinutes !in TIMER_PRESETS
@@ -67,7 +79,15 @@ fun DefaultTaskSettingsScreen(
     var customTimerText by remember {
         mutableStateOf(if (isInitialCustomTimer) defaultTimerMinutes.toString() else "")
     }
+    var showAddCustomTagDialog by remember { mutableStateOf(false) }
+    var tagPendingDeletion by remember { mutableStateOf<String?>(null) }
     val hapticTick = rememberHapticTick()
+    val builtInTagNames = listOf(
+        stringResource(id = R.string.tag_personal),
+        stringResource(id = R.string.tag_work),
+        stringResource(id = R.string.tag_study),
+        stringResource(id = R.string.tag_health)
+    )
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
         Column(
@@ -165,18 +185,32 @@ fun DefaultTaskSettingsScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf(
-                    stringResource(id = R.string.tag_personal),
-                    stringResource(id = R.string.tag_work),
-                    stringResource(id = R.string.tag_study),
-                    stringResource(id = R.string.tag_health)
-                ).forEach { tag ->
+                builtInTagNames.forEach { tag ->
                     DefaultSettingChip(
                         text = tag,
                         selected = tag == defaultTag,
                         onClick = { onDefaultTagChange(if (defaultTag == tag) null else tag) }
                     )
                 }
+            }
+
+            // Built-in tags (above) can only be selected as the Default Tag, never deleted.
+            // Custom tags (below) are user-created, permanently persisted (Room, not in-memory),
+            // and deletable - deleting one only removes it from this list/from Add Task's Tag
+            // picker going forward; it never touches any task that already uses it (see
+            // TaskRepository.deleteCustomTag).
+            DefaultSettingSectionLabel(
+                text = stringResource(id = R.string.custom_tags_section),
+                topPadding = 24.dp
+            )
+            Column {
+                customTags.forEach { tag ->
+                    CustomTagRow(
+                        name = tag,
+                        onDeleteClick = { tagPendingDeletion = tag }
+                    )
+                }
+                AddCustomTagButton(onClick = { showAddCustomTagDialog = true })
             }
 
             DefaultSettingSectionLabel(
@@ -204,6 +238,152 @@ fun DefaultTaskSettingsScreen(
             }
         }
     }
+
+    if (showAddCustomTagDialog) {
+        AddCustomTagDialog(
+            existingNames = builtInTagNames,
+            customTags = customTags,
+            onAdd = { name ->
+                onAddCustomTag(name)
+                showAddCustomTagDialog = false
+            },
+            onDismiss = { showAddCustomTagDialog = false }
+        )
+    }
+
+    val tagToDelete = tagPendingDeletion
+    if (tagToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { tagPendingDeletion = null },
+            title = { Text(text = stringResource(id = R.string.delete_custom_tag_confirm_title, tagToDelete)) },
+            text = { Text(text = stringResource(id = R.string.delete_custom_tag_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        hapticTick()
+                        onDeleteCustomTag(tagToDelete)
+                        tagPendingDeletion = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(text = stringResource(id = R.string.delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { tagPendingDeletion = null }) {
+                    Text(text = stringResource(id = R.string.cancel))
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun CustomTagRow(name: String, onDeleteClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.weight(1f)
+        )
+        IconButton(onClick = onDeleteClick) {
+            Icon(
+                imageVector = Icons.Filled.Delete,
+                contentDescription = stringResource(id = R.string.delete),
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+/** Same small "+ label" pill style AddTaskScreen's AddChipButton (e.g. "+ Add Subtask") uses. */
+@Composable
+private fun AddCustomTagButton(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .padding(top = 4.dp)
+            .clip(RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Add,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(16.dp)
+        )
+        Text(
+            text = stringResource(id = R.string.add_custom_tag_button),
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun AddCustomTagDialog(
+    existingNames: List<String>,
+    customTags: List<String>,
+    onAdd: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var newTagName by remember { mutableStateOf("") }
+    val trimmedName = newTagName.trim()
+    val isDuplicate = trimmedName.isNotEmpty() &&
+        (existingNames + customTags).any { it.equals(trimmedName, ignoreCase = true) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(id = R.string.add_custom_tag_button)) },
+        text = {
+            TextField(
+                value = newTagName,
+                onValueChange = { newTagName = it },
+                placeholder = { Text(stringResource(id = R.string.custom_tag_name_hint)) },
+                singleLine = true,
+                isError = isDuplicate,
+                supportingText = if (isDuplicate) {
+                    {
+                        Text(
+                            text = stringResource(id = R.string.custom_tag_error_duplicate),
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                } else null,
+                shape = RoundedCornerShape(12.dp),
+                colors = TextFieldDefaults.colors(
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedIndicatorColor = MaterialTheme.colorScheme.outline,
+                    focusedIndicatorColor = MaterialTheme.colorScheme.primary
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onAdd(trimmedName) },
+                enabled = trimmedName.isNotEmpty() && !isDuplicate
+            ) {
+                Text(text = stringResource(id = R.string.add))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.cancel))
+            }
+        }
+    )
 }
 
 @Composable

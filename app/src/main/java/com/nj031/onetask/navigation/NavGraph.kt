@@ -454,13 +454,17 @@ fun OneTaskNavHost(
             val defaultTimerMinutes by generalSettingsViewModel.defaultTimerMinutes.collectAsState()
             val defaultTag by generalSettingsViewModel.defaultTag.collectAsState()
             val defaultPostponeIfIncomplete by generalSettingsViewModel.defaultPostponeIfIncomplete.collectAsState()
+            val customTags by homeViewModel.customTags.collectAsState()
             DefaultTaskSettingsScreen(
                 defaultTimerMinutes = defaultTimerMinutes,
                 defaultTag = defaultTag,
                 defaultPostponeIfIncomplete = defaultPostponeIfIncomplete,
+                customTags = customTags,
                 onDefaultTimerMinutesChange = generalSettingsViewModel::setDefaultTimerMinutes,
                 onDefaultTagChange = generalSettingsViewModel::setDefaultTag,
                 onDefaultPostponeIfIncompleteChange = generalSettingsViewModel::setDefaultPostponeIfIncomplete,
+                onAddCustomTag = homeViewModel::addCustomTag,
+                onDeleteCustomTag = homeViewModel::deleteCustomTag,
                 onBackClick = { navController.popBackStack() }
             )
         }
