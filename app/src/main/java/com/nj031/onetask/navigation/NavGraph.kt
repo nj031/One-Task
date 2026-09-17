@@ -17,6 +17,7 @@ import androidx.navigation.navArgument
 import com.nj031.onetask.R
 import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.feedback.FeedbackType
+import com.nj031.onetask.data.journal.JournalNoteType
 import com.nj031.onetask.data.settings.StartScreen
 import com.nj031.onetask.ui.haptics.LocalHapticFeedbackEnabled
 import com.nj031.onetask.ui.screens.AboutOneTaskScreen
@@ -37,9 +38,9 @@ import com.nj031.onetask.ui.screens.HelpFaqCategoryScreen
 import com.nj031.onetask.ui.screens.HelpFaqScreen
 import com.nj031.onetask.ui.screens.HelpFeedbackScreen
 import com.nj031.onetask.ui.screens.HomeScreen
-import com.nj031.onetask.ui.screens.JournalScreen
 import com.nj031.onetask.ui.screens.LoginScreen
 import com.nj031.onetask.ui.screens.NoteEditorScreen
+import com.nj031.onetask.ui.screens.NotesScreen
 import com.nj031.onetask.ui.screens.NotificationsSettingsScreen
 import com.nj031.onetask.ui.screens.PrivacyPolicyScreen
 import com.nj031.onetask.ui.screens.ProfileScreen
@@ -344,11 +345,12 @@ fun OneTaskNavHost(
             )
         }
         composable(Screen.Journal.route) {
-            val weekStartDay by generalSettingsViewModel.weekStartDay.collectAsState()
             val timeFormat by generalSettingsViewModel.timeFormat.collectAsState()
-            JournalScreen(
+            NotesScreen(
                 viewModel = journalViewModel,
-                onAddNoteClick = { navController.navigate(Screen.NoteEditor.createRoute()) },
+                onAddNoteClick = { noteType ->
+                    navController.navigate(Screen.NoteEditor.createRoute(noteType = noteType.name))
+                },
                 onNoteClick = { noteId ->
                     navController.navigate(Screen.NoteEditor.createRoute(noteId))
                 },
@@ -367,7 +369,6 @@ fun OneTaskNavHost(
                         popUpTo(0)
                     }
                 },
-                weekStartDay = weekStartDay,
                 timeFormat = timeFormat
             )
         }
@@ -574,12 +575,19 @@ fun OneTaskNavHost(
                     type = NavType.StringType
                     nullable = true
                     defaultValue = null
+                },
+                navArgument("noteType") {
+                    type = NavType.StringType
+                    defaultValue = JournalNoteType.TEXT.name
                 }
             )
         ) { backStackEntry ->
+            val noteTypeArg = backStackEntry.arguments?.getString("noteType")
             NoteEditorScreen(
                 viewModel = journalViewModel,
                 noteId = backStackEntry.arguments?.getString("noteId"),
+                noteType = runCatching { JournalNoteType.valueOf(noteTypeArg ?: "TEXT") }
+                    .getOrDefault(JournalNoteType.TEXT),
                 onDone = { navController.popBackStack() }
             )
         }

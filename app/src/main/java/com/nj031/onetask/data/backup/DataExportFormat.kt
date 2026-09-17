@@ -1,7 +1,9 @@
 package com.nj031.onetask.data.backup
 
+import com.nj031.onetask.data.journal.ChecklistItem
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.JournalNoteStatus
+import com.nj031.onetask.data.journal.JournalNoteType
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskRepeat
@@ -112,18 +114,52 @@ private fun JournalNoteEntity.toJson(): JSONObject = JSONObject().apply {
     put("id", id)
     put("title", title)
     put("content", content)
+    put("noteType", noteType.name)
+    put(
+        "checklistItems",
+        JSONArray(
+            checklistItems.map { item ->
+                JSONObject().apply {
+                    put("id", item.id)
+                    put("text", item.text)
+                    put("checked", item.checked)
+                }
+            }
+        )
+    )
     put("journalDate", journalDate)
     put("createdAt", createdAt)
     put("updatedAt", updatedAt)
     put("status", status.name)
 }
 
-private fun JSONObject.toNoteEntity(): JournalNoteEntity = JournalNoteEntity(
-    id = getString("id"),
-    title = getString("title"),
-    content = getString("content"),
-    journalDate = getLong("journalDate"),
-    createdAt = getLong("createdAt"),
-    updatedAt = getLong("updatedAt"),
-    status = runCatching { JournalNoteStatus.valueOf(getString("status")) }.getOrDefault(JournalNoteStatus.ACTIVE)
-)
+// noteType/checklistItems are absent from any backup file written before the Notes redesign -
+// default to a plain text note (TEXT, no checklist items) so restoring an older backup still
+// brings those notes back intact.
+private fun JSONObject.toNoteEntity(): JournalNoteEntity {
+    val checklistArray = optJSONArray("checklistItems")
+    val checklistItems = if (checklistArray != null) {
+        (0 until checklistArray.length()).map { index ->
+            val entry = checklistArray.getJSONObject(index)
+            ChecklistItem(
+                id = entry.getString("id"),
+                text = entry.getString("text"),
+                checked = entry.optBoolean("checked", false)
+            )
+        }
+    } else {
+        emptyList()
+    }
+    return JournalNoteEntity(
+        id = getString("id"),
+        title = getString("title"),
+        content = getString("content"),
+        noteType = runCatching { JournalNoteType.valueOf(optString("noteType", JournalNoteType.TEXT.name)) }
+            .getOrDefault(JournalNoteType.TEXT),
+        checklistItems = checklistItems,
+        journalDate = getLong("journalDate"),
+        createdAt = getLong("createdAt"),
+        updatedAt = getLong("updatedAt"),
+        status = runCatching { JournalNoteStatus.valueOf(getString("status")) }.getOrDefault(JournalNoteStatus.ACTIVE)
+    )
+}

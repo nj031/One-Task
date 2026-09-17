@@ -41,7 +41,7 @@
     <string name="home_tagline">Less clutter. More life.</string>
     <string name="home_empty_title">A calmer day starts here</string>
     <string name="home_empty_subtitle">Tap the + button to add a task or write in your journal.</string>
-    <string name="nav_journal">Journal</string>
+    <string name="nav_journal">Notes</string>
     <string name="nav_tasks">Tasks</string>
     <string name="nav_profile">Profile</string>
     <string name="menu">Menu</string>
@@ -307,12 +307,22 @@
     <string name="upgrade_to_pro_button">Upgrade to Pro</string>
     <string name="upgrade_to_pro_coming_soon">Pro purchases aren\'t available yet - stay tuned!</string>
 
-    <string name="journal_title">Journal</string>
+    <string name="journal_title">Notes</string>
     <string name="add_note">Add note</string>
     <string name="no_notes_yet">No notes yet. Tap + to add one.</string>
     <string name="date_picker_ok">OK</string>
 
-    <string name="note_editor_title">Note</string>
+    <string name="notes_search_placeholder">Search your notes…</string>
+    <string name="notes_add_button">Add</string>
+    <string name="notes_list_heading">Notes</string>
+    <string name="notes_view_list">List View</string>
+    <string name="notes_view_card">Card View</string>
+    <string name="notes_add_choice_title">Add Note</string>
+    <string name="note_type_text">Text</string>
+    <string name="note_type_checklist">Checklist</string>
+    <string name="checklist_item_placeholder">List item</string>
+    <string name="add_checklist_item">Add item</string>
+
     <string name="note_title_placeholder">Title</string>
     <string name="note_content_placeholder">Write your note…</string>
     <string name="save">Save</string>
@@ -320,8 +330,6 @@
 
     <string name="archive">Archive</string>
     <string name="delete">Delete</string>
-    <string name="delete_note_title">Delete this note?</string>
-    <string name="delete_note_message">This note will be moved to Recycle Bin.</string>
 
     <string name="archive_title">Archive</string>
     <string name="no_archived_notes">No archived notes.</string>

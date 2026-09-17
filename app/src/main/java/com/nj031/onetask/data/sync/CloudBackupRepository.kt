@@ -3,8 +3,10 @@ package com.nj031.onetask.data.sync
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import com.nj031.onetask.data.journal.ChecklistItem
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.JournalNoteStatus
+import com.nj031.onetask.data.journal.JournalNoteType
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskRepeat
@@ -123,22 +125,35 @@ private fun DocumentSnapshot.toTaskEntity(): TaskEntity? {
 private fun JournalNoteEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "title" to title,
     "content" to content,
+    "noteType" to noteType.name,
+    "checklistItems" to checklistItems.map { mapOf("id" to it.id, "text" to it.text, "checked" to it.checked) },
     "journalDate" to journalDate,
     "createdAt" to createdAt,
     "updatedAt" to updatedAt,
     "status" to status.name
 )
 
+@Suppress("UNCHECKED_CAST")
 private fun DocumentSnapshot.toJournalNoteEntity(): JournalNoteEntity? {
     val title = getString("title") ?: return null
     val content = getString("content") ?: return null
     val journalDate = getLong("journalDate") ?: return null
     val createdAt = getLong("createdAt") ?: return null
     val updatedAt = getLong("updatedAt") ?: return null
+    // Both fields are absent on any note document written before the Notes redesign - default
+    // to a plain text note (TEXT, no checklist items) so those existing notes still load intact.
+    val checklistItemsRaw = get("checklistItems") as? List<Map<String, Any?>> ?: emptyList()
     return JournalNoteEntity(
         id = id,
         title = title,
         content = content,
+        noteType = getString("noteType")?.let { runCatching { JournalNoteType.valueOf(it) }.getOrNull() }
+            ?: JournalNoteType.TEXT,
+        checklistItems = checklistItemsRaw.mapNotNull { raw ->
+            val itemId = raw["id"] as? String ?: return@mapNotNull null
+            val text = raw["text"] as? String ?: return@mapNotNull null
+            ChecklistItem(id = itemId, text = text, checked = raw["checked"] as? Boolean ?: false)
+        },
         journalDate = journalDate,
         createdAt = createdAt,
         updatedAt = updatedAt,

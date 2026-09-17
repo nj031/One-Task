@@ -1,6 +1,7 @@
 package com.nj031.onetask.data.journal
 
 import com.nj031.onetask.data.sync.CloudBackupRepository
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 
 class JournalRepository(private val dao: JournalNoteDao) {
@@ -13,17 +14,23 @@ class JournalRepository(private val dao: JournalNoteDao) {
     fun observeTrashedNotes(): Flow<List<JournalNoteEntity>> =
         dao.getByStatus(JournalNoteStatus.TRASHED)
 
-    fun observeActiveNoteDates(): Flow<List<Long>> =
-        dao.getDatesByStatus(JournalNoteStatus.ACTIVE)
-
     suspend fun getAllNotesOnce(): List<JournalNoteEntity> = dao.getAllOnce()
 
-    suspend fun createNote(title: String, content: String, journalDate: Long) {
+    suspend fun createNote(
+        title: String,
+        content: String,
+        noteType: JournalNoteType,
+        checklistItems: List<ChecklistItem>
+    ) {
         val now = System.currentTimeMillis()
         val note = JournalNoteEntity(
             title = title,
             content = content,
-            journalDate = journalDate,
+            noteType = noteType,
+            checklistItems = checklistItems,
+            // The Notes screen no longer has a date concept of its own; journalDate is kept on
+            // the entity only for backward compatibility with rows saved before this redesign.
+            journalDate = LocalDate.now().toEpochDay(),
             createdAt = now,
             updatedAt = now
         )
@@ -31,10 +38,16 @@ class JournalRepository(private val dao: JournalNoteDao) {
         CloudBackupRepository.pushNote(note)
     }
 
-    suspend fun updateNote(note: JournalNoteEntity, title: String, content: String) {
+    suspend fun updateNote(
+        note: JournalNoteEntity,
+        title: String,
+        content: String,
+        checklistItems: List<ChecklistItem>
+    ) {
         val updated = note.copy(
             title = title,
             content = content,
+            checklistItems = checklistItems,
             updatedAt = System.currentTimeMillis()
         )
         dao.update(updated)

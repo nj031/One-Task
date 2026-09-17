@@ -14,9 +14,11 @@ sealed class Screen(val route: String) {
     data object EditProfile : Screen("edit_profile")
     data object Archive : Screen("archive")
     data object RecycleBin : Screen("recycle_bin")
-    data object NoteEditor : Screen("note_editor?noteId={noteId}") {
-        fun createRoute(noteId: String? = null): String =
-            if (noteId != null) "note_editor?noteId=$noteId" else "note_editor"
+    data object NoteEditor : Screen("note_editor?noteId={noteId}&noteType={noteType}") {
+        fun createRoute(noteId: String? = null, noteType: String = "TEXT"): String {
+            val idPart = if (noteId != null) "noteId=$noteId&" else ""
+            return "note_editor?${idPart}noteType=$noteType"
+        }
     }
     data object FocusTimer : Screen("focus_timer/{taskId}") {
         fun createRoute(taskId: String): String = "focus_timer/$taskId"

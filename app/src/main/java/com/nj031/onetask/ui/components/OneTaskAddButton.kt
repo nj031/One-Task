@@ -14,9 +14,8 @@ import com.nj031.onetask.ui.theme.OneTaskAddIcon
 private val AddButtonBlue = Color(0xFF2F6FD6)
 
 /**
- * The single "Add (+)" floating action button used by both the Homepage (add task) and
- * Journal (add note) screens - circular, solid blue, white plus glyph. Kept as one shared
- * composable so the two screens can never visually drift apart again.
+ * The Homepage's "Add (+)" floating action button (add task) - circular, solid blue, white
+ * plus glyph.
  */
 @Composable
 fun OneTaskAddButton(onClick: () -> Unit, contentDescription: String) {
