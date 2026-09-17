@@ -53,8 +53,8 @@ import java.util.Locale
 
 /**
  * The Tasks homepage's own calendar entry point: a centered dialog (not the compact bottom-sheet
- * [OneTaskCalendarSheet] Journal/Add Task still use - this is deliberately a separate component
- * so those two screens are completely unaffected). Every color comes from
+ * [OneTaskCalendarSheet] Add Task still uses - this is deliberately a separate component so that
+ * screen is completely unaffected). Every color comes from
  * [MaterialTheme.colorScheme] rather than a hardcoded palette, so this follows whichever theme
  * (light/dark) is currently active, including if it changes.
  *

@@ -4,15 +4,17 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nj031.onetask.data.AppDatabase
+import com.nj031.onetask.data.journal.ChecklistItem
 import com.nj031.onetask.data.journal.JournalNoteEntity
+import com.nj031.onetask.data.journal.JournalNoteType
 import com.nj031.onetask.data.journal.JournalRepository
-import java.time.LocalDate
+import com.nj031.onetask.data.settings.GeneralSettingsRepository
+import com.nj031.onetask.data.settings.NotesViewMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -20,13 +22,28 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
     private val repository = JournalRepository(
         AppDatabase.getInstance(application).journalNoteDao()
     )
+    private val settingsRepository = GeneralSettingsRepository(application)
 
-    private val _selectedDate = MutableStateFlow(LocalDate.now())
-    val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    val notesForSelectedDate: StateFlow<List<JournalNoteEntity>> =
-        combine(repository.observeActiveNotes(), _selectedDate) { notes, date ->
-            notes.filter { it.journalDate == date.toEpochDay() }
+    private val _viewMode = MutableStateFlow(settingsRepository.getNotesViewMode())
+    val viewMode: StateFlow<NotesViewMode> = _viewMode.asStateFlow()
+
+    /** Every active note, unfiltered by search - the source [notes] and [getNoteById] both
+     * read from, so opening a note for editing never depends on the current search text. */
+    private val activeNotes: StateFlow<List<JournalNoteEntity>> =
+        repository.observeActiveNotes()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Active notes, most-recently-edited first, filtered by [searchQuery] - the single source
+     * both List View and Card View render, so switching views never changes which notes show or
+     * their order, and searching never changes which view is selected. */
+    val notes: StateFlow<List<JournalNoteEntity>> =
+        combine(activeNotes, _searchQuery) { allNotes, query ->
+            allNotes
+                .filter { it.matchesSearch(query) }
+                .sortedByDescending { it.updatedAt }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val archivedNotes: StateFlow<List<JournalNoteEntity>> =
@@ -37,31 +54,41 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         repository.observeTrashedNotes()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val activeNoteDates: StateFlow<Set<LocalDate>> =
-        repository.observeActiveNoteDates()
-            .map { dates -> dates.map(LocalDate::ofEpochDay).toSet() }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
-
-    fun selectDate(date: LocalDate) {
-        _selectedDate.value = date
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
     }
 
-    fun createNote(title: String, content: String) {
+    fun setViewMode(mode: NotesViewMode) {
+        _viewMode.value = mode
+        settingsRepository.setNotesViewMode(mode)
+    }
+
+    fun createNote(title: String, content: String, noteType: JournalNoteType, checklistItems: List<ChecklistItem>) {
         viewModelScope.launch {
             repository.createNote(
                 title = title,
                 content = content,
-                journalDate = _selectedDate.value.toEpochDay()
+                noteType = noteType,
+                checklistItems = checklistItems
             )
         }
     }
 
     fun getNoteById(id: String?): JournalNoteEntity? =
-        id?.let { targetId -> notesForSelectedDate.value.find { it.id == targetId } }
+        id?.let { targetId -> activeNotes.value.find { it.id == targetId } }
 
-    fun updateNote(note: JournalNoteEntity, title: String, content: String) {
+    fun updateNote(note: JournalNoteEntity, title: String, content: String, checklistItems: List<ChecklistItem>) {
         viewModelScope.launch {
-            repository.updateNote(note, title, content)
+            repository.updateNote(note, title, content, checklistItems)
+        }
+    }
+
+    /** Discards a note that auto-save determined no longer has any content worth keeping (e.g.
+     * the user cleared both the title and the only checklist item) - a hard delete, not a trash,
+     * since the note was never meaningfully filled in to begin with. */
+    fun deleteEmptyNote(note: JournalNoteEntity) {
+        viewModelScope.launch {
+            repository.deleteNotePermanently(note)
         }
     }
 
@@ -87,5 +114,14 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.deleteNotePermanently(note)
         }
+    }
+}
+
+private fun JournalNoteEntity.matchesSearch(query: String): Boolean {
+    if (query.isBlank()) return true
+    if (title.contains(query, ignoreCase = true)) return true
+    return when (noteType) {
+        JournalNoteType.TEXT -> content.contains(query, ignoreCase = true)
+        JournalNoteType.CHECKLIST -> checklistItems.any { it.text.contains(query, ignoreCase = true) }
     }
 }

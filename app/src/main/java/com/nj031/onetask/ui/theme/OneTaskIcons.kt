@@ -217,6 +217,96 @@ fun OneTaskProfileIcon(
 }
 
 @Composable
+fun OneTaskSearchIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.09f
+        val glassRadius = this.size.minDimension * 0.32f
+        val glassCenter = Offset(this.size.width * 0.42f, this.size.height * 0.42f)
+        drawCircle(
+            color = tint,
+            radius = glassRadius,
+            center = glassCenter,
+            style = Stroke(width = strokeWidth)
+        )
+        val handleStart = Offset(
+            glassCenter.x + glassRadius * 0.75f,
+            glassCenter.y + glassRadius * 0.75f
+        )
+        drawLine(
+            color = tint,
+            start = handleStart,
+            end = Offset(this.size.width * 0.88f, this.size.height * 0.88f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+/** A checklist/list-of-rows glyph: a small square bullet beside a line for each of three rows -
+ * used for the Notes screen's List View toggle option. */
+@Composable
+fun OneTaskListViewIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.1f
+        val bulletSize = this.size.minDimension * 0.12f
+        val bulletX = this.size.width * 0.14f
+        val lineStartX = this.size.width * 0.34f
+        val lineEndX = this.size.width * 0.88f
+
+        listOf(0.22f, 0.5f, 0.78f).forEach { fraction ->
+            val y = this.size.height * fraction
+            drawRect(
+                color = tint,
+                topLeft = Offset(bulletX - bulletSize / 2f, y - bulletSize / 2f),
+                size = Size(bulletSize, bulletSize)
+            )
+            drawLine(
+                color = tint,
+                start = Offset(lineStartX, y),
+                end = Offset(lineEndX, y),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round
+            )
+        }
+    }
+}
+
+/** A 2x2 grid of rounded tiles - used for the Notes screen's Card View toggle option. */
+@Composable
+fun OneTaskCardViewIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val tileSize = this.size.width * 0.38f
+        val gap = this.size.width * 0.14f
+        val cornerRadius = CornerRadius(this.size.minDimension * 0.08f)
+        val left = (this.size.width - tileSize * 2 - gap) / 2f
+        val top = (this.size.height - tileSize * 2 - gap) / 2f
+
+        listOf(0, 1).forEach { row ->
+            listOf(0, 1).forEach { col ->
+                drawRoundRect(
+                    color = tint,
+                    topLeft = Offset(left + col * (tileSize + gap), top + row * (tileSize + gap)),
+                    size = Size(tileSize, tileSize),
+                    cornerRadius = cornerRadius
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun OneTaskTasksIcon(
     modifier: Modifier = Modifier,
     active: Boolean = true,

@@ -7,6 +7,8 @@ enum class StartScreen { TASKS, JOURNAL }
 
 enum class TimeFormat { SYSTEM_DEFAULT, HOUR_12, HOUR_24 }
 
+enum class NotesViewMode { LIST, CARD }
+
 private const val PREFS_NAME = "general_settings_prefs"
 private const val KEY_START_SCREEN = "start_screen"
 private const val KEY_DEFAULT_TIMER_MINUTES = "default_timer_minutes"
@@ -17,6 +19,7 @@ private const val KEY_FOCUS_SESSION_COMPLETE_ENABLED = "focus_session_complete_e
 private const val KEY_WEEK_START_DAY = "week_start_day"
 private const val KEY_TIME_FORMAT = "time_format"
 private const val KEY_HAPTIC_FEEDBACK_ENABLED = "haptic_feedback_enabled"
+private const val KEY_NOTES_VIEW_MODE = "notes_view_mode"
 
 /**
  * Stores General Settings in a private SharedPreferences file, the same choice made for
@@ -106,5 +109,16 @@ class GeneralSettingsRepository(context: Context) {
 
     fun setHapticFeedbackEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_HAPTIC_FEEDBACK_ENABLED, enabled).apply()
+    }
+
+    /** List View is the default the first time the Notes screen is opened; once the user
+     * switches, that choice persists across app restarts instead of resetting. */
+    fun getNotesViewMode(): NotesViewMode {
+        val raw = prefs.getString(KEY_NOTES_VIEW_MODE, null) ?: return NotesViewMode.LIST
+        return runCatching { NotesViewMode.valueOf(raw) }.getOrDefault(NotesViewMode.LIST)
+    }
+
+    fun setNotesViewMode(mode: NotesViewMode) {
+        prefs.edit().putString(KEY_NOTES_VIEW_MODE, mode.name).apply()
     }
 }
