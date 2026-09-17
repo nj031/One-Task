@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,7 +19,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,6 +45,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -52,6 +56,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -60,11 +66,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
+import com.nj031.onetask.data.task.TaskOrderScope
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
@@ -117,10 +125,20 @@ fun HomeScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     // All is the default per spec - every task for the day is visible until the user narrows
     // it down, matching what this screen always showed before tabs existed.
-    var selectedTab by remember { mutableStateOf(HomeTaskTab.ALL) }
+    var selectedTab by remember { mutableStateOf(TaskOrderScope.ALL) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val hapticTick = rememberHapticTick()
+    val listState = rememberLazyListState()
+
+    // Drag-and-drop reorder state, scoped to whichever tab is currently on screen. draggedTaskId
+    // is non-null only while a long-press-drag is in progress; dragOffsetY is that one task's
+    // live, cumulative finger movement in px, applied as a visual translation. displayedTasks is
+    // the on-screen order - normally just [visibleTasks], but during a drag it's the optimistic,
+    // already-swapped order so cards visibly shift before the reorder is persisted.
+    var draggedTaskId by remember { mutableStateOf<String?>(null) }
+    var dragOffsetY by remember { mutableStateOf(0f) }
+    var displayedTasks by remember { mutableStateOf<List<TaskEntity>>(emptyList()) }
 
     BackHandler(enabled = drawerState.isOpen) {
         scope.launch { drawerState.close() }
@@ -128,12 +146,24 @@ fun HomeScreen(
 
     val selectedDate by viewModel.selectedDate.collectAsState()
     val tasks by viewModel.tasksForSelectedDate.collectAsState()
-    // A view/filter over the same createdAt-ordered list, never a re-sort - switching tabs or
-    // completing a task never changes a task's position within it.
+    // A view/filter over the same task list, sorted by the current tab's own independent manual
+    // order - switching tabs, or completing a task, never reorders or touches another tab's
+    // order.
     val visibleTasks = when (selectedTab) {
-        HomeTaskTab.ALL -> tasks
-        HomeTaskTab.IN_PROGRESS -> tasks.filter { it.status == TaskStatus.IN_PROGRESS }
-        HomeTaskTab.DONE -> tasks.filter { it.status == TaskStatus.COMPLETED }
+        TaskOrderScope.ALL -> tasks.sortedBy { it.orderInAll }
+        TaskOrderScope.IN_PROGRESS ->
+            tasks.filter { it.status == TaskStatus.IN_PROGRESS }.sortedBy { it.orderInProgress }
+        TaskOrderScope.DONE ->
+            tasks.filter { it.status == TaskStatus.COMPLETED }.sortedBy { it.orderInDone }
+    }
+
+    // Only re-sync from the real (persisted) order while nothing is actively being dragged, so a
+    // fresh Flow emission mid-drag can't yank the list back to the pre-drag order under the
+    // user's finger.
+    LaunchedEffect(visibleTasks, draggedTaskId) {
+        if (draggedTaskId == null) {
+            displayedTasks = visibleTasks
+        }
     }
 
     ModalNavigationDrawer(
@@ -250,13 +280,15 @@ fun HomeScreen(
                         HomeEmptyState(modifier = Modifier.padding(top = 40.dp))
                     } else {
                         LazyColumn(
+                            state = listState,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(1f)
                                 .padding(top = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(visibleTasks, key = { it.id }) { task ->
+                            items(displayedTasks, key = { it.id }) { task ->
+                                val isDragged = task.id == draggedTaskId
                                 HomeTaskListItem(
                                     task = task,
                                     selectedTaskId = selectedTaskId,
@@ -267,7 +299,38 @@ fun HomeScreen(
                                     viewModel = viewModel,
                                     onOpenFocusTimer = onOpenFocusTimer,
                                     onEditTaskClick = onEditTaskClick,
-                                    onDeleteConfirmRequired = { deleteConfirmTask = it }
+                                    onDeleteConfirmRequired = { deleteConfirmTask = it },
+                                    isDragged = isDragged,
+                                    dragOffsetY = if (isDragged) dragOffsetY else 0f,
+                                    onDragStart = {
+                                        // A drag always wins over an open Action Row - opening
+                                        // one is a short-tap-only action (see HomeTaskListItem's
+                                        // onSelect toggle) and dragging is a completely separate
+                                        // long-press interaction, so nothing else about tapping
+                                        // this or any other card changes.
+                                        selectedTaskId = null
+                                        draggedTaskId = task.id
+                                        dragOffsetY = 0f
+                                        hapticTick()
+                                    },
+                                    onDrag = { deltaY ->
+                                        dragOffsetY += deltaY
+                                        val (reordered, correctedOffset) = dragSwapIfNeeded(
+                                            tasks = displayedTasks,
+                                            draggedTaskId = task.id,
+                                            dragOffsetY = dragOffsetY,
+                                            listState = listState
+                                        )
+                                        displayedTasks = reordered
+                                        dragOffsetY = correctedOffset
+                                    },
+                                    onDragEnd = {
+                                        val finalOrder = displayedTasks
+                                        draggedTaskId = null
+                                        dragOffsetY = 0f
+                                        viewModel.reorderTasks(selectedTab, finalOrder)
+                                    },
+                                    modifier = if (isDragged) Modifier else Modifier.animateItem()
                                 )
                             }
                         }
@@ -331,27 +394,25 @@ private fun HomeAddTaskBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-/** The three ways [HomeTaskTabRow] can filter the day's task list - a view over the existing
- * createdAt-ordered list, never a separate list or a re-sort. */
-private enum class HomeTaskTab { ALL, IN_PROGRESS, DONE }
-
 /**
  * Replaces the old In Progress/Done section headings with a 3-way filter over the same task
  * list. IN_PROGRESS and DONE reuse [TaskStatus] exactly as it already worked before this change
  * (status == IN_PROGRESS covers a running, paused, or finished-but-not-completed timer; status ==
  * COMPLETED only ever changes via the task's own checkbox) - no new completion/timer logic was
- * introduced, this is purely a presentation change.
+ * introduced, this is purely a presentation change. Reuses [TaskOrderScope] (rather than a
+ * separate UI-only enum) since each tab is now also a distinct drag-and-drop order scope - one
+ * ALL/IN_PROGRESS/DONE concept, not two.
  */
 @Composable
 private fun HomeTaskTabRow(
-    selectedTab: HomeTaskTab,
-    onTabSelected: (HomeTaskTab) -> Unit,
+    selectedTab: TaskOrderScope,
+    onTabSelected: (TaskOrderScope) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val tabs = listOf(
-        HomeTaskTab.ALL to stringResource(id = R.string.tab_all),
-        HomeTaskTab.IN_PROGRESS to stringResource(id = R.string.status_in_progress),
-        HomeTaskTab.DONE to stringResource(id = R.string.section_done)
+        TaskOrderScope.ALL to stringResource(id = R.string.tab_all),
+        TaskOrderScope.IN_PROGRESS to stringResource(id = R.string.status_in_progress),
+        TaskOrderScope.DONE to stringResource(id = R.string.section_done)
     )
     Row(
         modifier = modifier
@@ -505,6 +566,49 @@ private fun HomeEmptyState(modifier: Modifier = Modifier) {
 }
 
 /**
+ * Swaps the dragged task with whichever immediate neighbor (in [tasks]'s current order) its live
+ * drag position has now crossed the center of, using [listState]'s own real, per-item measured
+ * heights - so this works correctly even though Task Cards aren't all the same height (a longer
+ * name, a tag pill, or expanded subtasks). Returns the possibly-reordered list alongside a
+ * corrected [dragOffsetY]: since the dragged item's own laid-out slot position jumps by exactly
+ * the swapped neighbor's height the instant the swap happens, subtracting/adding that same
+ * amount keeps the card's apparent on-screen position continuous under the user's finger rather
+ * than visibly snapping at the moment of the swap. A no-op (returns the inputs unchanged) once
+ * this frame's crossing doesn't warrant a swap, or if layout info for the relevant items isn't
+ * available yet (e.g. scrolled just out of view).
+ */
+private fun dragSwapIfNeeded(
+    tasks: List<TaskEntity>,
+    draggedTaskId: String,
+    dragOffsetY: Float,
+    listState: LazyListState
+): Pair<List<TaskEntity>, Float> {
+    val draggedIndex = tasks.indexOfFirst { it.id == draggedTaskId }
+    val visibleItems = listState.layoutInfo.visibleItemsInfo
+    val draggedInfo = visibleItems.find { it.key == draggedTaskId }
+    if (draggedIndex < 0 || draggedInfo == null) return tasks to dragOffsetY
+    val draggedCenter = draggedInfo.offset + draggedInfo.size / 2f + dragOffsetY
+
+    val nextInfo = tasks.getOrNull(draggedIndex + 1)?.let { next ->
+        visibleItems.find { it.key == next.id }
+    }
+    if (nextInfo != null && draggedCenter > nextInfo.offset + nextInfo.size / 2f) {
+        val reordered = tasks.toMutableList().apply { add(draggedIndex + 1, removeAt(draggedIndex)) }
+        return reordered to (dragOffsetY - nextInfo.size)
+    }
+
+    val prevInfo = tasks.getOrNull(draggedIndex - 1)?.let { prev ->
+        visibleItems.find { it.key == prev.id }
+    }
+    if (prevInfo != null && draggedCenter < prevInfo.offset + prevInfo.size / 2f) {
+        val reordered = tasks.toMutableList().apply { add(draggedIndex - 1, removeAt(draggedIndex)) }
+        return reordered to (dragOffsetY + prevInfo.size)
+    }
+
+    return tasks to dragOffsetY
+}
+
+/**
  * Wires a single task's row of callbacks (select/deselect, timer Start/Continue/Reset, Undo,
  * Edit, and Delete-with-running-timer-confirmation) into [TaskCardWithActionRow]. Pulled out so
  * both the active-tasks and done-tasks sections of the list share identical wiring, the same way
@@ -519,7 +623,13 @@ private fun HomeTaskListItem(
     viewModel: HomeViewModel,
     onOpenFocusTimer: (String) -> Unit,
     onEditTaskClick: (String) -> Unit,
-    onDeleteConfirmRequired: (TaskEntity) -> Unit
+    onDeleteConfirmRequired: (TaskEntity) -> Unit,
+    isDragged: Boolean,
+    dragOffsetY: Float,
+    onDragStart: () -> Unit,
+    onDrag: (Float) -> Unit,
+    onDragEnd: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     TaskCardWithActionRow(
         task = task,
@@ -557,7 +667,13 @@ private fun HomeTaskListItem(
             } else {
                 viewModel.deleteTask(task)
             }
-        }
+        },
+        isDragged = isDragged,
+        dragOffsetY = dragOffsetY,
+        onDragStart = onDragStart,
+        onDrag = onDrag,
+        onDragEnd = onDragEnd,
+        modifier = modifier
     )
 }
 
@@ -580,9 +696,15 @@ private fun TaskCardWithActionRow(
     onReset: () -> Unit,
     onUndo: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    isDragged: Boolean,
+    dragOffsetY: Float,
+    onDragStart: () -> Unit,
+    onDrag: (Float) -> Unit,
+    onDragEnd: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = modifier.fillMaxWidth()) {
         if (isSelected) {
             TaskActionRow(
                 task = task,
@@ -599,7 +721,12 @@ private fun TaskCardWithActionRow(
             task = task,
             onToggleStatus = onToggleStatus,
             onClick = onClick,
-            onToggleSubtask = onToggleSubtask
+            onToggleSubtask = onToggleSubtask,
+            isDragged = isDragged,
+            dragOffsetY = dragOffsetY,
+            onDragStart = onDragStart,
+            onDrag = onDrag,
+            onDragEnd = onDragEnd
         )
     }
 }
@@ -705,7 +832,12 @@ private fun TaskCard(
     task: TaskEntity,
     onToggleStatus: () -> Unit,
     onClick: () -> Unit,
-    onToggleSubtask: (String) -> Unit
+    onToggleSubtask: (String) -> Unit,
+    isDragged: Boolean,
+    dragOffsetY: Float,
+    onDragStart: () -> Unit,
+    onDrag: (Float) -> Unit,
+    onDragEnd: () -> Unit
 ) {
     var subtasksExpanded by remember(task.id) { mutableStateOf(false) }
     val isCompleted = task.status == TaskStatus.COMPLETED
@@ -713,10 +845,30 @@ private fun TaskCard(
 
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .zIndex(if (isDragged) 1f else 0f)
+            .graphicsLayer { translationY = dragOffsetY }
+            // A drag-to-reorder gesture that only activates after Android's own standard
+            // long-press timeout - not a custom one - so a normal short tap keeps opening the
+            // Action Row exactly as before (see onClick above) and is never mistaken for the
+            // start of a drag.
+            .pointerInput(task.id) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { onDragStart() },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        onDrag(dragAmount.y)
+                    },
+                    onDragEnd = { onDragEnd() },
+                    onDragCancel = { onDragEnd() }
+                )
+            },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = HomeCardWhite),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        // Only a very slight elevation bump communicates "this card is now draggable" - no
+        // scale, rotation, or size change.
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isDragged) 4.dp else 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
