@@ -56,6 +56,7 @@
     <string name="status_in_progress">In Progress</string>
     <string name="status_completed">Completed</string>
     <string name="section_done">Done</string>
+    <string name="close">Close</string>
     <string name="timer_minutes_format">%1$d min</string>
     <string name="custom_timer_minutes_hint">Minutes</string>
     <string name="remove">Remove</string>
@@ -144,6 +145,7 @@
     <string name="profile_edit_gender_prefer_not_to_say">Prefer not to say</string>
     <string name="profile_edit_email_label">Email</string>
     <string name="profile_edit_save_changes">Save Changes</string>
+    <string name="profile_edit_dob_confirm">OK</string>
     <string name="profile_edit_discard_title">Discard changes?</string>
     <string name="profile_edit_discard_message">You have unsaved changes. If you leave now, they will be lost.</string>
     <string name="profile_edit_discard_action">Discard</string>
