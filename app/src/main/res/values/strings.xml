@@ -87,7 +87,7 @@
     <string name="repeat_select_days">Select days</string>
     <string name="repeat_select_days_required">Select at least one day</string>
     <string name="priority_label">Priority</string>
-    <string name="priority_small">Small</string>
+    <string name="priority_small">Low</string>
     <string name="priority_medium">Medium</string>
     <string name="priority_high">High</string>
     <string name="reminder_label">Reminder</string>
