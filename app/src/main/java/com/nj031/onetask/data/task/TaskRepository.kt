@@ -7,30 +7,33 @@ import kotlinx.coroutines.flow.combine
 
 class TaskRepository(private val dao: TaskDao) {
     /**
-     * Every task actually due on [date]: real rows stored with that exact date (plain one-time
-     * tasks, a recurring series' own row on its start date, and any occurrence already
-     * materialized for this date - see [TaskEntity.asVirtualOccurrence]) plus a virtual
-     * (not-yet-persisted) occurrence for every OTHER active recurring series whose pattern
-     * matches [date] and hasn't been materialized yet. Repeat is evaluated here, against the
-     * date actually being viewed, rather than being a label stored once on the task.
+     * Every task actually due on [date]: real rows stored with that exact date that are actually
+     * due on it (see [TaskEntity.isDueOn] - a plain one-time task or an already-materialized
+     * occurrence always qualifies, but a recurring series' own row only counts on its start date
+     * if that date itself satisfies the series' own pattern) plus a virtual (not-yet-persisted)
+     * occurrence for every OTHER active recurring series whose pattern matches [date] and hasn't
+     * been materialized yet. Repeat is evaluated here, against the date actually being viewed,
+     * rather than being a label stored once on the task.
      */
     fun observeTasksByDate(date: Long): Flow<List<TaskEntity>> =
         combine(dao.getByDate(date), dao.getActiveRecurringSeries()) { exactMatches, series ->
-            val existingIds = exactMatches.mapTo(HashSet()) { it.id }
+            val dueExactMatches = exactMatches.filter { it.isDueOn(date) }
+            val existingIds = dueExactMatches.mapTo(HashSet()) { it.id }
             val virtualOccurrences = series.mapNotNull { seriesTask ->
                 if (seriesTask.date == date || !seriesTask.matchesRecurrenceOn(date)) return@mapNotNull null
                 val occurrence = seriesTask.asVirtualOccurrence(date)
                 if (occurrence.id in existingIds) null else occurrence
             }
-            (exactMatches + virtualOccurrences).sortedBy { it.createdAt }
+            (dueExactMatches + virtualOccurrences).sortedBy { it.createdAt }
         }
 
     /** Same recurring-aware matching as [observeTasksByDate], applied across a whole date range
      * for the calendar's per-date task indicator dot - a date only shows a dot if it has a real
-     * task or is due for an active recurring series, without needing every future occurrence to
-     * already be a persisted row. */
+     * task actually due on it or is due for an active recurring series, without needing every
+     * future occurrence to already be a persisted row. */
     fun observeDatesWithTasksBetween(startDate: Long, endDate: Long): Flow<List<Long>> =
-        combine(dao.getDatesWithTasksBetween(startDate, endDate), dao.getActiveRecurringSeries()) { realDates, series ->
+        combine(dao.getTasksWithDateBetween(startDate, endDate), dao.getActiveRecurringSeries()) { tasksInRange, series ->
+            val realDates = tasksInRange.filter { it.isDueOn(it.date) }.map { it.date }
             val recurringDates = (startDate..endDate).filter { day ->
                 series.any { it.date != day && it.matchesRecurrenceOn(day) }
             }

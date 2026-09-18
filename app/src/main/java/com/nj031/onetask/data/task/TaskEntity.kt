@@ -81,9 +81,10 @@ fun TaskEntity.repeatDaysSet(): Set<DayOfWeek> =
 
 /**
  * Whether this recurring series (a row with [TaskEntity.seriesId] == null and
- * [TaskEntity.repeat] != NONE) is due on [targetEpochDay] - the series' own start date
- * ([TaskEntity.date]) is handled separately, by the plain exact-date match every task
- * (recurring or not) already gets, so this is only ever asked about *other* dates.
+ * [TaskEntity.repeat] != NONE) is due on [targetEpochDay] - never before its own start date
+ * ([TaskEntity.date]), and for SELECT_DAYS, only on a date whose weekday is in
+ * [repeatDaysSet]. Used both for the series' own start date (via [isDueOn]) and for every
+ * other date it might also be due on (via [asVirtualOccurrence]'s caller).
  */
 fun TaskEntity.matchesRecurrenceOn(targetEpochDay: Long): Boolean {
     if (targetEpochDay < date) return false
@@ -93,6 +94,19 @@ fun TaskEntity.matchesRecurrenceOn(targetEpochDay: Long): Boolean {
         TaskRepeat.SELECT_DAYS -> LocalDate.ofEpochDay(targetEpochDay).dayOfWeek in repeatDaysSet()
     }
 }
+
+/**
+ * Whether a row whose own [TaskEntity.date] already equals [date] should actually be shown on
+ * it. True unconditionally for a plain one-time task ([TaskEntity.repeat] == NONE) or an
+ * already-materialized occurrence ([TaskEntity.seriesId] != null) - each addresses one specific
+ * date on its own terms, exactly like the pre-Repeat-fix behavior. For a recurring series' own
+ * definition row, though, its literal `date` is just the series' *start* date, not a guarantee
+ * that date itself satisfies the series' own pattern - e.g. a Select Days series created on a
+ * Friday that doesn't include Friday must not show on Friday merely because that's the row's
+ * stored date, so this defers to [matchesRecurrenceOn] instead of assuming a match.
+ */
+fun TaskEntity.isDueOn(date: Long): Boolean =
+    seriesId != null || repeat == TaskRepeat.NONE || matchesRecurrenceOn(date)
 
 /**
  * A not-yet-persisted occurrence of this recurring series on [targetEpochDay], shown exactly
