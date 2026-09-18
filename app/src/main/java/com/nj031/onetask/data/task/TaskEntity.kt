@@ -10,6 +10,11 @@ enum class TaskStatus { NOT_STARTED, IN_PROGRESS, COMPLETED }
 
 enum class TaskRepeat { NONE, DAILY, SELECT_DAYS }
 
+/** NONE is the default "no priority selected" state - not a fourth visible priority level, just
+ * the absence of one. The Add Task screen only ever offers SMALL/MEDIUM/HIGH as selectable
+ * chips. */
+enum class TaskPriority { NONE, SMALL, MEDIUM, HIGH }
+
 /** Which tab's manual drag-and-drop order a [TaskRepository.reorderTasks] call updates - each
  * one is a completely independent ordering over the same tasks, per [TaskEntity]'s three order
  * columns below. */
@@ -22,6 +27,7 @@ data class TaskEntity(
     val subtasks: List<Subtask> = emptyList(),
     val timerMinutes: Int? = null,
     val date: Long,
+    val priority: TaskPriority = TaskPriority.NONE,
     val repeat: TaskRepeat = TaskRepeat.NONE,
     // Only meaningful when repeat == SELECT_DAYS: comma-separated ISO day-of-week numbers
     // (1=Monday..7=Sunday, see DayOfWeek.getValue) - see repeatDaysSet()/toRepeatDaysString()

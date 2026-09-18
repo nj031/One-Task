@@ -9,6 +9,7 @@ import com.nj031.onetask.data.journal.JournalNoteStatus
 import com.nj031.onetask.data.journal.JournalNoteType
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
+import com.nj031.onetask.data.task.TaskPriority
 import com.nj031.onetask.data.task.TaskRepeat
 import com.nj031.onetask.data.task.TaskStatus
 import kotlinx.coroutines.tasks.await
@@ -115,6 +116,7 @@ private fun TaskEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "subtasks" to subtasks.map { mapOf("id" to it.id, "name" to it.name, "completed" to it.completed) },
     "timerMinutes" to timerMinutes,
     "date" to date,
+    "priority" to priority.name,
     "repeat" to repeat.name,
     "repeatDays" to repeatDays,
     "seriesId" to seriesId,
@@ -144,6 +146,8 @@ private fun DocumentSnapshot.toTaskEntity(): TaskEntity? {
         },
         timerMinutes = (get("timerMinutes") as? Long)?.toInt(),
         date = date,
+        priority = getString("priority")?.let { runCatching { TaskPriority.valueOf(it) }.getOrNull() }
+            ?: TaskPriority.NONE,
         repeat = getString("repeat")?.let { runCatching { TaskRepeat.valueOf(it) }.getOrNull() } ?: TaskRepeat.NONE,
         repeatDays = getString("repeatDays").orEmpty(),
         seriesId = getString("seriesId"),

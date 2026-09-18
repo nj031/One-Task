@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
+import com.nj031.onetask.data.task.TaskPriority
 import com.nj031.onetask.data.task.TaskRepeat
 import com.nj031.onetask.data.task.repeatDaysSet
 import com.nj031.onetask.ui.components.CompactBottomSheet
@@ -125,7 +126,7 @@ fun AddTaskScreen(
             customTags = customTags,
             onAddCustomTag = { name -> viewModel.addCustomTag(name) },
             onCancel = onDone,
-            onSave = { name, subtasks, timerMinutes, date, repeat, repeatDays, tag, postpone ->
+            onSave = { name, subtasks, timerMinutes, date, priority, repeat, repeatDays, tag, postpone ->
                 if (existingTask != null) {
                     viewModel.updateTask(
                         task = existingTask,
@@ -133,6 +134,7 @@ fun AddTaskScreen(
                         subtasks = subtasks,
                         timerMinutes = timerMinutes,
                         date = date,
+                        priority = priority,
                         repeat = repeat,
                         repeatDays = repeatDays,
                         tag = tag,
@@ -144,6 +146,7 @@ fun AddTaskScreen(
                         subtasks = subtasks,
                         timerMinutes = timerMinutes,
                         date = date,
+                        priority = priority,
                         repeat = repeat,
                         repeatDays = repeatDays,
                         tag = tag,
@@ -173,6 +176,7 @@ private fun AddTaskScreenContent(
         subtasks: List<Subtask>,
         timerMinutes: Int?,
         date: LocalDate,
+        priority: TaskPriority,
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
@@ -194,6 +198,8 @@ private fun AddTaskScreenContent(
 
     var selectedTaskDate by remember { mutableStateOf(initialDate) }
     var showDatePickerSheet by remember { mutableStateOf(false) }
+
+    var selectedPriority by remember { mutableStateOf(existingTask?.priority ?: TaskPriority.NONE) }
 
     var selectedRepeat by remember { mutableStateOf(existingTask?.repeat ?: TaskRepeat.NONE) }
     val selectedRepeatDays = remember {
@@ -326,6 +332,41 @@ private fun AddTaskScreenContent(
                                 onClick = { showAddTagSheet = true }
                             )
                         }
+                    }
+                }
+
+                SettingRow(
+                    label = stringResource(id = R.string.priority_label),
+                    modifier = Modifier.padding(top = 26.dp)
+                ) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SelectionChip(
+                            text = stringResource(id = R.string.priority_small),
+                            selected = selectedPriority == TaskPriority.SMALL,
+                            onClick = {
+                                selectedPriority =
+                                    if (selectedPriority == TaskPriority.SMALL) TaskPriority.NONE else TaskPriority.SMALL
+                            }
+                        )
+                        SelectionChip(
+                            text = stringResource(id = R.string.priority_medium),
+                            selected = selectedPriority == TaskPriority.MEDIUM,
+                            onClick = {
+                                selectedPriority =
+                                    if (selectedPriority == TaskPriority.MEDIUM) TaskPriority.NONE else TaskPriority.MEDIUM
+                            }
+                        )
+                        SelectionChip(
+                            text = stringResource(id = R.string.priority_high),
+                            selected = selectedPriority == TaskPriority.HIGH,
+                            onClick = {
+                                selectedPriority =
+                                    if (selectedPriority == TaskPriority.HIGH) TaskPriority.NONE else TaskPriority.HIGH
+                            }
+                        )
                     }
                 }
 
@@ -568,6 +609,7 @@ private fun AddTaskScreenContent(
                                 .filter { it.name.isNotBlank() },
                             if (showCustomTimerInput) customTimerText.toIntOrNull() else timerMinutes,
                             selectedTaskDate,
+                            selectedPriority,
                             selectedRepeat,
                             selectedRepeatDays.toSet(),
                             selectedTag,

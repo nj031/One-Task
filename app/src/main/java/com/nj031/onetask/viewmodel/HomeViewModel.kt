@@ -7,6 +7,7 @@ import com.nj031.onetask.data.AppDatabase
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskOrderScope
+import com.nj031.onetask.data.task.TaskPriority
 import com.nj031.onetask.data.task.TaskRepeat
 import com.nj031.onetask.data.task.TaskRepository
 import com.nj031.onetask.data.task.TaskStatus
@@ -83,6 +84,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         subtasks: List<Subtask>,
         timerMinutes: Int?,
         date: LocalDate,
+        priority: TaskPriority,
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
@@ -94,6 +96,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 subtasks = subtasks,
                 timerMinutes = timerMinutes,
                 date = date.toEpochDay(),
+                priority = priority,
                 repeat = repeat,
                 repeatDays = repeatDays,
                 tag = tag,
@@ -109,6 +112,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         subtasks: List<Subtask>,
         timerMinutes: Int?,
         date: LocalDate,
+        priority: TaskPriority,
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
@@ -121,6 +125,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 subtasks = subtasks,
                 timerMinutes = timerMinutes,
                 date = date.toEpochDay(),
+                priority = priority,
                 repeat = repeat,
                 repeatDays = repeatDays,
                 tag = tag,

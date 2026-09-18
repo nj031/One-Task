@@ -57,9 +57,19 @@ private val MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
+/** Adds the Priority feature's column to the existing tasks table in place: every task that
+ * existed before this update gets 'NONE' (no priority selected), exactly the same default a
+ * brand-new task without a chosen priority gets, rather than guessing Small/Medium/High for
+ * them. */
+private val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'NONE'")
+    }
+}
+
 @Database(
     entities = [JournalNoteEntity::class, NoteLabelEntity::class, TaskEntity::class, TaskTagEntity::class],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(Converters::class, TaskConverters::class)
@@ -101,7 +111,7 @@ abstract class AppDatabase : RoomDatabase() {
                 instance?.close()
                 val databaseName = "${LEGACY_DATABASE_NAME}_$userId"
                 val database = Room.databaseBuilder(appContext, AppDatabase::class.java, databaseName)
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .fallbackToDestructiveMigration()
                     .build()
                 instance = database

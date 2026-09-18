@@ -6,6 +6,7 @@ import com.nj031.onetask.data.journal.JournalNoteStatus
 import com.nj031.onetask.data.journal.JournalNoteType
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
+import com.nj031.onetask.data.task.TaskPriority
 import com.nj031.onetask.data.task.TaskRepeat
 import com.nj031.onetask.data.task.TaskStatus
 import org.json.JSONArray
@@ -69,6 +70,7 @@ private fun TaskEntity.toJson(): JSONObject = JSONObject().apply {
     )
     put("timerMinutes", timerMinutes ?: JSONObject.NULL)
     put("date", date)
+    put("priority", priority.name)
     put("repeat", repeat.name)
     put("repeatDays", repeatDays)
     put("seriesId", seriesId ?: JSONObject.NULL)
@@ -101,6 +103,9 @@ private fun JSONObject.toTaskEntity(): TaskEntity {
         subtasks = subtasks,
         timerMinutes = if (isNull("timerMinutes")) null else getInt("timerMinutes"),
         date = getLong("date"),
+        // Absent from any backup file written before the Priority feature - default to NONE
+        // (no priority selected), exactly like a brand-new task without a chosen priority.
+        priority = runCatching { TaskPriority.valueOf(getString("priority")) }.getOrDefault(TaskPriority.NONE),
         // Absent from any backup file written before the Repeat fix (or naming a repeat option
         // that fix retired - WEEKLY/MONTHLY) - default to NONE, exactly like an unrecognized
         // status/note type elsewhere in this file already does, rather than failing the restore.
