@@ -40,6 +40,12 @@ interface TaskDao {
     @Query("SELECT id FROM tasks WHERE seriesId = :seriesId")
     suspend fun getOccurrenceIdsForSeries(seriesId: String): List<String>
 
+    // The set of this series' already-materialized-and-completed occurrence dates - used by
+    // ReminderScheduler to skip a completed date when computing the next reminder to schedule,
+    // without needing every future occurrence to already be a persisted row.
+    @Query("SELECT date FROM tasks WHERE seriesId = :seriesId AND status = 'COMPLETED'")
+    suspend fun getCompletedOccurrenceDatesForSeries(seriesId: String): List<Long>
+
     // Cleans up already-materialized occurrences when their series' own definition row is
     // deleted, so deleting a recurring task doesn't leave orphaned individual-date leftovers
     // behind - see TaskRepository.deleteTask.

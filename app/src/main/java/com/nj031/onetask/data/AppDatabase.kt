@@ -67,9 +67,19 @@ private val MIGRATION_8_9 = object : Migration(8, 9) {
     }
 }
 
+/** Adds the Reminder feature's columns to the existing tasks table in place: both are nullable
+ * with no explicit default, so every task that existed before this update gets NULL for both -
+ * exactly "no reminder configured", the same state a brand-new task without a reminder gets. */
+private val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE tasks ADD COLUMN reminderMinuteOfDay INTEGER")
+        db.execSQL("ALTER TABLE tasks ADD COLUMN reminderEpochDay INTEGER")
+    }
+}
+
 @Database(
     entities = [JournalNoteEntity::class, NoteLabelEntity::class, TaskEntity::class, TaskTagEntity::class],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 @TypeConverters(Converters::class, TaskConverters::class)
@@ -111,7 +121,7 @@ abstract class AppDatabase : RoomDatabase() {
                 instance?.close()
                 val databaseName = "${LEGACY_DATABASE_NAME}_$userId"
                 val database = Room.databaseBuilder(appContext, AppDatabase::class.java, databaseName)
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                     .fallbackToDestructiveMigration()
                     .build()
                 instance = database

@@ -9,6 +9,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -24,6 +25,7 @@ import com.nj031.onetask.R
 import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.feedback.FeedbackType
 import com.nj031.onetask.data.journal.JournalNoteType
+import com.nj031.onetask.data.reminder.ReminderManager
 import com.nj031.onetask.data.settings.StartScreen
 import com.nj031.onetask.ui.haptics.LocalHapticFeedbackEnabled
 import com.nj031.onetask.ui.screens.AboutOneTaskScreen
@@ -69,6 +71,7 @@ import com.nj031.onetask.viewmodel.GeneralSettingsViewModel
 import com.nj031.onetask.viewmodel.HomeViewModel
 import com.nj031.onetask.viewmodel.JournalViewModel
 import com.nj031.onetask.viewmodel.ProfileViewModel
+import kotlinx.coroutines.launch
 
 /**
  * Standard "bottom nav" navigation: switching between the Homepage/Journal/Profile tabs
@@ -89,6 +92,8 @@ fun OneTaskNavHost(
     activeFocusTaskId: String? = null,
     reopenFocusTaskId: String? = null,
     reopenFocusRequestId: Long = 0L,
+    reopenTaskId: String? = null,
+    reopenTaskRequestId: Long = 0L,
     appearanceSettingsViewModel: AppearanceSettingsViewModel = viewModel()
 ) {
     // A warm reopen via the running Focus Timer notification's "Open" action (see
@@ -105,7 +110,21 @@ fun OneTaskNavHost(
         }
     }
 
+    // A Task Reminder notification's tap/"Open app" action, cold or warm alike (see
+    // MainActivity.onCreate/onNewIntent - both set reopenTaskRequestId to a non-zero value the
+    // very first time this composes, unlike reopenFocusRequestId above which only needs to
+    // handle a warm reopen). Navigates to the same Edit Task screen tapping that task's own card
+    // on Home would.
+    LaunchedEffect(reopenTaskRequestId) {
+        if (reopenTaskRequestId == 0L) return@LaunchedEffect
+        val taskId = reopenTaskId ?: return@LaunchedEffect
+        navController.navigate(Screen.AddTask.createRoute(taskId)) {
+            launchSingleTop = true
+        }
+    }
+
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val journalViewModel: JournalViewModel = viewModel()
     val homeViewModel: HomeViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
@@ -210,10 +229,33 @@ fun OneTaskNavHost(
      * session.
      */
     fun endSessionAndReturnToAuth(alreadySignedOut: Boolean = false) {
-        if (!alreadySignedOut) AuthRepository.signOut()
-        context.stopService(Intent(context, TimerForegroundService::class.java))
-        StandaloneTimerForegroundService.stop(context)
-        restartToFreshSession()
+        // Set synchronously, before the coroutine below's first suspension point, so a rapid
+        // double-tap can't launch this twice - restartToFreshSession()'s own identical guard
+        // only takes effect once this whole coroutine actually reaches it, which is too late to
+        // stop a second concurrent call from starting its own cancel-and-sign-out pass first.
+        if (accountTransitionStarted) return
+        accountTransitionStarted = true
+        // Cancels every one of the outgoing account's scheduled Task Reminders BEFORE signing
+        // out, while AppDatabase.getInstance still resolves to that account's own database (see
+        // ReminderManager.cancelAllForCurrentAccount) - otherwise a leftover alarm could still
+        // fire and show that account's task name to whoever signs into this device next, which
+        // is exactly the kind of cross-account leak this app's per-account storage architecture
+        // otherwise already prevents everywhere else. Launched rather than awaited inline since
+        // this is a plain (non-suspend) callback; restartToFreshSession/finish() only happens
+        // once this coroutine's own cancellation work has actually completed.
+        coroutineScope.launch {
+            // A no-op (AuthRepository.currentUser already null) when the account was signed out
+            // by something else before this ran (e.g. DataPrivacyScreen's account-deletion flow,
+            // alreadySignedOut = true) - cross-account isolation is still guaranteed either way,
+            // since ReminderReceiver independently re-checks the signed-in uid at fire time.
+            ReminderManager.cancelAllForCurrentAccount(context)
+            if (!alreadySignedOut) {
+                AuthRepository.signOut()
+            }
+            context.stopService(Intent(context, TimerForegroundService::class.java))
+            StandaloneTimerForegroundService.stop(context)
+            restartToFreshSession()
+        }
     }
 
     CompositionLocalProvider(LocalHapticFeedbackEnabled provides hapticFeedbackEnabled) {
@@ -420,6 +462,7 @@ fun OneTaskNavHost(
             val defaultTag by generalSettingsViewModel.defaultTag.collectAsState()
             val defaultPostponeIfIncomplete by generalSettingsViewModel.defaultPostponeIfIncomplete.collectAsState()
             val weekStartDay by generalSettingsViewModel.weekStartDay.collectAsState()
+            val timeFormat by generalSettingsViewModel.timeFormat.collectAsState()
             AddTaskScreen(
                 viewModel = homeViewModel,
                 taskId = backStackEntry.arguments?.getString("taskId"),
@@ -427,6 +470,7 @@ fun OneTaskNavHost(
                 defaultTag = defaultTag,
                 defaultPostponeIfIncomplete = defaultPostponeIfIncomplete,
                 weekStartDay = weekStartDay,
+                timeFormat = timeFormat,
                 onDone = { navController.popBackStack() }
             )
         }

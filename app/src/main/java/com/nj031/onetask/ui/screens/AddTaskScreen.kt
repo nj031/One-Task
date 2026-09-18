@@ -37,7 +37,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,6 +57,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -62,7 +65,15 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import com.nj031.onetask.R
+import com.nj031.onetask.data.settings.TimeFormat
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskPriority
@@ -74,6 +85,8 @@ import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.viewmodel.HomeViewModel
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -98,6 +111,7 @@ fun AddTaskScreen(
     defaultTag: String? = null,
     defaultPostponeIfIncomplete: Boolean = true,
     weekStartDay: DayOfWeek = DayOfWeek.MONDAY,
+    timeFormat: TimeFormat = TimeFormat.SYSTEM_DEFAULT,
     onDone: () -> Unit
 ) {
     val existingTaskState = produceState<TaskEntity?>(initialValue = null, key1 = taskId) {
@@ -123,10 +137,11 @@ fun AddTaskScreen(
             initialTag = existingTask?.tag ?: defaultTag,
             initialPostponeIfIncomplete = existingTask?.postponeIfIncomplete ?: defaultPostponeIfIncomplete,
             weekStartDay = weekStartDay,
+            timeFormat = timeFormat,
             customTags = customTags,
             onAddCustomTag = { name -> viewModel.addCustomTag(name) },
             onCancel = onDone,
-            onSave = { name, subtasks, timerMinutes, date, priority, repeat, repeatDays, tag, postpone ->
+            onSave = { name, subtasks, timerMinutes, date, priority, reminderMinuteOfDay, reminderEpochDay, repeat, repeatDays, tag, postpone ->
                 if (existingTask != null) {
                     viewModel.updateTask(
                         task = existingTask,
@@ -135,6 +150,8 @@ fun AddTaskScreen(
                         timerMinutes = timerMinutes,
                         date = date,
                         priority = priority,
+                        reminderMinuteOfDay = reminderMinuteOfDay,
+                        reminderEpochDay = reminderEpochDay,
                         repeat = repeat,
                         repeatDays = repeatDays,
                         tag = tag,
@@ -147,6 +164,8 @@ fun AddTaskScreen(
                         timerMinutes = timerMinutes,
                         date = date,
                         priority = priority,
+                        reminderMinuteOfDay = reminderMinuteOfDay,
+                        reminderEpochDay = reminderEpochDay,
                         repeat = repeat,
                         repeatDays = repeatDays,
                         tag = tag,
@@ -168,6 +187,7 @@ private fun AddTaskScreenContent(
     initialTag: String?,
     initialPostponeIfIncomplete: Boolean,
     weekStartDay: DayOfWeek,
+    timeFormat: TimeFormat,
     customTags: List<String>,
     onAddCustomTag: (String) -> Unit,
     onCancel: () -> Unit,
@@ -177,6 +197,8 @@ private fun AddTaskScreenContent(
         timerMinutes: Int?,
         date: LocalDate,
         priority: TaskPriority,
+        reminderMinuteOfDay: Int?,
+        reminderEpochDay: Long?,
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
@@ -205,6 +227,48 @@ private fun AddTaskScreenContent(
     val selectedRepeatDays = remember {
         mutableStateListOf<DayOfWeek>().apply { addAll(existingTask?.repeatDaysSet().orEmpty()) }
     }
+
+    // Reminder: at most one per task. reminderDate always holds a concrete date (defaulting to
+    // today, exactly like selectedTaskDate above) rather than being null while "Custom Date" is
+    // selected but not yet picked - the same "Custom" chip is considered selected whenever the
+    // resolved date isn't today/tomorrow" pattern the Date row above already uses, reused here
+    // rather than inventing a second convention. reminderEnabled off is the literal "No Reminder"
+    // default state.
+    var reminderEnabled by remember { mutableStateOf(existingTask?.reminderMinuteOfDay != null) }
+    var reminderDate by remember {
+        mutableStateOf(existingTask?.reminderEpochDay?.let(LocalDate::ofEpochDay) ?: today)
+    }
+    var reminderMinuteOfDay by remember { mutableStateOf(existingTask?.reminderMinuteOfDay) }
+    var showReminderDatePickerSheet by remember { mutableStateOf(false) }
+    var showReminderTimeSheet by remember { mutableStateOf(false) }
+
+    val reminderDateTime = remember(reminderDate, reminderMinuteOfDay) {
+        reminderMinuteOfDay?.let { minute -> LocalDateTime.of(reminderDate, LocalTime.of(minute / 60, minute % 60)) }
+    }
+    val reminderMissingTime = reminderEnabled && reminderMinuteOfDay == null
+    // Only meaningful for a plain (non-recurring) reminder - a Daily/Select Days reminder always
+    // fires on some future applicable day regardless of which date happened to be selected here
+    // (see ReminderScheduler), so the past-time guard only blocks Save for the one case where the
+    // selected date+time is literally what will be used to fire.
+    val reminderTimeIsInPast = reminderEnabled && selectedRepeat == TaskRepeat.NONE &&
+        reminderDateTime != null && !reminderDateTime.isAfter(LocalDateTime.now())
+    val reminderIsInvalid = reminderMissingTime || reminderTimeIsInPast
+
+    val context = LocalContext.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* Denied or granted - either way, saving/scheduling proceeds identically; see
+           ReminderReceiver's own SecurityException guard for what an actual denial means at
+           notification-delivery time. */ }
+    LaunchedEffect(reminderEnabled) {
+        if (reminderEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     var selectedTag by remember { mutableStateOf(initialTag) }
     var showAddTagSheet by remember { mutableStateOf(false) }
     val defaultTagNames = listOf(
@@ -403,6 +467,71 @@ private fun AddTaskScreenContent(
                         .fillMaxWidth()
                         .padding(top = 6.dp, start = 92.dp)
                 )
+
+                SettingRow(
+                    label = stringResource(id = R.string.reminder_label),
+                    modifier = Modifier.padding(top = 26.dp)
+                ) {
+                    Column {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SelectionChip(
+                                text = stringResource(id = R.string.reminder_none),
+                                selected = !reminderEnabled,
+                                onClick = { reminderEnabled = false }
+                            )
+                            SelectionChip(
+                                text = stringResource(id = R.string.today),
+                                selected = reminderEnabled && reminderDate == today,
+                                onClick = {
+                                    reminderEnabled = true
+                                    reminderDate = today
+                                }
+                            )
+                            SelectionChip(
+                                text = stringResource(id = R.string.date_tomorrow),
+                                selected = reminderEnabled && reminderDate == today.plusDays(1),
+                                onClick = {
+                                    reminderEnabled = true
+                                    reminderDate = today.plusDays(1)
+                                }
+                            )
+                            SelectionChip(
+                                text = stringResource(id = R.string.reminder_custom_date),
+                                selected = reminderEnabled &&
+                                    reminderDate != today && reminderDate != today.plusDays(1),
+                                onClick = {
+                                    reminderEnabled = true
+                                    showReminderDatePickerSheet = true
+                                }
+                            )
+                        }
+                        if (reminderEnabled) {
+                            val is24Hour = timeFormat.resolveIs24Hour(context)
+                            Row(
+                                modifier = Modifier.padding(top = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                SelectionChip(
+                                    text = reminderMinuteOfDay?.let { formatReminderTime(it, is24Hour) }
+                                        ?: stringResource(id = R.string.reminder_select_time),
+                                    selected = reminderMinuteOfDay != null,
+                                    onClick = { showReminderTimeSheet = true }
+                                )
+                            }
+                            if (reminderIsInvalid) {
+                                Text(
+                                    text = stringResource(id = R.string.reminder_time_in_past_error),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(top = 6.dp)
+                                )
+                            }
+                        }
+                    }
+                }
 
                 SettingRow(
                     label = stringResource(id = R.string.repeat_label),
@@ -610,6 +739,8 @@ private fun AddTaskScreenContent(
                             if (showCustomTimerInput) customTimerText.toIntOrNull() else timerMinutes,
                             selectedTaskDate,
                             selectedPriority,
+                            if (reminderEnabled) reminderMinuteOfDay else null,
+                            if (reminderEnabled) reminderDate.toEpochDay() else null,
                             selectedRepeat,
                             selectedRepeatDays.toSet(),
                             selectedTag,
@@ -621,7 +752,8 @@ private fun AddTaskScreenContent(
                         .padding(top = 32.dp)
                         .height(56.dp),
                     enabled = taskName.isNotBlank() &&
-                        (selectedRepeat != TaskRepeat.SELECT_DAYS || selectedRepeatDays.isNotEmpty()),
+                        (selectedRepeat != TaskRepeat.SELECT_DAYS || selectedRepeatDays.isNotEmpty()) &&
+                        !reminderIsInvalid,
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
@@ -663,6 +795,116 @@ private fun AddTaskScreenContent(
             },
             onDismiss = { showAddTagSheet = false }
         )
+    }
+
+    if (showReminderDatePickerSheet) {
+        OneTaskCalendarSheet(
+            initialDate = reminderDate,
+            onDateSelected = { reminderDate = it },
+            onDismiss = { showReminderDatePickerSheet = false },
+            minSelectableDate = today,
+            weekStartDay = weekStartDay
+        )
+    }
+
+    if (showReminderTimeSheet) {
+        ReminderTimePickerSheet(
+            initialMinuteOfDay = reminderMinuteOfDay,
+            is24Hour = timeFormat.resolveIs24Hour(context),
+            onTimeSelected = {
+                reminderMinuteOfDay = it
+                showReminderTimeSheet = false
+            },
+            onDismiss = { showReminderTimeSheet = false }
+        )
+    }
+}
+
+/** SYSTEM_DEFAULT defers to the device's own 12/24-hour setting, matching every other place in
+ * Android that displays a time picker when the user hasn't explicitly overridden it in this
+ * app's own General Settings > Time Format. */
+private fun TimeFormat.resolveIs24Hour(context: Context): Boolean = when (this) {
+    TimeFormat.HOUR_24 -> true
+    TimeFormat.HOUR_12 -> false
+    TimeFormat.SYSTEM_DEFAULT -> android.text.format.DateFormat.is24HourFormat(context)
+}
+
+private fun formatReminderTime(minuteOfDay: Int, is24Hour: Boolean): String {
+    val time = LocalTime.of(minuteOfDay / 60, minuteOfDay % 60)
+    val pattern = if (is24Hour) "HH:mm" else "h:mm a"
+    return time.format(DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReminderTimePickerSheet(
+    initialMinuteOfDay: Int?,
+    is24Hour: Boolean,
+    onTimeSelected: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    // 9:00 AM is a plain, unsurprising default for a reminder that hasn't had a time chosen yet
+    // - the past-time validation above the Save button (not this picker) is what actually
+    // enforces the "no reminder in the past" rule, so this default never silently bypasses it.
+    val initialMinute = initialMinuteOfDay ?: (9 * 60)
+    val timePickerState = rememberTimePickerState(
+        initialHour = initialMinute / 60,
+        initialMinute = initialMinute % 60,
+        is24Hour = is24Hour
+    )
+
+    fun dismissThen(action: () -> Unit) {
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            if (!sheetState.isVisible) action()
+        }
+    }
+
+    CompactBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = stringResource(id = R.string.reminder_select_time),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+            TimePicker(state = timePickerState)
+            Button(
+                onClick = { dismissThen { onTimeSelected(timePickerState.hour * 60 + timePickerState.minute) } },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp)
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White
+                )
+            ) {
+                Text(text = stringResource(id = R.string.date_picker_ok), fontWeight = FontWeight.Bold)
+            }
+            TextButton(
+                onClick = { dismissThen(onDismiss) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp)
+            ) {
+                Text(
+                    text = stringResource(id = R.string.cancel),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 

@@ -9,12 +9,16 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.focus.FocusSessionState
+import com.nj031.onetask.data.reminder.ReminderManager
 import com.nj031.onetask.data.settings.DisplayMode
 import com.nj031.onetask.navigation.OneTaskNavHost
 import com.nj031.onetask.ui.theme.OneTaskTheme
 import com.nj031.onetask.viewmodel.AppearanceSettingsViewModel
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     // Bridges the running Focus Timer notification's "Open" action into a WARM app (process
@@ -27,6 +31,14 @@ class MainActivity : ComponentActivity() {
     private val reopenFocusTaskId = mutableStateOf<String?>(null)
     private val reopenFocusRequestId = mutableStateOf(0L)
 
+    // Bridges a Task Reminder notification's tap/"Open app" action into the relevant task's Edit
+    // Task screen - same bridging mechanism as reopenFocusTaskId/reopenFocusRequestId above (see
+    // that pair's own comment), just for a plain task instead of Focus Mode. Covers both a cold
+    // start (read directly from the launch intent in onCreate, below) and a warm reopen (written
+    // from onNewIntent).
+    private val reopenTaskId = mutableStateOf<String?>(null)
+    private val reopenTaskRequestId = mutableStateOf(0L)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -36,9 +48,25 @@ class MainActivity : ComponentActivity() {
         // the Homepage - this covers the process having been killed in the background, not just
         // an in-process Activity recreation (which Navigation Compose already restores itself).
         val activeFocusTaskId = FocusSessionState.getActiveTaskId(this)
+        intent.getStringExtra(EXTRA_OPEN_TASK_ID)?.let { taskId ->
+            reopenTaskId.value = taskId
+            reopenTaskRequestId.value += 1
+        }
+        // Resyncs every Task Reminder for whoever is currently signed in - covers a reminder
+        // that needs (re)scheduling because a scheduling call was missed, and is also this app's
+        // only recovery path after a device reboot for a user who hasn't reopened it yet (see
+        // ReminderBootReceiver for the other one, which handles that same case without the app
+        // being opened at all).
+        lifecycleScope.launch {
+            if (AuthRepository.currentUser != null) {
+                ReminderManager.rescheduleAll(applicationContext)
+            }
+        }
         setContent {
-            val reopenTaskId by reopenFocusTaskId
-            val reopenRequestId by reopenFocusRequestId
+            val reopenFocusTaskIdState by reopenFocusTaskId
+            val reopenFocusRequestIdState by reopenFocusRequestId
+            val reopenTaskIdState by reopenTaskId
+            val reopenTaskRequestIdState by reopenTaskRequestId
 
             // Hoisted here (above OneTaskTheme) rather than inside OneTaskNavHost, since the
             // Display Mode/Color Theme selection has to be known before OneTaskTheme itself is
@@ -58,8 +86,10 @@ class MainActivity : ComponentActivity() {
             OneTaskTheme(darkTheme = darkTheme, colorTheme = colorTheme) {
                 OneTaskNavHost(
                     activeFocusTaskId = activeFocusTaskId,
-                    reopenFocusTaskId = reopenTaskId,
-                    reopenFocusRequestId = reopenRequestId,
+                    reopenFocusTaskId = reopenFocusTaskIdState,
+                    reopenFocusRequestId = reopenFocusRequestIdState,
+                    reopenTaskId = reopenTaskIdState,
+                    reopenTaskRequestId = reopenTaskRequestIdState,
                     appearanceSettingsViewModel = appearanceSettingsViewModel
                 )
             }
@@ -73,9 +103,14 @@ class MainActivity : ComponentActivity() {
             reopenFocusTaskId.value = taskId
             reopenFocusRequestId.value += 1
         }
+        intent.getStringExtra(EXTRA_OPEN_TASK_ID)?.let { taskId ->
+            reopenTaskId.value = taskId
+            reopenTaskRequestId.value += 1
+        }
     }
 
     companion object {
         const val EXTRA_OPEN_FOCUS_TASK_ID = "open_focus_task_id"
+        const val EXTRA_OPEN_TASK_ID = "open_task_id"
     }
 }

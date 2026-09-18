@@ -71,6 +71,8 @@ private fun TaskEntity.toJson(): JSONObject = JSONObject().apply {
     put("timerMinutes", timerMinutes ?: JSONObject.NULL)
     put("date", date)
     put("priority", priority.name)
+    put("reminderMinuteOfDay", reminderMinuteOfDay ?: JSONObject.NULL)
+    put("reminderEpochDay", reminderEpochDay ?: JSONObject.NULL)
     put("repeat", repeat.name)
     put("repeatDays", repeatDays)
     put("seriesId", seriesId ?: JSONObject.NULL)
@@ -106,6 +108,10 @@ private fun JSONObject.toTaskEntity(): TaskEntity {
         // Absent from any backup file written before the Priority feature - default to NONE
         // (no priority selected), exactly like a brand-new task without a chosen priority.
         priority = runCatching { TaskPriority.valueOf(getString("priority")) }.getOrDefault(TaskPriority.NONE),
+        // Absent from any backup file written before the Reminder feature - default to null
+        // (no reminder configured), exactly like a brand-new task without one.
+        reminderMinuteOfDay = if (isNull("reminderMinuteOfDay")) null else getInt("reminderMinuteOfDay"),
+        reminderEpochDay = if (isNull("reminderEpochDay")) null else getLong("reminderEpochDay"),
         // Absent from any backup file written before the Repeat fix (or naming a repeat option
         // that fix retired - WEEKLY/MONTHLY) - default to NONE, exactly like an unrecognized
         // status/note type elsewhere in this file already does, rather than failing the restore.
