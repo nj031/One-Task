@@ -388,9 +388,8 @@
     <string name="timer_settings_placeholder">Timer settings are coming soon.</string>
     <string name="timer_custom_duration_settings_placeholder">More custom duration options are coming soon.</string>
     <string name="timer_history_placeholder">Timer history is coming soon.</string>
-    <string name="timer_completion_message">Your timer has finished.</string>
-    <string name="timer_completion_ok">OK</string>
     <string name="timer_notification_title">Timer</string>
+    <string name="timer_notification_complete_title">Time\'s Up</string>
     <string name="timer_notification_remaining_format">%1$s remaining</string>
     <string name="timer_notification_elapsed_format">%1$s elapsed</string>
     <string name="timer_notification_paused_prefix">Paused • %1$s</string>

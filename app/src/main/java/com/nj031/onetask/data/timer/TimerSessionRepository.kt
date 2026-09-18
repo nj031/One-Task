@@ -25,7 +25,16 @@ data class TimerSessionSnapshot(
     val stopwatchStartedAtMillis: Long?,
     /** The frozen elapsed total from every already-completed running segment - 0 while idle,
      * unchanged while running (the live segment is added on top of this), frozen while paused. */
-    val stopwatchAccumulatedMillis: Long
+    val stopwatchAccumulatedMillis: Long,
+    /** Wall-clock time this snapshot was taken. While a session is running, every other field
+     * above is a static absolute timestamp/duration that does NOT itself change second to second
+     * (the live remaining/elapsed value is only ever computed on demand below) - so without this
+     * field, two snapshots read a second apart would be structurally equal, and MutableStateFlow's
+     * built-in conflation (it never re-emits a value that equals() the previous one) would silently
+     * drop every "still counting down/up" update, freezing the in-app UI while the independently
+     * driven notification kept updating correctly. This field exists purely to make every snapshot
+     * distinct so the UI actually recomposes each tick; it has no bearing on any state semantics. */
+    val capturedAtMillis: Long = System.currentTimeMillis()
 ) {
     val isTimerRunning: Boolean get() = activeMode == TimerMode.TIMER && timerEndAtMillis != null
     val isTimerPaused: Boolean get() = activeMode == TimerMode.TIMER && timerEndAtMillis == null
