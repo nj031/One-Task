@@ -88,14 +88,6 @@ import java.time.format.TextStyle
 import java.util.Locale
 import kotlinx.coroutines.launch
 
-// Homepage-only palette (see design reference). Scoped to this file so Journal,
-// Auth, and the Add Task sheet keep their existing theme colors untouched.
-private val HomeBackground = Color(0xFFF4F7FC)
-private val HomeCardWhite = Color(0xFFFFFFFF)
-private val HomePrimaryBlue = Color(0xFF2F6FD6)
-private val HomeDarkText = Color(0xFF17365D)
-private val HomeSecondaryText = Color(0xFF6B7C93)
-
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
@@ -152,7 +144,7 @@ fun HomeScreen(
     }
 
     Scaffold(
-        containerColor = HomeBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             OneTaskBottomNav(
                 activeTab = BottomNavTab.TASKS,
@@ -204,7 +196,7 @@ fun HomeScreen(
                     text = stringResource(id = R.string.tasks_completed, completedCount, tasks.size),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
-                    color = HomePrimaryBlue,
+                    color = MaterialTheme.colorScheme.primary,
                     textAlign = TextAlign.Center
                 )
 
@@ -311,9 +303,8 @@ fun HomeScreen(
  * The Tasks screen's Add Task control - a horizontal rounded bar in the normal page flow,
  * replacing the old circular floating action button. It's a general/global control (not scoped
  * to any one tab below it) and triggers the exact same [onClick] the FAB used to call; only its
- * shape and position changed. Uses the same HomePrimaryBlue/white pairing the old FAB used
- * (OneTaskAddButton's own AddButtonBlue is this same color), so it stays visually consistent
- * with the rest of this screen's existing palette.
+ * shape and position changed. Uses the same primary/white pairing the old FAB used, so it stays
+ * visually consistent with the rest of this screen.
  */
 @Composable
 private fun HomeAddTaskBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -322,7 +313,7 @@ private fun HomeAddTaskBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(28.dp))
-            .background(HomePrimaryBlue)
+            .background(MaterialTheme.colorScheme.primary)
             .clickable(onClick = onClick)
             .semantics { contentDescription = addTaskDescription }
             .padding(vertical = 14.dp),
@@ -364,7 +355,7 @@ private fun HomeTaskTabRow(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(HomeCardWhite)
+            .background(MaterialTheme.colorScheme.surface)
             .padding(4.dp)
     ) {
         tabs.forEach { (tab, label) ->
@@ -373,12 +364,12 @@ private fun HomeTaskTabRow(
                 text = label,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
-                color = if (isSelected) Color.White else HomeSecondaryText,
+                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(16.dp))
-                    .then(if (isSelected) Modifier.background(HomePrimaryBlue) else Modifier)
+                    .then(if (isSelected) Modifier.background(MaterialTheme.colorScheme.primary) else Modifier)
                     .clickable { onTabSelected(tab) }
                     .padding(vertical = 8.dp)
             )
@@ -411,13 +402,13 @@ private fun HomeTopBar(profilePhotoPath: String?, onAvatarClick: () -> Unit, onC
                 text = stringResource(id = R.string.home_title),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = HomePrimaryBlue,
+                color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center
             )
             Text(
                 text = stringResource(id = R.string.home_tagline),
                 style = MaterialTheme.typography.bodySmall,
-                color = HomeSecondaryText,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
         }
@@ -428,7 +419,7 @@ private fun HomeTopBar(profilePhotoPath: String?, onAvatarClick: () -> Unit, onC
                 .align(Alignment.CenterEnd)
                 .semantics { contentDescription = calendarDescription }
         ) {
-            OneTaskCalendarIcon(tint = HomePrimaryBlue)
+            OneTaskCalendarIcon(tint = MaterialTheme.colorScheme.primary)
         }
     }
 }
@@ -460,7 +451,7 @@ private fun DateNavigationRow(
             Icon(
                 imageVector = Icons.Filled.KeyboardArrowLeft,
                 contentDescription = stringResource(id = R.string.previous_day),
-                tint = HomePrimaryBlue
+                tint = MaterialTheme.colorScheme.primary
             )
         }
 
@@ -469,12 +460,12 @@ private fun DateNavigationRow(
                 text = relativeLabel,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = HomeDarkText
+                color = MaterialTheme.colorScheme.onBackground
             )
             Text(
                 text = formattedDate,
                 style = MaterialTheme.typography.bodyMedium,
-                color = HomeSecondaryText
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
@@ -482,7 +473,7 @@ private fun DateNavigationRow(
             Icon(
                 imageVector = Icons.Filled.KeyboardArrowRight,
                 contentDescription = stringResource(id = R.string.next_day),
-                tint = HomePrimaryBlue
+                tint = MaterialTheme.colorScheme.primary
             )
         }
     }
@@ -498,13 +489,13 @@ private fun HomeEmptyState(modifier: Modifier = Modifier) {
             text = stringResource(id = R.string.home_empty_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = HomeDarkText,
+            color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center
         )
         Text(
             text = stringResource(id = R.string.home_empty_subtitle),
             style = MaterialTheme.typography.bodyMedium,
-            color = HomeSecondaryText,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 8.dp)
         )
@@ -733,7 +724,7 @@ private fun TaskActionRow(
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Surface(
             shape = RoundedCornerShape(14.dp),
-            color = HomeCardWhite,
+            color = MaterialTheme.colorScheme.surface,
             shadowElevation = 1.dp
         ) {
             Row(
@@ -747,7 +738,7 @@ private fun TaskActionRow(
                                 .padding(horizontal = 2.dp)
                                 .width(1.dp)
                                 .height(16.dp)
-                                .background(HomeSecondaryText.copy(alpha = 0.3f))
+                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
                         )
                     }
                     TaskRowActionButton(action = action)
@@ -769,7 +760,7 @@ private fun TaskRowActionButton(action: TaskRowAction) {
         text = action.label,
         style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.SemiBold,
-        color = if (action.destructive) MaterialTheme.colorScheme.error else HomePrimaryBlue,
+        color = if (action.destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = action.onClick)
@@ -839,7 +830,7 @@ private fun TaskCard(
                 )
             },
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = HomeCardWhite),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         // Only a very slight elevation bump communicates "this card is now draggable" - no
         // scale, rotation, or size change.
         elevation = CardDefaults.cardElevation(defaultElevation = if (isDragged) 4.dp else 1.dp)
@@ -854,7 +845,7 @@ private fun TaskCard(
                     text = task.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (isCompleted) HomeSecondaryText else HomeDarkText,
+                    color = if (isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onBackground,
                     textDecoration = if (isCompleted) TextDecoration.LineThrough else TextDecoration.None,
                     modifier = Modifier
                         .weight(1f)
@@ -878,7 +869,7 @@ private fun TaskCard(
                         }
                     ),
                     style = MaterialTheme.typography.labelMedium,
-                    color = HomeSecondaryText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 task.timerMinutes?.let { minutes ->
@@ -886,7 +877,7 @@ private fun TaskCard(
                     Text(
                         text = stringResource(id = R.string.timer_minutes_format, minutes),
                         style = MaterialTheme.typography.labelMedium,
-                        color = HomeSecondaryText
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
@@ -895,7 +886,7 @@ private fun TaskCard(
                     Text(
                         text = stringResource(id = R.string.subtasks_label),
                         style = MaterialTheme.typography.labelMedium,
-                        color = HomePrimaryBlue,
+                        color = MaterialTheme.colorScheme.primary,
                         textDecoration = TextDecoration.Underline,
                         modifier = Modifier.clickable { subtasksExpanded = !subtasksExpanded }
                     )
@@ -922,13 +913,13 @@ private fun TagPill(text: String, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .border(1.dp, HomePrimaryBlue, RoundedCornerShape(50))
+            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(50))
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelSmall,
-            color = HomePrimaryBlue
+            color = MaterialTheme.colorScheme.primary
         )
     }
 }
@@ -949,7 +940,7 @@ private fun SubtaskRow(
             modifier = Modifier
                 .size(18.dp)
                 .clip(CircleShape)
-                .border(1.5.dp, HomePrimaryBlue, CircleShape)
+                .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
                 .then(if (interactive) Modifier.clickable(onClick = onToggle) else Modifier),
             contentAlignment = Alignment.Center
         ) {
@@ -958,14 +949,14 @@ private fun SubtaskRow(
                     text = "✓",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = HomePrimaryBlue
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
         }
         Text(
             text = subtask.name,
             style = MaterialTheme.typography.bodyMedium,
-            color = if (subtask.completed) HomeSecondaryText else HomeDarkText,
+            color = if (subtask.completed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onBackground,
             textDecoration = if (subtask.completed) TextDecoration.LineThrough else TextDecoration.None,
             modifier = Modifier.padding(start = 10.dp)
         )
@@ -983,7 +974,7 @@ private fun CircularTaskCheckbox(
         modifier = modifier
             .size(24.dp)
             .clip(CircleShape)
-            .border(2.dp, HomePrimaryBlue, CircleShape)
+            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
             .clickable(onClick = {
                 hapticTick()
                 onToggle()
@@ -995,7 +986,7 @@ private fun CircularTaskCheckbox(
                 text = "✓",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
-                color = HomePrimaryBlue
+                color = MaterialTheme.colorScheme.primary
             )
         }
     }
@@ -1019,7 +1010,7 @@ private fun DeleteRunningTimerConfirmationSheet(
     CompactBottomSheet(
         onDismissRequest = onCancel,
         sheetState = sheetState,
-        containerColor = HomeCardWhite
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
         Column(
             modifier = Modifier
@@ -1031,13 +1022,13 @@ private fun DeleteRunningTimerConfirmationSheet(
                 text = stringResource(id = R.string.delete_task_confirm_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = HomePrimaryBlue,
+                color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center
             )
             Text(
                 text = stringResource(id = R.string.delete_task_confirm_message),
                 style = MaterialTheme.typography.bodySmall,
-                color = HomeSecondaryText,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 10.dp)
             )
@@ -1061,7 +1052,7 @@ private fun DeleteRunningTimerConfirmationSheet(
                 Text(
                     text = stringResource(id = R.string.cancel),
                     style = MaterialTheme.typography.bodySmall,
-                    color = HomeSecondaryText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

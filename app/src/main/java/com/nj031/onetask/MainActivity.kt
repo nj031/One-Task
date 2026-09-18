@@ -5,11 +5,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.data.focus.FocusSessionState
+import com.nj031.onetask.data.settings.DisplayMode
 import com.nj031.onetask.navigation.OneTaskNavHost
 import com.nj031.onetask.ui.theme.OneTaskTheme
+import com.nj031.onetask.viewmodel.AppearanceSettingsViewModel
 
 class MainActivity : ComponentActivity() {
     // Bridges the running Focus Timer notification's "Open" action into a WARM app (process
@@ -34,11 +39,28 @@ class MainActivity : ComponentActivity() {
         setContent {
             val reopenTaskId by reopenFocusTaskId
             val reopenRequestId by reopenFocusRequestId
-            OneTaskTheme {
+
+            // Hoisted here (above OneTaskTheme) rather than inside OneTaskNavHost, since the
+            // Display Mode/Color Theme selection has to be known before OneTaskTheme itself is
+            // entered - the same instance is then threaded down into OneTaskNavHost so the
+            // Appearance screen, deep in the nav graph, mutates this exact ViewModel rather than
+            // a separate NavBackStackEntry-scoped one.
+            val appearanceSettingsViewModel: AppearanceSettingsViewModel = viewModel()
+            val displayMode by appearanceSettingsViewModel.displayMode.collectAsState()
+            val colorTheme by appearanceSettingsViewModel.colorTheme.collectAsState()
+            val systemInDarkTheme = isSystemInDarkTheme()
+            val darkTheme = when (displayMode) {
+                DisplayMode.SYSTEM -> systemInDarkTheme
+                DisplayMode.LIGHT -> false
+                DisplayMode.DARK -> true
+            }
+
+            OneTaskTheme(darkTheme = darkTheme, colorTheme = colorTheme) {
                 OneTaskNavHost(
                     activeFocusTaskId = activeFocusTaskId,
                     reopenFocusTaskId = reopenTaskId,
-                    reopenFocusRequestId = reopenRequestId
+                    reopenFocusRequestId = reopenRequestId,
+                    appearanceSettingsViewModel = appearanceSettingsViewModel
                 )
             }
         }

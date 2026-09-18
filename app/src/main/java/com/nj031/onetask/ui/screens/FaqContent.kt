@@ -7,8 +7,7 @@ package com.nj031.onetask.ui.screens
  * here. Content matches the product-specified questions/answers; a small number of answers were
  * corrected to match One Task's actual current behavior (see inline notes) rather than aspirational
  * or marketing copy (e.g. features listed as "Pro-only" on the Upgrade to Pro screen that aren't
- * actually gated yet, and Appearance, the one General Settings row still a "coming soon"
- * placeholder).
+ * actually gated yet).
  */
 data class FaqQuestion(val question: String, val answer: String)
 data class FaqCategory(val id: String, val title: String, val questions: List<FaqQuestion>)
@@ -191,13 +190,13 @@ val faqCategories: List<FaqCategory> = listOf(
     FaqCategory(
         id = "general",
         title = "General",
-        // General Settings now exists (hamburger menu > General) with all 7 rows: Appearance is
-        // still a placeholder; Start Screen, Default Task Settings, Notifications, Week Starts
-        // On, Time Format, and Haptic Feedback are all fully functional.
+        // General Settings now exists (hamburger menu > General) with all 7 rows fully
+        // functional, including Appearance (Display Mode, Theme color, and a Wallpaper section
+        // that's still a placeholder pending real wallpaper assets).
         questions = listOf(
             FaqQuestion(
                 "How do I change the app appearance?",
-                "Open the hamburger menu, tap General, then Appearance. Theme customization isn't built yet, but the screen is there and will be filled in with a future update."
+                "Open the hamburger menu, tap General, then Appearance. You can switch between System Default, Light, and Dark display modes, and choose a color theme (Blue, Green, Teal, Amber, or Pink) - both apply instantly across the app and are remembered the next time you open One Task."
             ),
             FaqQuestion(
                 "How do I change the start screen?",

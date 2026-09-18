@@ -32,8 +32,7 @@ import java.util.Locale
 
 /**
  * Settings > General, reachable from the hamburger drawer's "General" row (previously a no-op).
- * Every row is fully functional except Appearance, which opens a shared "coming soon" screen,
- * the same treatment Privacy Policy already got before its content existed.
+ * Every row is fully functional, including Appearance.
  */
 @Composable
 fun GeneralSettingsScreen(

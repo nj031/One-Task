@@ -32,7 +32,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -47,13 +46,6 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlinx.coroutines.launch
-
-// The single calendar color palette used everywhere a date picker appears in One Task.
-private val CalendarPrimaryBlue = Color(0xFF2F6FD6)
-private val CalendarHighlightBlue = Color(0xFFDBEBFA)
-private val CalendarCardWhite = Color(0xFFFFFFFF)
-private val CalendarDarkText = Color(0xFF17365D)
-private val CalendarSecondaryText = Color(0xFF6B7C93)
 
 /**
  * The single calendar/date-picker presentation used everywhere in One Task (Homepage, Journal,
@@ -88,7 +80,7 @@ fun OneTaskCalendarSheet(
     CompactBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = CalendarCardWhite
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Row(
@@ -105,7 +97,7 @@ fun OneTaskCalendarSheet(
                     text = visibleMonth.format(calendarMonthYearFormatter),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = CalendarPrimaryBlue
+                    color = MaterialTheme.colorScheme.primary
                 )
                 CalendarNavButton(
                     icon = Icons.Filled.KeyboardArrowRight,
@@ -137,7 +129,7 @@ fun OneTaskCalendarSheet(
                 Text(
                     text = stringResource(id = R.string.close),
                     style = MaterialTheme.typography.bodySmall,
-                    color = CalendarSecondaryText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -164,7 +156,7 @@ private fun CalendarNavButton(
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = CalendarPrimaryBlue,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(20.dp)
         )
     }
@@ -188,7 +180,7 @@ private fun CalendarWeekdayHeader(weekStartDay: DayOfWeek) {
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.labelSmall,
-                color = CalendarSecondaryText
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -263,8 +255,8 @@ private fun CalendarDayCell(
                     .then(
                         if (isSelected) {
                             Modifier
-                                .background(CalendarHighlightBlue, RoundedCornerShape(8.dp))
-                                .border(1.dp, CalendarPrimaryBlue, RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(8.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
                         } else {
                             Modifier
                         }
@@ -277,9 +269,9 @@ private fun CalendarDayCell(
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                         color = when {
-                            isDisabled -> CalendarSecondaryText.copy(alpha = 0.4f)
-                            isSelected -> CalendarPrimaryBlue
-                            else -> CalendarDarkText
+                            isDisabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            isSelected -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.onBackground
                         }
                     )
                     Box(
@@ -288,7 +280,7 @@ private fun CalendarDayCell(
                             .size(4.dp)
                             .then(
                                 if (isMarked) {
-                                    Modifier.background(CalendarPrimaryBlue, CircleShape)
+                                    Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)
                                 } else {
                                     Modifier
                                 }

@@ -11,14 +11,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * One Task's custom icon set - simple, rounded-stroke, navy/blue line icons shared by the
@@ -960,5 +964,144 @@ fun OneTaskLapFlagIcon(
             close()
         }
         drawPath(flagPath, color = tint, style = Stroke(width = strokeWidth * 0.75f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+}
+
+/** A simple monitor glyph - the Appearance screen's "System Default" display-mode option. */
+@Composable
+fun OneTaskSystemDefaultIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.09f
+        val screenLeft = this.size.width * 0.12f
+        val screenRight = this.size.width * 0.88f
+        val screenTop = this.size.height * 0.16f
+        val screenBottom = this.size.height * 0.68f
+
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(screenLeft, screenTop),
+            size = Size(screenRight - screenLeft, screenBottom - screenTop),
+            cornerRadius = CornerRadius(this.size.minDimension * 0.08f),
+            style = Stroke(width = strokeWidth)
+        )
+        drawLine(
+            color = tint,
+            start = Offset(this.size.width / 2f, screenBottom),
+            end = Offset(this.size.width / 2f, screenBottom + this.size.height * 0.08f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = tint,
+            start = Offset(this.size.width * 0.28f, this.size.height * 0.86f),
+            end = Offset(this.size.width * 0.72f, this.size.height * 0.86f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+/** A sun glyph (circle + radiating rays) - the Appearance screen's "Light" display-mode option. */
+@Composable
+fun OneTaskSunIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.09f
+        val center = Offset(this.size.width / 2f, this.size.height / 2f)
+        val coreRadius = this.size.minDimension * 0.22f
+        val rayInner = this.size.minDimension * 0.34f
+        val rayOuter = this.size.minDimension * 0.46f
+
+        drawCircle(color = tint, radius = coreRadius, center = center, style = Stroke(width = strokeWidth))
+
+        for (i in 0 until 8) {
+            val angle = Math.toRadians((i * 45).toDouble())
+            val cosA = cos(angle).toFloat()
+            val sinA = sin(angle).toFloat()
+            drawLine(
+                color = tint,
+                start = Offset(center.x + rayInner * cosA, center.y + rayInner * sinA),
+                end = Offset(center.x + rayOuter * cosA, center.y + rayOuter * sinA),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round
+            )
+        }
+    }
+}
+
+/** A crescent-moon glyph (a large circle minus a smaller offset circle, via a true path
+ * subtraction rather than an overlaid "cutout" color) - the Appearance screen's "Dark"
+ * display-mode option. */
+@Composable
+fun OneTaskMoonIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val outerRadius = this.size.minDimension * 0.32f
+        val outerCenter = Offset(this.size.width * 0.44f, this.size.height * 0.5f)
+        val innerRadius = this.size.minDimension * 0.27f
+        val innerCenter = Offset(this.size.width * 0.58f, this.size.height * 0.38f)
+
+        val outerCircle = Path().apply {
+            addOval(Rect(center = outerCenter, radius = outerRadius))
+        }
+        val innerCircle = Path().apply {
+            addOval(Rect(center = innerCenter, radius = innerRadius))
+        }
+        val crescent = Path()
+        crescent.op(outerCircle, innerCircle, PathOperation.Difference)
+        drawPath(crescent, color = tint)
+    }
+}
+
+/** A generic picture-frame glyph (rounded border + a small "sun" dot + a mountain diagonal) -
+ * the Appearance screen's Wallpaper section placeholder tiles (No Wallpaper and the still-inert
+ * Wallpaper 1-5 options, none of which have real image assets yet). */
+@Composable
+fun OneTaskWallpaperPlaceholderIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.08f
+        val left = this.size.width * 0.12f
+        val right = this.size.width * 0.88f
+        val top = this.size.height * 0.2f
+        val bottom = this.size.height * 0.8f
+
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(left, top),
+            size = Size(right - left, bottom - top),
+            cornerRadius = CornerRadius(this.size.minDimension * 0.1f),
+            style = Stroke(width = strokeWidth)
+        )
+        drawCircle(
+            color = tint,
+            radius = this.size.minDimension * 0.07f,
+            center = Offset(left + (right - left) * 0.28f, top + (bottom - top) * 0.32f)
+        )
+        val mountainPath = Path().apply {
+            moveTo(left + (right - left) * 0.16f, bottom - (bottom - top) * 0.14f)
+            lineTo(left + (right - left) * 0.42f, top + (bottom - top) * 0.5f)
+            lineTo(left + (right - left) * 0.62f, top + (bottom - top) * 0.68f)
+            lineTo(left + (right - left) * 0.84f, top + (bottom - top) * 0.38f)
+            lineTo(right - (right - left) * 0.14f, bottom - (bottom - top) * 0.14f)
+        }
+        drawPath(
+            mountainPath,
+            color = tint,
+            style = Stroke(width = strokeWidth * 0.85f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
     }
 }

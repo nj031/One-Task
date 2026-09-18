@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -37,8 +38,11 @@ enum class BottomNavTab { JOURNAL, TASKS, TIMER }
  * top bars, not through this bottom nav.
  *
  * The three tab icons are the exact supplied bitmap assets (R.drawable.ic_nav_*_active /
- * _inactive, cropped directly from the provided reference sheet with their original colors
- * intact), not custom-drawn vectors - swapped by [selected] state rather than tinted.
+ * _inactive, cropped directly from the provided reference sheet), not custom-drawn vectors -
+ * swapped by [selected] state. The active variant is additionally tinted to the current theme's
+ * primary color (its baked-in artwork was drawn blue, so a non-blue color theme still needs a
+ * runtime recolor here) - the inactive variant's neutral gray is intentionally left untouched by
+ * theming, matching every other "unselected" element elsewhere in the app.
  */
 @Composable
 fun OneTaskBottomNav(
@@ -82,6 +86,7 @@ fun OneTaskBottomNav(
                             id = if (tasksSelected) R.drawable.ic_nav_tasks_active else R.drawable.ic_nav_tasks_inactive
                         ),
                         contentDescription = null,
+                        colorFilter = if (tasksSelected) ColorFilter.tint(MaterialTheme.colorScheme.primary) else null,
                         modifier = Modifier.size(28.dp)
                     )
                 },
@@ -97,6 +102,7 @@ fun OneTaskBottomNav(
                             id = if (timerSelected) R.drawable.ic_nav_timer_active else R.drawable.ic_nav_timer_inactive
                         ),
                         contentDescription = null,
+                        colorFilter = if (timerSelected) ColorFilter.tint(MaterialTheme.colorScheme.primary) else null,
                         modifier = Modifier.size(28.dp)
                     )
                 },
@@ -112,6 +118,7 @@ fun OneTaskBottomNav(
                             id = if (notesSelected) R.drawable.ic_nav_notes_active else R.drawable.ic_nav_notes_inactive
                         ),
                         contentDescription = null,
+                        colorFilter = if (notesSelected) ColorFilter.tint(MaterialTheme.colorScheme.primary) else null,
                         modifier = Modifier.size(28.dp)
                     )
                 },

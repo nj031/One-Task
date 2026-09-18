@@ -202,7 +202,24 @@
     <string name="general_setting_coming_soon_message">This setting will be available in a future update.</string>
 
     <string name="appearance_title">Appearance</string>
-    <string name="appearance_placeholder_message">Appearance and theme customization is coming soon.</string>
+    <string name="appearance_subtitle">Customize how One Task looks and feels.</string>
+    <string name="appearance_display_mode_title">Display Mode</string>
+    <string name="appearance_display_mode_description">Choose how the app looks.</string>
+    <string name="appearance_display_mode_system">System Default</string>
+    <string name="appearance_display_mode_light">Light</string>
+    <string name="appearance_display_mode_dark">Dark</string>
+    <string name="appearance_theme_title">Theme</string>
+    <string name="appearance_theme_description">Choose a color for the app.</string>
+    <string name="appearance_theme_blue">Blue</string>
+    <string name="appearance_theme_green">Green</string>
+    <string name="appearance_theme_teal">Teal</string>
+    <string name="appearance_theme_amber">Amber</string>
+    <string name="appearance_theme_pink">Pink</string>
+    <string name="appearance_wallpaper_title">Wallpaper</string>
+    <string name="appearance_wallpaper_description">Give the app a fresh look with a beautiful background.</string>
+    <string name="appearance_wallpaper_none">No Wallpaper</string>
+    <string name="appearance_wallpaper_option_format">Wallpaper %1$d</string>
+    <string name="appearance_wallpaper_info">Wallpaper will override your selected color and display mode. You can still change them later.</string>
 
     <string name="start_screen_title">Start Screen</string>
     <string name="start_screen_description">Choose which section opens when you launch One Task.</string>
