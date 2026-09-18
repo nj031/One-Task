@@ -416,6 +416,41 @@ fun OneTaskArchiveIcon(
     }
 }
 
+/** A simple price-tag glyph (pointed body + a small punch hole), matching this file's existing
+ * stroke-based icon style, for the Notes Labels feature. */
+@Composable
+fun OneTaskLabelIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.09f
+        val tipX = this.size.width * 0.12f
+        val shoulderX = this.size.width * 0.4f
+        val right = this.size.width * 0.86f
+        val top = this.size.height * 0.22f
+        val bottom = this.size.height * 0.78f
+        val midY = this.size.height / 2f
+
+        val tagPath = Path().apply {
+            moveTo(tipX, midY)
+            lineTo(shoulderX, top)
+            lineTo(right, top)
+            lineTo(right, bottom)
+            lineTo(shoulderX, bottom)
+            close()
+        }
+        drawPath(tagPath, color = tint, style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawCircle(
+            color = tint,
+            radius = this.size.minDimension * 0.06f,
+            center = Offset(right - this.size.width * 0.16f, midY),
+            style = Stroke(width = strokeWidth * 0.8f)
+        )
+    }
+}
+
 @Composable
 fun OneTaskRecycleBinIcon(
     modifier: Modifier = Modifier,

@@ -54,6 +54,16 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         repository.observeTrashedNotes()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val labels: StateFlow<List<String>> =
+        repository.observeLabels()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun addLabel(name: String) {
+        viewModelScope.launch {
+            repository.addLabel(name)
+        }
+    }
+
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
     }

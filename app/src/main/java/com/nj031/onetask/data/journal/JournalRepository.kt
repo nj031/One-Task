@@ -16,6 +16,12 @@ class JournalRepository(private val dao: JournalNoteDao) {
 
     suspend fun getAllNotesOnce(): List<JournalNoteEntity> = dao.getAllOnce()
 
+    fun observeLabels(): Flow<List<String>> = dao.getLabels()
+
+    suspend fun addLabel(name: String) {
+        dao.insertLabel(NoteLabelEntity(name = name))
+    }
+
     suspend fun createNote(
         title: String,
         content: String,

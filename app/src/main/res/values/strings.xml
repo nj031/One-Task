@@ -324,6 +324,11 @@
     <string name="notes_view_list">List View</string>
     <string name="notes_view_card">Card View</string>
     <string name="notes_add_choice_title">Add Note</string>
+    <string name="notes_more_options">More options</string>
+    <string name="labels_title">Labels</string>
+    <string name="labels_name_placeholder">Label name…</string>
+    <string name="labels_add_button">Add Label</string>
+    <string name="no_labels_yet">No labels yet.</string>
     <string name="note_type_text">Text</string>
     <string name="note_type_checklist">Checklist</string>
     <string name="checklist_item_placeholder">List item</string>

@@ -38,6 +38,7 @@ import com.nj031.onetask.ui.screens.HelpFaqCategoryScreen
 import com.nj031.onetask.ui.screens.HelpFaqScreen
 import com.nj031.onetask.ui.screens.HelpFeedbackScreen
 import com.nj031.onetask.ui.screens.HomeScreen
+import com.nj031.onetask.ui.screens.LabelsScreen
 import com.nj031.onetask.ui.screens.LoginScreen
 import com.nj031.onetask.ui.screens.NoteEditorScreen
 import com.nj031.onetask.ui.screens.NotesScreen
@@ -357,6 +358,9 @@ fun OneTaskNavHost(
                 onNavigateToTasks = { navController.navigateToBottomNavTab(Screen.Home.route) },
                 onOpenTimerPlaceholder = { navController.navigateToBottomNavTab(Screen.TimerPlaceholder.route) },
                 onProfileAvatarClick = { navController.navigate(Screen.Profile.route) },
+                onArchiveClick = { navController.navigate(Screen.Archive.route) },
+                onRecycleBinClick = { navController.navigate(Screen.RecycleBin.route) },
+                onLabelsClick = { navController.navigate(Screen.Labels.route) },
                 timeFormat = timeFormat
             )
         }
@@ -366,8 +370,6 @@ fun OneTaskNavHost(
                 onBackClick = { navController.popBackStack() },
                 onEditProfileClick = { navController.navigate(Screen.EditProfile.route) },
                 onUpgradeToProClick = { navController.navigate(Screen.UpgradeToPro.route) },
-                onArchiveClick = { navController.navigate(Screen.Archive.route) },
-                onRecycleBinClick = { navController.navigate(Screen.RecycleBin.route) },
                 onGeneralSettingsClick = { navController.navigate(Screen.GeneralSettings.route) },
                 onDataPrivacyClick = { navController.navigate(Screen.DataPrivacy.route) },
                 onAboutClick = { navController.navigate(Screen.AboutOneTask.route) },
@@ -394,6 +396,12 @@ fun OneTaskNavHost(
         }
         composable(Screen.RecycleBin.route) {
             RecycleBinScreen(
+                viewModel = journalViewModel,
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.Labels.route) {
+            LabelsScreen(
                 viewModel = journalViewModel,
                 onBackClick = { navController.popBackStack() }
             )
