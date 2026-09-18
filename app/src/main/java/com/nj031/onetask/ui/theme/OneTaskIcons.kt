@@ -730,8 +730,9 @@ fun OneTaskLogoutIcon(
     }
 }
 
-/** A simple stopwatch face - used only for the bottom nav's placeholder Timer tab, which has no
- * functionality of its own yet. */
+/** A simple stopwatch face (with its top crown/button) - used for the Timer screen's own
+ * "Stopwatch" segment tab. The bottom nav's Timer tab icon is a separate bitmap asset, unrelated
+ * to this composable. */
 @Composable
 fun OneTaskTimerIcon(
     modifier: Modifier = Modifier,
@@ -773,5 +774,191 @@ fun OneTaskTimerIcon(
             strokeWidth = strokeWidth * 0.85f,
             cap = StrokeCap.Round
         )
+    }
+}
+
+/** A plain analog clock face (circle + two hands, no crown/button) - used for the Timer screen's
+ * "Timer" segment tab, distinguishing it from [OneTaskTimerIcon]'s stopwatch-with-crown look. */
+@Composable
+fun OneTaskClockIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.09f
+        val center = Offset(this.size.width / 2f, this.size.height / 2f)
+        val radius = this.size.minDimension * 0.42f
+
+        drawCircle(color = tint, radius = radius, center = center, style = Stroke(width = strokeWidth))
+        drawLine(
+            color = tint,
+            start = center,
+            end = Offset(center.x, center.y - radius * 0.55f),
+            strokeWidth = strokeWidth * 0.85f,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = tint,
+            start = center,
+            end = Offset(center.x + radius * 0.4f, center.y),
+            strokeWidth = strokeWidth * 0.85f,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+/** A stopwatch face with its top crown/button - the tint-parameterized twin of [OneTaskTimerIcon]
+ * (which only supports an active/inactive boolean), used for the Timer screen's own "Stopwatch"
+ * segment tab so it can share [SegmentedTab]'s selected/locked tint logic with the Timer tab's
+ * [OneTaskClockIcon]. */
+@Composable
+fun OneTaskStopwatchIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.08f
+        val center = Offset(this.size.width / 2f, this.size.height * 0.56f)
+        val radius = this.size.minDimension * 0.36f
+
+        drawLine(
+            color = tint,
+            start = Offset(this.size.width * 0.4f, this.size.height * 0.06f),
+            end = Offset(this.size.width * 0.6f, this.size.height * 0.06f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = tint,
+            start = Offset(center.x, this.size.height * 0.06f),
+            end = Offset(center.x, this.size.height * 0.2f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        drawCircle(color = tint, radius = radius, center = center, style = Stroke(width = strokeWidth))
+        drawLine(
+            color = tint,
+            start = center,
+            end = Offset(center.x, center.y - radius * 0.6f),
+            strokeWidth = strokeWidth * 0.85f,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = tint,
+            start = center,
+            end = Offset(center.x + radius * 0.45f, center.y),
+            strokeWidth = strokeWidth * 0.85f,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+/** A filled right-pointing play triangle. */
+@Composable
+fun OneTaskPlayIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = Color.White,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val left = this.size.width * 0.24f
+        val right = this.size.width * 0.82f
+        val top = this.size.height * 0.16f
+        val bottom = this.size.height * 0.84f
+        val middle = this.size.height / 2f
+        val playPath = Path().apply {
+            moveTo(left, top)
+            lineTo(right, middle)
+            lineTo(left, bottom)
+            close()
+        }
+        drawPath(playPath, color = tint)
+    }
+}
+
+/** Two vertical bars - a standard pause glyph. */
+@Composable
+fun OneTaskPauseIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = Color.White,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val barWidth = this.size.width * 0.22f
+        val top = this.size.height * 0.16f
+        val bottom = this.size.height * 0.84f
+        val leftBarX = this.size.width * 0.28f
+        val rightBarX = this.size.width * 0.72f
+        val cornerRadius = CornerRadius(barWidth * 0.3f)
+
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(leftBarX - barWidth / 2f, top),
+            size = Size(barWidth, bottom - top),
+            cornerRadius = cornerRadius
+        )
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(rightBarX - barWidth / 2f, top),
+            size = Size(barWidth, bottom - top),
+            cornerRadius = cornerRadius
+        )
+    }
+}
+
+/** A filled rounded square - a standard stop glyph. */
+@Composable
+fun OneTaskStopIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.primary,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val inset = this.size.width * 0.2f
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(inset, inset),
+            size = Size(this.size.width - inset * 2f, this.size.height - inset * 2f),
+            cornerRadius = CornerRadius(this.size.minDimension * 0.12f)
+        )
+    }
+}
+
+/** A simple flag-on-a-pole glyph - the Stopwatch's Lap placeholder control (no lap recording
+ * yet, purely a future-functionality placeholder per spec). */
+@Composable
+fun OneTaskLapFlagIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.09f
+        val poleX = this.size.width * 0.28f
+        val top = this.size.height * 0.15f
+        val bottom = this.size.height * 0.88f
+
+        drawLine(
+            color = tint,
+            start = Offset(poleX, top),
+            end = Offset(poleX, bottom),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+
+        val flagRight = this.size.width * 0.82f
+        val flagMidY = this.size.height * 0.36f
+        val flagBottomY = this.size.height * 0.52f
+        val flagPath = Path().apply {
+            moveTo(poleX, top)
+            lineTo(flagRight, top + (flagMidY - top) * 0.5f)
+            lineTo(poleX + (flagRight - poleX) * 0.55f, flagMidY)
+            lineTo(flagRight, flagMidY + (flagBottomY - flagMidY) * 0.5f)
+            lineTo(poleX, flagBottomY)
+            close()
+        }
+        drawPath(flagPath, color = tint, style = Stroke(width = strokeWidth * 0.75f, cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
 }

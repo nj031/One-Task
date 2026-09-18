@@ -367,6 +367,36 @@
     <string name="focus_timer_notification_complete_channel_name">Focus session complete</string>
     <string name="focus_timer_notification_complete_title">Focus session complete — %1$s</string>
     <string name="focus_timer_notification_complete_text">%1$s focus session completed</string>
+
+    <string name="timer_focus_title">Focus</string>
+    <string name="timer_more_options">More options</string>
+    <string name="timer_tab_timer">Timer</string>
+    <string name="timer_tab_stopwatch">Stopwatch</string>
+    <string name="timer_preset_custom">Custom</string>
+    <string name="timer_start_button">Start</string>
+    <string name="timer_stop_button">Stop</string>
+    <string name="timer_focus_mode_button">Focus mode</string>
+    <string name="timer_unit_hr">hr</string>
+    <string name="timer_unit_min">min</string>
+    <string name="timer_unit_sec">sec</string>
+    <string name="timer_custom_duration_title">Custom Duration</string>
+    <string name="timer_custom_duration_confirm">Set</string>
+    <string name="timer_menu_notification_settings">Notification Settings</string>
+    <string name="timer_menu_settings">Timer Settings</string>
+    <string name="timer_menu_custom_duration">Custom Duration</string>
+    <string name="timer_menu_history">Timer History</string>
+    <string name="timer_settings_placeholder">Timer settings are coming soon.</string>
+    <string name="timer_custom_duration_settings_placeholder">More custom duration options are coming soon.</string>
+    <string name="timer_history_placeholder">Timer history is coming soon.</string>
+    <string name="timer_completion_message">Your timer has finished.</string>
+    <string name="timer_completion_ok">OK</string>
+    <string name="timer_notification_title">Timer</string>
+    <string name="timer_notification_remaining_format">%1$s remaining</string>
+    <string name="timer_notification_elapsed_format">%1$s elapsed</string>
+    <string name="timer_notification_paused_prefix">Paused • %1$s</string>
+    <string name="timer_notification_channel_name">Timer</string>
+    <string name="timer_notification_complete_channel_name">Timer complete</string>
+
     <string name="pause">Pause</string>
     <string name="resume">Resume</string>
     <string name="reset">Reset</string>

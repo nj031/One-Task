@@ -289,7 +289,32 @@ fun OneTaskNavHost(
         composable(Screen.TimerPlaceholder.route) {
             TimerPlaceholderScreen(
                 onNavigateToJournal = { navController.navigateToBottomNavTab(Screen.Journal.route) },
-                onNavigateToTasks = { navController.navigateToBottomNavTab(Screen.Home.route) }
+                onNavigateToTasks = { navController.navigateToBottomNavTab(Screen.Home.route) },
+                onNotificationSettingsClick = { navController.navigate(Screen.NotificationsSettings.route) },
+                onTimerSettingsClick = { navController.navigate(Screen.TimerSettings.route) },
+                onCustomDurationSettingsClick = { navController.navigate(Screen.TimerCustomDurationSettings.route) },
+                onTimerHistoryClick = { navController.navigate(Screen.TimerHistory.route) }
+            )
+        }
+        composable(Screen.TimerSettings.route) {
+            SettingsComingSoonScreen(
+                title = stringResource(id = R.string.timer_menu_settings),
+                message = stringResource(id = R.string.timer_settings_placeholder),
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.TimerCustomDurationSettings.route) {
+            SettingsComingSoonScreen(
+                title = stringResource(id = R.string.timer_menu_custom_duration),
+                message = stringResource(id = R.string.timer_custom_duration_settings_placeholder),
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.TimerHistory.route) {
+            SettingsComingSoonScreen(
+                title = stringResource(id = R.string.timer_menu_history),
+                message = stringResource(id = R.string.timer_history_placeholder),
+                onBackClick = { navController.popBackStack() }
             )
         }
         composable(
