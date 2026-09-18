@@ -1,6 +1,7 @@
 package com.nj031.onetask.navigation
 
-import android.app.Activity
+import android.content.Intent
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -55,6 +56,8 @@ import com.nj031.onetask.ui.screens.TimeFormatSettingScreen
 import com.nj031.onetask.ui.screens.TimerPlaceholderScreen
 import com.nj031.onetask.ui.screens.UpgradeToProScreen
 import com.nj031.onetask.ui.screens.VerifyEmailScreen
+import com.nj031.onetask.service.StandaloneTimerForegroundService
+import com.nj031.onetask.service.TimerForegroundService
 import com.nj031.onetask.ui.screens.WeekStartsOnSettingScreen
 import com.nj031.onetask.viewmodel.AppearanceSettingsViewModel
 import com.nj031.onetask.viewmodel.AuthViewModel
@@ -105,7 +108,17 @@ fun OneTaskNavHost(
     val authViewModel: AuthViewModel = viewModel()
     val generalSettingsViewModel: GeneralSettingsViewModel = viewModel()
     val hapticFeedbackEnabled by generalSettingsViewModel.hapticFeedbackEnabled.collectAsState()
-    val startDestination = when {
+
+    /**
+     * Where a signed-in, verified user belongs right now - an in-progress Focus session, the
+     * Start Screen preference, or plain Home - and Auth/VerifyEmail for anyone not fully signed
+     * in yet. Shared by [startDestination] below (the graph's initial route) and
+     * [navigateToHomeAfterAuth] (recomputed at the moment sign-in actually completes): the two
+     * MUST agree, since AuthRepository.currentUser can - and does, on every successful sign-in -
+     * change in between those two evaluations without Compose recomposing this function to
+     * recompute a `val` on its own.
+     */
+    fun resolveAuthenticatedDestination(): String = when {
         AuthRepository.currentUser == null -> Screen.Auth.route
         // Only an unverified account can reach this point: Google sign-in accounts are always
         // pre-verified by Firebase, and an unverified email/password account only exists here
@@ -121,41 +134,65 @@ fun OneTaskNavHost(
         else -> Screen.Home.route
     }
 
+    val startDestination = resolveAuthenticatedDestination()
+
     /**
      * After a successful login/signup, verified accounts always land on Home (or wherever the
-     * Start Screen setting/an in-progress Focus session points - see startDestination above); the
-     * ambiguous "just verified email, still needs a name" case never reaches here directly, since
-     * Verify Email's own onContinue keeps that decision local.
+     * Start Screen setting/an in-progress Focus session points); the ambiguous "just verified
+     * email, still needs a name" case never reaches here directly, since Verify Email's own
+     * onContinue keeps that decision local.
      *
-     * Recreating the Activity here - rather than simply navigating to Screen.Home - is a
-     * deliberate, critical fix for account-data isolation: every ViewModel this NavHost hoists
-     * (profileViewModel/homeViewModel/journalViewModel/generalSettingsViewModel/...) is
-     * constructed once and caches its own repository/dao/StateFlow at that point, so if any of
-     * them already existed from before this sign-in (typically: constructed while nobody, or a
-     * *different* account, was signed in), they would otherwise keep serving that stale account's
-     * already-loaded Profile/Tasks/Notes/Settings instead of the one that just signed in. Every
-     * per-account store is itself correctly scoped by uid (see UserScope/UserScopedPreferences/
-     * AppDatabase), but that alone doesn't help an already-constructed ViewModel that cached a
-     * handle to the WRONG account's store before this sign-in happened - recreating throws all of
-     * that away and lets the next instance construct everything fresh, correctly bound to
-     * whoever is signed in now. No explicit navigate() call is needed alongside it: the recreated
-     * Activity computes startDestination from scratch above, which already routes a freshly
-     * authenticated user to the right screen.
+     * Two things happen here, both required for correct account isolation, neither of which
+     * Activity.recreate() provides by itself:
+     *
+     * 1. Navigate explicitly to the freshly-resolved destination, rather than relying on the
+     *    recreated Activity's NavHost to land there via `startDestination`. Navigation Compose
+     *    saves/restores its back stack across an Activity recreation the same way it survives a
+     *    rotation - so without an explicit navigate() first, the recreated NavHost would restore
+     *    whatever route was on screen the moment recreate() was called (still Screen.Auth.route,
+     *    since nothing navigated away from it yet) instead of using `startDestination` at all,
+     *    silently bouncing an already-signed-in user right back to the login screen.
+     * 2. Clear the Activity's ViewModelStore before recreating. Activity.recreate() is documented
+     *    to follow essentially the same flow as a configuration change, which is exactly the
+     *    mechanism ComponentActivity uses to RETAIN (not discard) its ViewModelStore across
+     *    rotation - so recreate() alone does not, by itself, force
+     *    profileViewModel/homeViewModel/journalViewModel/generalSettingsViewModel/authViewModel
+     *    (or TimerViewModel/DataPrivacyViewModel, which live in per-NavBackStackEntry
+     *    ViewModelStores that Navigation Compose itself keeps inside this same Activity
+     *    ViewModelStore) to reconstruct. Explicitly clearing it first is what actually discards
+     *    any instance - and any repository/DAO handle it already cached - from before this
+     *    sign-in, so recreate() then rebuilds every one of them fresh, correctly bound to
+     *    whoever is signed in now.
      */
     fun navigateToHomeAfterAuth() {
-        (context as? Activity)?.recreate()
+        val destination = resolveAuthenticatedDestination()
+        navController.navigate(destination) {
+            popUpTo(Screen.Auth.route) { inclusive = true }
+        }
+        (context as? ComponentActivity)?.viewModelStore?.clear()
+        (context as? ComponentActivity)?.recreate()
     }
 
     /**
      * Signs out (unless the account was already deleted, which signs itself out) and returns to
-     * the Auth screen, then recreates the Activity for the same account-isolation reason
-     * [navigateToHomeAfterAuth] does - so no ViewModel hoisted for the just-signed-out account
-     * can still be sitting in memory, ready to serve its data, whenever the next sign-in happens.
+     * the Auth screen, then clears the ViewModelStore and recreates the Activity for the same
+     * account-isolation reason [navigateToHomeAfterAuth] does - so no ViewModel (or cached
+     * repository/DAO handle) hoisted for the just-signed-out account can still be sitting in
+     * memory, ready to serve its data, whenever the next sign-in happens. Also stops any
+     * background Timer/Stopwatch/Focus session service: those run independently of this
+     * Activity's lifecycle (see TimerForegroundService/StandaloneTimerForegroundService, both
+     * `stopWithTask="false"`) and each caches its own account-scoped repository once at
+     * onCreate() - left running, one would keep reading/writing the just-signed-out account's
+     * timer state (and showing it in a system notification) straight through the next account's
+     * session.
      */
     fun endSessionAndReturnToAuth(alreadySignedOut: Boolean = false) {
         if (!alreadySignedOut) AuthRepository.signOut()
+        context.stopService(Intent(context, TimerForegroundService::class.java))
+        StandaloneTimerForegroundService.stop(context)
         navController.navigate(Screen.Auth.route) { popUpTo(0) { inclusive = true } }
-        (context as? Activity)?.recreate()
+        (context as? ComponentActivity)?.viewModelStore?.clear()
+        (context as? ComponentActivity)?.recreate()
     }
 
     CompositionLocalProvider(LocalHapticFeedbackEnabled provides hapticFeedbackEnabled) {
