@@ -867,9 +867,10 @@ fun OneTaskPlayIcon(
         val right = this.size.width * 0.82f
         val top = this.size.height * 0.16f
         val bottom = this.size.height * 0.84f
+        val middle = this.size.height / 2f
         val playPath = Path().apply {
             moveTo(left, top)
-            lineTo(right, this.size.height / 2f)
+            lineTo(right, middle)
             lineTo(left, bottom)
             close()
         }
