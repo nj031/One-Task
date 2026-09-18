@@ -63,9 +63,6 @@ data class ForgotPasswordState(
  * password through a nav route argument.
  */
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
-    private val taskDao = AppDatabase.getInstance(application).taskDao()
-    private val journalNoteDao = AppDatabase.getInstance(application).journalNoteDao()
-
     // --- Continue with Google (existing) ---
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -105,8 +102,21 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
      * everything currently local up to the cloud (so anything created before signing in, or
      * only present locally, also becomes backed up). Every mutation from this point on is
      * mirrored to the cloud automatically by TaskRepository/JournalRepository.
+     *
+     * taskDao/journalNoteDao are deliberately looked up fresh here rather than cached as fields:
+     * this ViewModel is constructed once (hoisted in NavGraph) and may already exist from before
+     * this sign-in - typically while nobody was signed in yet, but a plain field captured then
+     * would stay bound to that stale (pre-sign-in) per-account database connection forever. Since
+     * this function runs immediately after AuthRepository's own sign-in call succeeds - and
+     * before anything else reacts to the account change - resolving AppDatabase.getInstance()
+     * here is what makes it see the account that JUST signed in, not whichever one (or none) was
+     * active when this ViewModel was originally constructed.
      */
     private suspend fun syncAfterSignIn() {
+        val application = getApplication<Application>()
+        val taskDao = AppDatabase.getInstance(application).taskDao()
+        val journalNoteDao = AppDatabase.getInstance(application).journalNoteDao()
+
         val cloudTasks = CloudBackupRepository.pullTasks()
         val cloudNotes = CloudBackupRepository.pullNotes()
 

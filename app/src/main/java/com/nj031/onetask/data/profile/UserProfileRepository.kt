@@ -1,6 +1,7 @@
 package com.nj031.onetask.data.profile
 
 import android.content.Context
+import com.nj031.onetask.data.UserScopedPreferences
 
 enum class Gender { MALE, FEMALE, PREFER_NOT_TO_SAY }
 
@@ -24,12 +25,13 @@ private const val KEY_PHOTO_PATH = "photo_path"
  * Migration objects and falls back to `fallbackToDestructiveMigration()` on any version bump, so
  * adding a new @Entity here would silently wipe every existing installs's Tasks/Journal data on
  * their next update - unacceptable just to add a handful of simple profile fields. SharedPreferences
- * needs no schema/migration at all and already persists across app restarts and logout/login on
- * the same device (Firebase signOut() never touches local storage), which is everything this
- * feature's persistence requirements call for.
+ * needs no schema/migration at all and already persists across app restarts, which is everything
+ * this feature's persistence requirements call for. The file itself is scoped per signed-in
+ * account (see [UserScopedPreferences]) - a plain fixed file name would mean every account on
+ * this device shared the exact same saved name/DOB/gender/photo.
  */
 class UserProfileRepository(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs = UserScopedPreferences.open(context, PREFS_NAME)
 
     /** [defaultName] (the signed-in Google account's display name) is only used the very first
      * time this is called for a device that has never saved a profile before; once the user

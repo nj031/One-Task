@@ -1,6 +1,7 @@
 package com.nj031.onetask.data.timer
 
 import android.content.Context
+import com.nj031.onetask.data.UserScopedPreferences
 
 enum class TimerMode { TIMER, STOPWATCH }
 
@@ -73,10 +74,11 @@ data class TimerSessionSnapshot(
  * every read (timerRemainingNowMillis/stopwatchElapsedNowMillis) is similarly derived from an
  * absolute timestamp - never from an in-memory decrementing counter - so a running/paused session
  * recovers its exact correct state whether the process was merely backgrounded or fully killed
- * and restarted.
+ * and restarted. The file itself is scoped per signed-in account (see [UserScopedPreferences]) -
+ * a plain fixed file name would mean every account on this device shared the same running timer.
  */
 class TimerSessionRepository(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs = UserScopedPreferences.open(context, PREFS_NAME)
 
     fun snapshot(): TimerSessionSnapshot {
         val mode = prefs.getString(KEY_ACTIVE_MODE, null)

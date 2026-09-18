@@ -1,6 +1,7 @@
 package com.nj031.onetask.data.focus
 
 import android.content.Context
+import com.nj031.onetask.data.UserScopedPreferences
 
 /**
  * Tracks which task (if any) currently has an open, not-yet-exited Focus Mode session, purely so
@@ -33,6 +34,9 @@ object FocusSessionState {
         prefs(context).edit().remove(KEY_ACTIVE_TASK_ID).apply()
     }
 
-    private fun prefs(context: Context) =
-        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    // Resolved fresh on every call (never cached) and scoped per signed-in account (see
+    // UserScopedPreferences) - a plain fixed file name would mean every account on this device
+    // shared which task (if any) had an open Focus Mode session, and a stale task id from a
+    // different account could otherwise be read back here across a sign-out/sign-in.
+    private fun prefs(context: Context) = UserScopedPreferences.open(context, PREFS_NAME)
 }
