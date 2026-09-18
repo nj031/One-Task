@@ -52,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -60,6 +61,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -300,18 +302,17 @@ private fun ChecklistEditor(
     // Drag-and-drop reorder state, mirroring the Tasks homepage's own drag-and-drop
     // implementation: draggedItemId is non-null only while a long-press-drag is in progress,
     // dragOffsetY is that one item's live, cumulative finger movement in px (applied as a visual
-    // translation), and displayedItems is the on-screen order - normally just [items], but during
-    // a drag it's the optimistic, already-swapped order so rows visibly shift before the reorder
-    // is persisted back up to the note.
+    // translation), and dragPreviewItems is the optimistic, already-swapped order while a drag is
+    // in progress - null the rest of the time, in which case [items] (the checklist's real,
+    // persisted order) is rendered directly. Rendering [items] directly whenever nothing is being
+    // dragged - instead of mirroring it into a separate state asynchronously - matters: an extra
+    // frame of lag here was letting a checklist row's text field see its own just-typed value
+    // reasserted a moment later as if it came from outside, which was breaking both the first
+    // character's cursor placement and the keyboard's Backspace/Delete key-repeat.
     var draggedItemId by remember { mutableStateOf<String?>(null) }
     var dragOffsetY by remember { mutableStateOf(0f) }
-    var displayedItems by remember { mutableStateOf(items) }
-
-    LaunchedEffect(items, draggedItemId) {
-        if (draggedItemId == null) {
-            displayedItems = items
-        }
-    }
+    var dragPreviewItems by remember { mutableStateOf<List<ChecklistItem>?>(null) }
+    val renderedItems = if (draggedItemId != null) (dragPreviewItems ?: items) else items
 
     // Drag auto-scroll: while an item is being dragged and it's within the top/bottom edge zone
     // of the visible list area, keep scrolling that direction every frame - independent of the
@@ -344,7 +345,7 @@ private fun ChecklistEditor(
     // up just enough if not. Mirrors the Text Note editor's own "keep the active line visible"
     // backstop and the Tasks homepage's subtask-expand auto-scroll: wait a couple of frames for
     // the new layout to settle, then scroll only the minimum necessary amount.
-    LaunchedEffect(focusedItemId, displayedItems) {
+    LaunchedEffect(focusedItemId, renderedItems) {
         val targetId = focusedItemId ?: return@LaunchedEffect
         withFrameNanos { }
         withFrameNanos { }
@@ -361,7 +362,7 @@ private fun ChecklistEditor(
     }
 
     LazyColumn(state = listState, modifier = modifier) {
-        items(displayedItems, key = { it.id }) { item ->
+        items(renderedItems, key = { it.id }) { item ->
             val isDragged = item.id == draggedItemId
             ChecklistItemRow(
                 item = item,
@@ -397,18 +398,23 @@ private fun ChecklistEditor(
                 },
                 onDrag = { deltaY ->
                     dragOffsetY += deltaY
+                    // Live reads of dragPreviewItems here (not a value captured when this
+                    // closure was created) matter: several onDrag calls can land before
+                    // recomposition catches up, and each one must see the previous one's result.
+                    val base = dragPreviewItems ?: items
                     val (reordered, correctedOffset) = checklistDragSwapIfNeeded(
-                        items = displayedItems,
+                        items = base,
                         draggedItemId = item.id,
                         dragOffsetY = dragOffsetY,
                         listState = listState
                     )
-                    displayedItems = reordered
+                    dragPreviewItems = reordered
                     dragOffsetY = correctedOffset
                 },
                 onDragEnd = {
-                    val finalOrder = displayedItems
+                    val finalOrder = dragPreviewItems ?: items
                     draggedItemId = null
+                    dragPreviewItems = null
                     dragOffsetY = 0f
                     onItemsChange(finalOrder)
                 }
@@ -497,6 +503,20 @@ private fun ChecklistItemRow(
 ) {
     val focusRequester = remember(item.id) { FocusRequester() }
 
+    // Owns this row's live text + cursor/selection locally, seeded once (per item id) from the
+    // persisted text. The field used to be driven directly by `item.text: String`, which lets
+    // Compose's TextField reconstruct its own internal selection state from scratch on every
+    // recompose - that reconstruction was placing the cursor before, not after, a newly typed
+    // first character, and was also interrupting the platform keyboard's Backspace/Delete
+    // key-repeat (each keystroke's round trip back through the checklist's own state and back
+    // down as a new `item.text` was enough to make the field look like it had been changed from
+    // outside). Owning a real TextFieldValue locally - the same pattern already used correctly by
+    // this screen's Text Note content field - keeps the field's cursor/selection continuous
+    // across keystrokes; edits still flow up to the checklist's own state via onTextChange.
+    var textFieldValue by remember(item.id) {
+        mutableStateOf(TextFieldValue(text = item.text, selection = TextRange(item.text.length)))
+    }
+
     LaunchedEffect(requestFocus) {
         if (requestFocus) {
             focusRequester.requestFocus()
@@ -516,21 +536,6 @@ private fun ChecklistItemRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                // A drag-to-reorder gesture that only activates after Android's own standard
-                // long-press timeout - not a custom one - so a normal short tap into the text
-                // field (to place the cursor, or type) keeps working exactly as before, and is
-                // never mistaken for the start of a drag.
-                .pointerInput(item.id) {
-                    detectDragGesturesAfterLongPress(
-                        onDragStart = { onDragStart() },
-                        onDrag = { change, dragAmount ->
-                            change.consume()
-                            onDrag(dragAmount.y)
-                        },
-                        onDragEnd = { onDragEnd() },
-                        onDragCancel = { onDragEnd() }
-                    )
-                }
                 .padding(vertical = 4.dp),
             verticalAlignment = Alignment.Top
         ) {
@@ -539,8 +544,13 @@ private fun ChecklistItemRow(
             }
 
             TextField(
-                value = item.text,
-                onValueChange = onTextChange,
+                value = textFieldValue,
+                onValueChange = { newValue ->
+                    textFieldValue = newValue
+                    if (newValue.text != item.text) {
+                        onTextChange(newValue.text)
+                    }
+                },
                 modifier = Modifier
                     .weight(1f)
                     .focusRequester(focusRequester)
@@ -580,6 +590,56 @@ private fun ChecklistItemRow(
                     modifier = Modifier.size(18.dp)
                 )
             }
+
+            // A dedicated drag handle, separate from the text field above: the text field needs
+            // first claim on every touch that starts on it (to place the cursor, select text, or
+            // just type), so a long-press-drag gesture spanning the whole row is never actually
+            // reachable when the row is mostly text field. Long-pressing this handle instead lifts
+            // the item into the same dragged state as before (background, elevation, and
+            // translationY are all still applied to the whole Surface above, so the entire
+            // multi-line item still moves as one unit) and reuses the exact same swap/auto-scroll
+            // logic the Tasks homepage's own drag-and-drop already uses.
+            Box(
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .size(40.dp)
+                    .pointerInput(item.id) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { onDragStart() },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                onDrag(dragAmount.y)
+                            },
+                            onDragEnd = { onDragEnd() },
+                            onDragCancel = { onDragEnd() }
+                        )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                ChecklistDragHandle()
+            }
+        }
+    }
+}
+
+/** A small grip icon (three horizontal bars) marking the checklist item's long-press-to-drag
+ * touch target - drawn directly, matching this file's existing stroke-based custom icon style,
+ * since the app doesn't depend on Material's extended icon pack. */
+@Composable
+private fun ChecklistDragHandle(tint: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
+    Canvas(modifier = Modifier.size(18.dp)) {
+        val strokeWidth = size.minDimension * 0.12f
+        val left = size.width * 0.15f
+        val right = size.width * 0.85f
+        listOf(0.24f, 0.5f, 0.76f).forEach { fraction ->
+            val y = size.height * fraction
+            drawLine(
+                color = tint,
+                start = Offset(left, y),
+                end = Offset(right, y),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round
+            )
         }
     }
 }

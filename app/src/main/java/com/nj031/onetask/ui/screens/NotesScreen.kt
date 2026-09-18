@@ -1,6 +1,5 @@
 package com.nj031.onetask.ui.screens
 
-import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -54,7 +53,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -196,7 +194,6 @@ fun NotesScreen(
                                 items(notes, key = { it.id }) { note ->
                                     NoteListRow(
                                         note = note,
-                                        timeFormat = timeFormat,
                                         onClick = { onNoteClick(note.id) },
                                         onLongClick = { actionMenuNote = note }
                                     )
@@ -213,7 +210,6 @@ fun NotesScreen(
                                 gridItems(notes, key = { it.id }) { note ->
                                     NoteCard(
                                         note = note,
-                                        timeFormat = timeFormat,
                                         onClick = { onNoteClick(note.id) },
                                         onLongClick = { actionMenuNote = note }
                                     )
@@ -360,7 +356,6 @@ private fun NotesSearchField(query: String, onQueryChange: (String) -> Unit, mod
 @Composable
 private fun NoteListRow(
     note: JournalNoteEntity,
-    timeFormat: TimeFormat,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -398,7 +393,7 @@ private fun NoteListRow(
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    text = note.updatedAt.toDisplayTime(timeFormat),
+                    text = note.updatedAt.toDisplayDate(),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 8.dp)
@@ -412,7 +407,6 @@ private fun NoteListRow(
 @Composable
 private fun NoteCard(
     note: JournalNoteEntity,
-    timeFormat: TimeFormat,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -452,7 +446,7 @@ private fun NoteCard(
             )
 
             Text(
-                text = note.updatedAt.toDisplayTime(timeFormat),
+                text = note.updatedAt.toDisplayDate(),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp)
@@ -601,18 +595,10 @@ private fun JournalNoteEntity.previewText(): String = when (noteType) {
     JournalNoteType.CHECKLIST -> checklistItems.joinToString(separator = "   ") { it.text }.toPreviewText()
 }
 
-/** System Default follows the device's actual 12/24-hour clock preference (the same thing
- * Android's own clock/alarm apps read) rather than always showing 12-hour time regardless of
- * that preference, which is what this used to do unconditionally before this setting existed. */
-@Composable
-private fun Long.toDisplayTime(timeFormat: TimeFormat): String {
-    val context = LocalContext.current
-    val pattern = when (timeFormat) {
-        TimeFormat.HOUR_12 -> "h:mm a"
-        TimeFormat.HOUR_24 -> "HH:mm"
-        TimeFormat.SYSTEM_DEFAULT -> if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm a"
-    }
-    val formatter = DateTimeFormatter.ofPattern(pattern, Locale.getDefault())
+/** The note's last-updated date, not time-of-day - matches the "MMM d, yyyy" date format already
+ * used elsewhere in the app (e.g. the Tasks homepage's selected-date label). */
+private fun Long.toDisplayDate(): String {
+    val formatter = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault())
     return Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault()).format(formatter)
 }
 
