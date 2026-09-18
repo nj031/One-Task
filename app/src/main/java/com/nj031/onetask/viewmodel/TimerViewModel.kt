@@ -33,19 +33,19 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedIdleDurationMillis = MutableStateFlow(DEFAULT_TIMER_DURATION_MILLIS)
     val selectedIdleDurationMillis: StateFlow<Long> = _selectedIdleDurationMillis.asStateFlow()
 
-    private val _showCompletionPopup = MutableStateFlow(false)
-    val showCompletionPopup: StateFlow<Boolean> = _showCompletionPopup.asStateFlow()
-
     init {
         viewModelScope.launch {
             while (isActive) {
                 val current = repository.snapshot()
-                if (current.activeMode == TimerMode.TIMER && repository.finishTimerIfDue()) {
-                    _showCompletionPopup.value = true
-                    _snapshot.value = repository.snapshot()
-                } else {
-                    _snapshot.value = current
+                // finishTimerIfDue() is idempotent and safe to call alongside the foreground
+                // service's own independent tick - whichever of the two observes the countdown
+                // reach zero first does the (already-working) notification/completion side effects;
+                // this call's only job is making sure the in-app snapshot flips back to idle
+                // promptly even if the service's own tick hasn't run yet.
+                if (current.activeMode == TimerMode.TIMER) {
+                    repository.finishTimerIfDue()
                 }
+                _snapshot.value = repository.snapshot()
                 delay(if (current.activeMode != null) 250L else 2_000L)
             }
         }
@@ -76,10 +76,6 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
         _snapshot.value = repository.snapshot()
         _selectedIdleDurationMillis.value = DEFAULT_TIMER_DURATION_MILLIS
         StandaloneTimerForegroundService.stop(getApplication())
-    }
-
-    fun dismissCompletionPopup() {
-        _showCompletionPopup.value = false
     }
 
     fun startStopwatch() {

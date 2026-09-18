@@ -26,7 +26,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -37,7 +36,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -107,7 +105,6 @@ fun TimerPlaceholderScreen(
     val context = LocalContext.current
     val snapshot by viewModel.snapshot.collectAsState()
     val selectedIdleDurationMillis by viewModel.selectedIdleDurationMillis.collectAsState()
-    val showCompletionPopup by viewModel.showCompletionPopup.collectAsState()
 
     // Same runtime-permission request FocusTimerScreen already performs: a one-time ask, silently
     // no-op if already granted/denied - the session itself is unaffected either way, since the
@@ -211,19 +208,6 @@ fun TimerPlaceholderScreen(
             onConfirm = { millis ->
                 viewModel.selectIdleDuration(millis)
                 showCustomDurationPicker = false
-            }
-        )
-    }
-
-    if (showCompletionPopup) {
-        AlertDialog(
-            onDismissRequest = viewModel::dismissCompletionPopup,
-            title = { Text(text = stringResource(id = R.string.times_up)) },
-            text = { Text(text = stringResource(id = R.string.timer_completion_message)) },
-            confirmButton = {
-                TextButton(onClick = viewModel::dismissCompletionPopup) {
-                    Text(text = stringResource(id = R.string.timer_completion_ok))
-                }
             }
         )
     }
