@@ -12,9 +12,12 @@ sealed class Screen(val route: String) {
     data object Journal : Screen("journal")
     data object Profile : Screen("profile")
     data object EditProfile : Screen("edit_profile")
-    /** The bottom nav's third tab (replacing the old Profile tab) - an intentionally empty
-     * placeholder screen with no functionality of its own. */
+    /** The bottom nav's third tab (replacing the old Profile tab): a Timer/Stopwatch screen with
+     * a segmented Timer/Stopwatch control - see TimerPlaceholderScreen. */
     data object TimerPlaceholder : Screen("timer_placeholder")
+    data object TimerSettings : Screen("timer_settings")
+    data object TimerCustomDurationSettings : Screen("timer_custom_duration_settings")
+    data object TimerHistory : Screen("timer_history")
     data object Archive : Screen("archive")
     data object RecycleBin : Screen("recycle_bin")
     data object Labels : Screen("labels")
