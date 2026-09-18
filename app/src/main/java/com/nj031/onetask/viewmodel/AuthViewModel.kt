@@ -13,6 +13,7 @@ import com.nj031.onetask.data.auth.AuthErrorMessages
 import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.auth.AuthValidation
 import com.nj031.onetask.data.sync.CloudBackupRepository
+import com.nj031.onetask.data.task.TaskTagEntity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -119,12 +120,18 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
         val cloudTasks = CloudBackupRepository.pullTasks()
         val cloudNotes = CloudBackupRepository.pullNotes()
+        val cloudTags = CloudBackupRepository.pullTags()
 
         cloudTasks.forEach { taskDao.insert(it) }
         cloudNotes.forEach { journalNoteDao.insert(it) }
+        // IGNORE (not REPLACE): a tag's name is its entire identity/content, so there's never
+        // anything to merge for one already present locally - this only ever adds tags this
+        // account created on another device that aren't here yet.
+        cloudTags.forEach { taskDao.insertTag(TaskTagEntity(name = it)) }
 
         CloudBackupRepository.pushAllTasks(taskDao.getAll())
         CloudBackupRepository.pushAllNotes(journalNoteDao.getAllOnce())
+        CloudBackupRepository.pushAllTags(taskDao.getCustomTagsOnce())
     }
 
     // --- Create Account: Screen 1 (Email) + Screen 2 (Password) ---

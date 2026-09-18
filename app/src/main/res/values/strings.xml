@@ -84,8 +84,7 @@
     <string name="repeat_label">Repeat</string>
     <string name="repeat_none">Does not repeat</string>
     <string name="repeat_daily">Daily</string>
-    <string name="repeat_weekly">Weekly</string>
-    <string name="repeat_monthly">Monthly</string>
+    <string name="repeat_select_days">Select days</string>
     <string name="tag_label">Tag</string>
     <string name="tag_personal">Personal</string>
     <string name="tag_work">Work</string>

@@ -11,6 +11,7 @@ import com.nj031.onetask.data.task.TaskRepeat
 import com.nj031.onetask.data.task.TaskRepository
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.service.TimerForegroundService
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -83,6 +84,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         timerMinutes: Int?,
         date: LocalDate,
         repeat: TaskRepeat,
+        repeatDays: Set<DayOfWeek>,
         tag: String?,
         postponeIfIncomplete: Boolean
     ) {
@@ -93,6 +95,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 timerMinutes = timerMinutes,
                 date = date.toEpochDay(),
                 repeat = repeat,
+                repeatDays = repeatDays,
                 tag = tag,
                 postponeIfIncomplete = postponeIfIncomplete
             )
@@ -107,6 +110,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         timerMinutes: Int?,
         date: LocalDate,
         repeat: TaskRepeat,
+        repeatDays: Set<DayOfWeek>,
         tag: String?,
         postponeIfIncomplete: Boolean
     ) {
@@ -118,6 +122,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 timerMinutes = timerMinutes,
                 date = date.toEpochDay(),
                 repeat = repeat,
+                repeatDays = repeatDays,
                 tag = tag,
                 postponeIfIncomplete = postponeIfIncomplete
             )

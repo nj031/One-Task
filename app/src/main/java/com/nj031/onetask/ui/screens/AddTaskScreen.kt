@@ -66,6 +66,7 @@ import com.nj031.onetask.R
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskRepeat
+import com.nj031.onetask.data.task.repeatDaysSet
 import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.ui.components.OneTaskCalendarSheet
 import com.nj031.onetask.ui.haptics.rememberHapticTick
@@ -73,6 +74,7 @@ import com.nj031.onetask.viewmodel.HomeViewModel
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
 import java.util.Locale
 import kotlinx.coroutines.launch
 
@@ -123,7 +125,7 @@ fun AddTaskScreen(
             customTags = customTags,
             onAddCustomTag = { name -> viewModel.addCustomTag(name) },
             onCancel = onDone,
-            onSave = { name, subtasks, timerMinutes, date, repeat, tag, postpone ->
+            onSave = { name, subtasks, timerMinutes, date, repeat, repeatDays, tag, postpone ->
                 if (existingTask != null) {
                     viewModel.updateTask(
                         task = existingTask,
@@ -132,6 +134,7 @@ fun AddTaskScreen(
                         timerMinutes = timerMinutes,
                         date = date,
                         repeat = repeat,
+                        repeatDays = repeatDays,
                         tag = tag,
                         postponeIfIncomplete = postpone
                     )
@@ -142,6 +145,7 @@ fun AddTaskScreen(
                         timerMinutes = timerMinutes,
                         date = date,
                         repeat = repeat,
+                        repeatDays = repeatDays,
                         tag = tag,
                         postponeIfIncomplete = postpone
                     )
@@ -170,6 +174,7 @@ private fun AddTaskScreenContent(
         timerMinutes: Int?,
         date: LocalDate,
         repeat: TaskRepeat,
+        repeatDays: Set<DayOfWeek>,
         tag: String?,
         postponeIfIncomplete: Boolean
     ) -> Unit
@@ -191,6 +196,9 @@ private fun AddTaskScreenContent(
     var showDatePickerSheet by remember { mutableStateOf(false) }
 
     var selectedRepeat by remember { mutableStateOf(existingTask?.repeat ?: TaskRepeat.NONE) }
+    val selectedRepeatDays = remember {
+        mutableStateListOf<DayOfWeek>().apply { addAll(existingTask?.repeatDaysSet().orEmpty()) }
+    }
     var selectedTag by remember { mutableStateOf(initialTag) }
     var showAddTagSheet by remember { mutableStateOf(false) }
     val defaultTagNames = listOf(
@@ -349,30 +357,48 @@ private fun AddTaskScreenContent(
                     label = stringResource(id = R.string.repeat_label),
                     modifier = Modifier.padding(top = 22.dp)
                 ) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        SelectionChip(
-                            text = stringResource(id = R.string.repeat_none),
-                            selected = selectedRepeat == TaskRepeat.NONE,
-                            onClick = { selectedRepeat = TaskRepeat.NONE }
-                        )
-                        SelectionChip(
-                            text = stringResource(id = R.string.repeat_daily),
-                            selected = selectedRepeat == TaskRepeat.DAILY,
-                            onClick = { selectedRepeat = TaskRepeat.DAILY }
-                        )
-                        SelectionChip(
-                            text = stringResource(id = R.string.repeat_weekly),
-                            selected = selectedRepeat == TaskRepeat.WEEKLY,
-                            onClick = { selectedRepeat = TaskRepeat.WEEKLY }
-                        )
-                        SelectionChip(
-                            text = stringResource(id = R.string.repeat_monthly),
-                            selected = selectedRepeat == TaskRepeat.MONTHLY,
-                            onClick = { selectedRepeat = TaskRepeat.MONTHLY }
-                        )
+                    Column {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SelectionChip(
+                                text = stringResource(id = R.string.repeat_none),
+                                selected = selectedRepeat == TaskRepeat.NONE,
+                                onClick = { selectedRepeat = TaskRepeat.NONE }
+                            )
+                            SelectionChip(
+                                text = stringResource(id = R.string.repeat_daily),
+                                selected = selectedRepeat == TaskRepeat.DAILY,
+                                onClick = { selectedRepeat = TaskRepeat.DAILY }
+                            )
+                            SelectionChip(
+                                text = stringResource(id = R.string.repeat_select_days),
+                                selected = selectedRepeat == TaskRepeat.SELECT_DAYS,
+                                onClick = { selectedRepeat = TaskRepeat.SELECT_DAYS }
+                            )
+                        }
+                        if (selectedRepeat == TaskRepeat.SELECT_DAYS) {
+                            FlowRow(
+                                modifier = Modifier.padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                DayOfWeek.values().forEach { day ->
+                                    SelectionChip(
+                                        text = day.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                                        selected = day in selectedRepeatDays,
+                                        onClick = {
+                                            if (day in selectedRepeatDays) {
+                                                selectedRepeatDays.remove(day)
+                                            } else {
+                                                selectedRepeatDays.add(day)
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -524,6 +550,7 @@ private fun AddTaskScreenContent(
                             if (showCustomTimerInput) customTimerText.toIntOrNull() else timerMinutes,
                             selectedTaskDate,
                             selectedRepeat,
+                            selectedRepeatDays.toSet(),
                             selectedTag,
                             postponeIfIncomplete
                         )
@@ -532,7 +559,8 @@ private fun AddTaskScreenContent(
                         .fillMaxWidth()
                         .padding(top = 32.dp)
                         .height(56.dp),
-                    enabled = taskName.isNotBlank(),
+                    enabled = taskName.isNotBlank() &&
+                        (selectedRepeat != TaskRepeat.SELECT_DAYS || selectedRepeatDays.isNotEmpty()),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,

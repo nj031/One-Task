@@ -34,8 +34,10 @@ class DataPrivacyViewModel(application: Application) : AndroidViewModel(applicat
     suspend fun backupNow() {
         val tasks = taskRepository.getAllTasksOnce()
         val notes = journalRepository.getAllNotesOnce()
+        val tags = taskRepository.getAllCustomTagsOnce()
         CloudBackupRepository.pushAllTasks(tasks)
         CloudBackupRepository.pushAllNotes(notes)
+        CloudBackupRepository.pushAllTags(tags)
         val now = System.currentTimeMillis()
         settingsRepository.setLastCloudBackupAtMillis(now)
         _lastBackupAtMillis.value = now
