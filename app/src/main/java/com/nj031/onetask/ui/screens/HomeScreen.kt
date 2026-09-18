@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,6 +57,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -70,6 +72,7 @@ import com.nj031.onetask.R
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskOrderScope
+import com.nj031.onetask.data.task.TaskPriority
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
@@ -86,7 +89,15 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+
+// Drag-and-drop edge auto-scroll tuning - see the LaunchedEffect(draggedTaskId) auto-scroll
+// effect in HomeScreen below. The zone is measured from the list's own viewport edge, not the
+// screen edge, so it's unaffected by the app bar/tab row/bottom nav surrounding the list.
+private const val AUTO_SCROLL_EDGE_ZONE_DP = 72
+private const val AUTO_SCROLL_MIN_SPEED_DP_PER_SEC = 200f
+private const val AUTO_SCROLL_MAX_SPEED_DP_PER_SEC = 1200f
 
 @Composable
 fun HomeScreen(
@@ -120,6 +131,84 @@ fun HomeScreen(
     var draggedTaskId by remember { mutableStateOf<String?>(null) }
     var dragOffsetY by remember { mutableStateOf(0f) }
     var displayedTasks by remember { mutableStateOf<List<TaskEntity>>(emptyList()) }
+
+    // Applies a raw Y delta (px) to whichever task is currently being dragged - shared by both
+    // the real pointer-drag callback below and the edge auto-scroll effect further down, so a
+    // list scroll driven by auto-scroll runs through the exact same offset+swap pipeline a real
+    // finger movement does, rather than a second, separate reorder path.
+    val density = LocalDensity.current
+    fun applyDragDelta(taskId: String, deltaY: Float) {
+        dragOffsetY += deltaY
+        val (reordered, correctedOffset) = dragSwapIfNeeded(
+            tasks = displayedTasks,
+            draggedTaskId = taskId,
+            dragOffsetY = dragOffsetY,
+            listState = listState
+        )
+        displayedTasks = reordered
+        dragOffsetY = correctedOffset
+    }
+
+    // Continuous edge auto-scroll: while a drag is active and the dragged card's current
+    // (post-offset) position is within AUTO_SCROLL_EDGE_ZONE_DP of the top/bottom of the list's
+    // own viewport, scrolls the list toward that edge every frame - faster the closer the card
+    // is to the actual edge - so the user can drag from the bottom of a long list to the top (or
+    // vice versa) as one continuous gesture instead of having to drop, manually scroll, and
+    // re-pick-up the task. Every scrolled pixel is immediately fed back through applyDragDelta
+    // (as a negative/compensating delta) so the dragged card's on-screen position stays pinned
+    // under the user's finger while the list moves underneath it, exactly like dragSwapIfNeeded
+    // already keeps it continuous across a swap. Restarts automatically for each new drag (keyed
+    // on draggedTaskId) and stops the instant the drag ends, since draggedTaskId becoming null
+    // cancels this effect.
+    LaunchedEffect(draggedTaskId) {
+        val taskId = draggedTaskId ?: return@LaunchedEffect
+        val edgeZonePx = with(density) { AUTO_SCROLL_EDGE_ZONE_DP.dp.toPx() }
+        val minSpeedPx = with(density) { AUTO_SCROLL_MIN_SPEED_DP_PER_SEC.dp.toPx() }
+        val maxSpeedPx = with(density) { AUTO_SCROLL_MAX_SPEED_DP_PER_SEC.dp.toPx() }
+        var lastFrameTimeNanos = -1L
+        while (isActive) {
+            val frameTimeNanos = withFrameNanos { it }
+            val deltaSeconds = if (lastFrameTimeNanos < 0) {
+                0f
+            } else {
+                (frameTimeNanos - lastFrameTimeNanos) / 1_000_000_000f
+            }
+            lastFrameTimeNanos = frameTimeNanos
+
+            val info = listState.layoutInfo
+            val draggedInfo = info.visibleItemsInfo.find { it.key == taskId } ?: continue
+            val effectiveTop = draggedInfo.offset + dragOffsetY
+            val effectiveBottom = effectiveTop + draggedInfo.size
+            val topIntrusion = (info.viewportStartOffset + edgeZonePx) - effectiveTop
+            val bottomIntrusion = effectiveBottom - (info.viewportEndOffset - edgeZonePx)
+
+            val direction: Float
+            val intrusion: Float
+            when {
+                topIntrusion > 0f -> {
+                    direction = -1f
+                    intrusion = topIntrusion
+                }
+                bottomIntrusion > 0f -> {
+                    direction = 1f
+                    intrusion = bottomIntrusion
+                }
+                else -> {
+                    direction = 0f
+                    intrusion = 0f
+                }
+            }
+
+            if (direction != 0f && deltaSeconds > 0f) {
+                val speedPxPerSec = minSpeedPx +
+                    (maxSpeedPx - minSpeedPx) * (intrusion / edgeZonePx).coerceIn(0f, 1f)
+                val consumed = listState.scrollBy(direction * speedPxPerSec * deltaSeconds)
+                if (consumed != 0f) {
+                    applyDragDelta(taskId, -consumed)
+                }
+            }
+        }
+    }
 
     val selectedDate by viewModel.selectedDate.collectAsState()
     val tasks by viewModel.tasksForSelectedDate.collectAsState()
@@ -248,17 +337,7 @@ fun HomeScreen(
                                     dragOffsetY = 0f
                                     hapticTick()
                                 },
-                                onDrag = { deltaY ->
-                                    dragOffsetY += deltaY
-                                    val (reordered, correctedOffset) = dragSwapIfNeeded(
-                                        tasks = displayedTasks,
-                                        draggedTaskId = task.id,
-                                        dragOffsetY = dragOffsetY,
-                                        listState = listState
-                                    )
-                                    displayedTasks = reordered
-                                    dragOffsetY = correctedOffset
-                                },
+                                onDrag = { deltaY -> applyDragDelta(task.id, deltaY) },
                                 onDragEnd = {
                                     val finalOrder = displayedTasks
                                     draggedTaskId = null
@@ -872,6 +951,11 @@ private fun TaskCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
+                priorityLabelRes(task.priority)?.let { labelRes ->
+                    Spacer(modifier = Modifier.width(12.dp))
+                    TagPill(text = stringResource(id = labelRes))
+                }
+
                 task.timerMinutes?.let { minutes ->
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
@@ -906,6 +990,16 @@ private fun TaskCard(
             }
         }
     }
+}
+
+/** null for [TaskPriority.NONE] (no priority selected, nothing shown on the card) - Small/
+ * Medium/High otherwise. Priority is purely informational: it never affects task ordering,
+ * filtering, or which tab a task appears in. */
+private fun priorityLabelRes(priority: TaskPriority): Int? = when (priority) {
+    TaskPriority.NONE -> null
+    TaskPriority.SMALL -> R.string.priority_small
+    TaskPriority.MEDIUM -> R.string.priority_medium
+    TaskPriority.HIGH -> R.string.priority_high
 }
 
 @Composable
