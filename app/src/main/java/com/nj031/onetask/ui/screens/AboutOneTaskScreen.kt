@@ -44,8 +44,8 @@ import com.nj031.onetask.R
 
 /**
  * About One Task, reachable from the hamburger menu's "About One Task" row. Terms of Service
- * and Open Source Licenses open the shared "coming soon" placeholder (same treatment Appearance
- * already got); Privacy Policy reuses the existing PrivacyPolicyScreen/Screen.PrivacyPolicy
+ * and Open Source Licenses open the shared "coming soon" placeholder; Privacy Policy reuses the
+ * existing PrivacyPolicyScreen/Screen.PrivacyPolicy
  * route already wired from Data & Privacy, rather than a second placeholder. Contact & Support
  * launches the device's email composer directly, reusing the same support inbox address as Help
  * & Feedback's Contact Support row.

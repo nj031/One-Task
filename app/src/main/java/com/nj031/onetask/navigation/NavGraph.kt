@@ -22,6 +22,7 @@ import com.nj031.onetask.data.settings.StartScreen
 import com.nj031.onetask.ui.haptics.LocalHapticFeedbackEnabled
 import com.nj031.onetask.ui.screens.AboutOneTaskScreen
 import com.nj031.onetask.ui.screens.AddTaskScreen
+import com.nj031.onetask.ui.screens.AppearanceSettingsScreen
 import com.nj031.onetask.ui.screens.ArchiveScreen
 import com.nj031.onetask.ui.screens.AuthScreen
 import com.nj031.onetask.ui.screens.CreateAccountEmailScreen
@@ -54,6 +55,7 @@ import com.nj031.onetask.ui.screens.TimerPlaceholderScreen
 import com.nj031.onetask.ui.screens.UpgradeToProScreen
 import com.nj031.onetask.ui.screens.VerifyEmailScreen
 import com.nj031.onetask.ui.screens.WeekStartsOnSettingScreen
+import com.nj031.onetask.viewmodel.AppearanceSettingsViewModel
 import com.nj031.onetask.viewmodel.AuthViewModel
 import com.nj031.onetask.viewmodel.GeneralSettingsViewModel
 import com.nj031.onetask.viewmodel.HomeViewModel
@@ -78,7 +80,8 @@ fun OneTaskNavHost(
     navController: NavHostController = rememberNavController(),
     activeFocusTaskId: String? = null,
     reopenFocusTaskId: String? = null,
-    reopenFocusRequestId: Long = 0L
+    reopenFocusRequestId: Long = 0L,
+    appearanceSettingsViewModel: AppearanceSettingsViewModel = viewModel()
 ) {
     // A warm reopen via the running Focus Timer notification's "Open" action (see
     // MainActivity.onNewIntent): navigates straight to Focus Mode over whatever screen was
@@ -486,9 +489,13 @@ fun OneTaskNavHost(
             )
         }
         composable(Screen.AppearanceSettings.route) {
-            SettingsComingSoonScreen(
-                title = stringResource(id = R.string.appearance_title),
-                message = stringResource(id = R.string.appearance_placeholder_message),
+            val displayMode by appearanceSettingsViewModel.displayMode.collectAsState()
+            val colorTheme by appearanceSettingsViewModel.colorTheme.collectAsState()
+            AppearanceSettingsScreen(
+                displayMode = displayMode,
+                colorTheme = colorTheme,
+                onSelectDisplayMode = appearanceSettingsViewModel::setDisplayMode,
+                onSelectColorTheme = appearanceSettingsViewModel::setColorTheme,
                 onBackClick = { navController.popBackStack() }
             )
         }
