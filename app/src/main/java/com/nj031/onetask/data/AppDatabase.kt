@@ -10,6 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.nj031.onetask.data.journal.Converters
 import com.nj031.onetask.data.journal.JournalNoteDao
 import com.nj031.onetask.data.journal.JournalNoteEntity
+import com.nj031.onetask.data.journal.NoteLabelEntity
 import com.nj031.onetask.data.task.TaskConverters
 import com.nj031.onetask.data.task.TaskDao
 import com.nj031.onetask.data.task.TaskEntity
@@ -28,9 +29,20 @@ private val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
+/** Adds the Notes Labels feature's columns/table in place, so every existing note and its data
+ * survive this update: journal_notes gets a nullable label column (absent = no label, exactly
+ * how every note already saved reads once this migrates), and note_labels is a brand-new,
+ * initially-empty table for the set of labels available to assign. */
+private val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE journal_notes ADD COLUMN label TEXT")
+        db.execSQL("CREATE TABLE IF NOT EXISTS note_labels (name TEXT NOT NULL PRIMARY KEY)")
+    }
+}
+
 @Database(
-    entities = [JournalNoteEntity::class, TaskEntity::class, TaskTagEntity::class],
-    version = 6,
+    entities = [JournalNoteEntity::class, NoteLabelEntity::class, TaskEntity::class, TaskTagEntity::class],
+    version = 7,
     exportSchema = false
 )
 @TypeConverters(Converters::class, TaskConverters::class)
@@ -48,7 +60,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "one_task_database"
-                ).addMigrations(MIGRATION_5_6)
+                ).addMigrations(MIGRATION_5_6, MIGRATION_6_7)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }

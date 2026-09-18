@@ -48,12 +48,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.ui.components.ProfileAvatar
-import com.nj031.onetask.ui.theme.OneTaskArchiveIcon
 import com.nj031.onetask.ui.theme.OneTaskChatIcon
 import com.nj031.onetask.ui.theme.OneTaskCrownIcon
 import com.nj031.onetask.ui.theme.OneTaskInfoIcon
 import com.nj031.onetask.ui.theme.OneTaskLogoutIcon
-import com.nj031.onetask.ui.theme.OneTaskRecycleBinIcon
 import com.nj031.onetask.ui.theme.OneTaskSettingsGearIcon
 import com.nj031.onetask.ui.theme.OneTaskShieldIcon
 import com.nj031.onetask.ui.theme.OneTaskStarIcon
@@ -93,8 +91,6 @@ fun ProfileScreen(
     onBackClick: () -> Unit = {},
     onEditProfileClick: () -> Unit = {},
     onUpgradeToProClick: () -> Unit = {},
-    onArchiveClick: () -> Unit = {},
-    onRecycleBinClick: () -> Unit = {},
     onGeneralSettingsClick: () -> Unit = {},
     onDataPrivacyClick: () -> Unit = {},
     onAboutClick: () -> Unit = {},
@@ -223,26 +219,6 @@ fun ProfileScreen(
                     ) {
                         Text(text = stringResource(id = R.string.drawer_upgrade_to_pro))
                     }
-                }
-            }
-
-            ProfileSectionLabel(text = stringResource(id = R.string.profile_section_notes), topPadding = 24.dp)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    ProfileMenuRow(
-                        icon = { tint -> OneTaskArchiveIcon(tint = tint, size = 22.dp) },
-                        text = stringResource(id = R.string.archive_title),
-                        onClick = onArchiveClick
-                    )
-                    ProfileMenuRow(
-                        icon = { tint -> OneTaskRecycleBinIcon(tint = tint, size = 22.dp) },
-                        text = stringResource(id = R.string.recycle_bin_title),
-                        onClick = onRecycleBinClick
-                    )
                 }
             }
 

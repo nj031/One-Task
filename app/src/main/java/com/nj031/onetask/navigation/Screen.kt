@@ -17,6 +17,7 @@ sealed class Screen(val route: String) {
     data object TimerPlaceholder : Screen("timer_placeholder")
     data object Archive : Screen("archive")
     data object RecycleBin : Screen("recycle_bin")
+    data object Labels : Screen("labels")
     data object NoteEditor : Screen("note_editor?noteId={noteId}&noteType={noteType}") {
         fun createRoute(noteId: String? = null, noteType: String = "TEXT"): String {
             val idPart = if (noteId != null) "noteId=$noteId&" else ""

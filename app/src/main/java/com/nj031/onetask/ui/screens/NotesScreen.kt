@@ -28,10 +28,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -71,8 +74,11 @@ import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.ui.components.OneTaskBottomNav
 import com.nj031.onetask.ui.components.ProfileAvatar
+import com.nj031.onetask.ui.theme.OneTaskArchiveIcon
 import com.nj031.onetask.ui.theme.OneTaskCardViewIcon
+import com.nj031.onetask.ui.theme.OneTaskLabelIcon
 import com.nj031.onetask.ui.theme.OneTaskListViewIcon
+import com.nj031.onetask.ui.theme.OneTaskRecycleBinIcon
 import com.nj031.onetask.ui.theme.OneTaskSearchIcon
 import com.nj031.onetask.viewmodel.JournalViewModel
 import java.time.Instant
@@ -90,6 +96,9 @@ fun NotesScreen(
     onNavigateToTasks: () -> Unit = {},
     onOpenTimerPlaceholder: () -> Unit = {},
     onProfileAvatarClick: () -> Unit = {},
+    onArchiveClick: () -> Unit = {},
+    onRecycleBinClick: () -> Unit = {},
+    onLabelsClick: () -> Unit = {},
     timeFormat: TimeFormat = TimeFormat.SYSTEM_DEFAULT
 ) {
     val notes by viewModel.notes.collectAsState()
@@ -131,19 +140,32 @@ fun NotesScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
-                NotesTopBar(profilePhotoPath = profilePhotoPath, onAvatarClick = onProfileAvatarClick)
-
-                NotesViewToggle(
-                    viewMode = viewMode,
-                    onViewModeChange = viewModel::setViewMode,
-                    modifier = Modifier.padding(top = 20.dp)
+                NotesTopBar(
+                    profilePhotoPath = profilePhotoPath,
+                    onAvatarClick = onProfileAvatarClick,
+                    onArchiveClick = onArchiveClick,
+                    onRecycleBinClick = onRecycleBinClick,
+                    onLabelsClick = onLabelsClick
                 )
 
-                NotesSearchField(
-                    query = searchQuery,
-                    onQueryChange = viewModel::setSearchQuery,
-                    modifier = Modifier.padding(top = 12.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    NotesSearchField(
+                        query = searchQuery,
+                        onQueryChange = viewModel::setSearchQuery,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    NotesViewToggle(
+                        viewMode = viewMode,
+                        onViewModeChange = viewModel::setViewMode,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
 
                 Button(
                     onClick = { showAddChoice = true },
@@ -254,8 +276,15 @@ fun NotesScreen(
 }
 
 @Composable
-private fun NotesTopBar(profilePhotoPath: String?, onAvatarClick: () -> Unit) {
+private fun NotesTopBar(
+    profilePhotoPath: String?,
+    onAvatarClick: () -> Unit,
+    onArchiveClick: () -> Unit,
+    onRecycleBinClick: () -> Unit,
+    onLabelsClick: () -> Unit
+) {
     val profileDescription = stringResource(id = R.string.nav_profile)
+    var showMenu by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxWidth()) {
         IconButton(
@@ -274,6 +303,65 @@ private fun NotesTopBar(profilePhotoPath: String?, onAvatarClick: () -> Unit) {
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.align(Alignment.Center)
         )
+
+        Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+            IconButton(onClick = { showMenu = true }) {
+                Icon(
+                    imageVector = Icons.Filled.MoreVert,
+                    contentDescription = stringResource(id = R.string.notes_more_options),
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+                shape = RoundedCornerShape(16.dp),
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = stringResource(id = R.string.archive_title),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    },
+                    leadingIcon = { OneTaskArchiveIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 20.dp) },
+                    onClick = {
+                        showMenu = false
+                        onArchiveClick()
+                    }
+                )
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = stringResource(id = R.string.recycle_bin_title),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    },
+                    leadingIcon = { OneTaskRecycleBinIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 20.dp) },
+                    onClick = {
+                        showMenu = false
+                        onRecycleBinClick()
+                    }
+                )
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = stringResource(id = R.string.labels_title),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    },
+                    leadingIcon = { OneTaskLabelIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 20.dp) },
+                    onClick = {
+                        showMenu = false
+                        onLabelsClick()
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -283,10 +371,7 @@ private fun NotesViewToggle(
     onViewModeChange: (NotesViewMode) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End
-    ) {
+    Row(modifier = modifier) {
         NotesViewToggleButton(
             selected = viewMode == NotesViewMode.LIST,
             contentDescription = stringResource(id = R.string.notes_view_list),

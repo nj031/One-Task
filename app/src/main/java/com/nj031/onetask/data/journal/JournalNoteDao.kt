@@ -33,4 +33,10 @@ interface JournalNoteDao {
 
     @Query("DELETE FROM journal_notes")
     suspend fun deleteAllNotes()
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertLabel(label: NoteLabelEntity)
+
+    @Query("SELECT name FROM note_labels ORDER BY name ASC")
+    fun getLabels(): Flow<List<String>>
 }
