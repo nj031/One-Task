@@ -208,8 +208,18 @@ private fun AddTaskScreenContent(
         stringResource(id = R.string.tag_work)
     )
 
+    // Pending Task and Repeat are mutually exclusive: a recurring task's occurrences are already
+    // independent per-date, so "postpone to today if incomplete" (which only makes sense for a
+    // single one-time task) is force-disabled whenever Repeat isn't "Does not repeat" - both for
+    // an existing recurring task being edited (hence the selectedRepeat check here too, not just
+    // in the effect below) and the instant the user picks Daily/Select Days on a new one.
     var postponeIfIncomplete by remember {
-        mutableStateOf(initialPostponeIfIncomplete)
+        mutableStateOf(initialPostponeIfIncomplete && selectedRepeat == TaskRepeat.NONE)
+    }
+    LaunchedEffect(selectedRepeat) {
+        if (selectedRepeat != TaskRepeat.NONE) {
+            postponeIfIncomplete = false
+        }
     }
 
     var timerMinutes by remember { mutableStateOf(initialTimerMinutes) }
@@ -398,6 +408,14 @@ private fun AddTaskScreenContent(
                                     )
                                 }
                             }
+                            if (selectedRepeatDays.isEmpty()) {
+                                Text(
+                                    text = stringResource(id = R.string.repeat_select_days_required),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(top = 6.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -534,6 +552,7 @@ private fun AddTaskScreenContent(
                     }
                     Switch(
                         checked = postponeIfIncomplete,
+                        enabled = selectedRepeat == TaskRepeat.NONE,
                         onCheckedChange = {
                             hapticTick()
                             postponeIfIncomplete = it

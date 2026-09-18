@@ -31,7 +31,7 @@ interface TaskDao {
     fun getByDate(date: Long): Flow<List<TaskEntity>>
 
     // A recurring series' own definition row (never a materialized occurrence - see
-    // TaskEntity.seriesId) - combined in TaskRepository with getByDate/getDatesWithTasksBetween
+    // TaskEntity.seriesId) - combined in TaskRepository with getByDate/getTasksWithDateBetween
     // to compute which other dates a series is also due on, without persisting a row for every
     // future occurrence up front.
     @Query("SELECT * FROM tasks WHERE repeat != 'NONE' AND seriesId IS NULL")
@@ -46,10 +46,13 @@ interface TaskDao {
     @Query("DELETE FROM tasks WHERE seriesId = :seriesId")
     suspend fun deleteOccurrencesForSeries(seriesId: String)
 
-    // Backs the calendar's per-date task indicator dot - only which dates have at least one
-    // task, not the tasks themselves, for whatever month range the calendar currently has open.
-    @Query("SELECT DISTINCT date FROM tasks WHERE date BETWEEN :startDate AND :endDate")
-    fun getDatesWithTasksBetween(startDate: Long, endDate: Long): Flow<List<Long>>
+    // Backs the calendar's per-date task indicator dot, for whatever month range the calendar
+    // currently has open. Returns full rows (not just distinct dates) so TaskRepository can
+    // apply TaskEntity.isDueOn - a plain SELECT DISTINCT date can't tell a recurring series' own
+    // start-date row, which might not itself satisfy the series' pattern, from a task that's
+    // genuinely due on that date.
+    @Query("SELECT * FROM tasks WHERE date BETWEEN :startDate AND :endDate")
+    fun getTasksWithDateBetween(startDate: Long, endDate: Long): Flow<List<TaskEntity>>
 
     @Query("SELECT * FROM tasks")
     suspend fun getAll(): List<TaskEntity>
