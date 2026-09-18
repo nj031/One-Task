@@ -54,11 +54,13 @@ class TaskRepository(private val dao: TaskDao) {
         timerMinutes: Int?,
         date: Long,
         priority: TaskPriority,
+        reminderMinuteOfDay: Int?,
+        reminderEpochDay: Long?,
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
         postponeIfIncomplete: Boolean
-    ) {
+    ): TaskEntity {
         val now = System.currentTimeMillis()
         val task = TaskEntity(
             name = name,
@@ -66,6 +68,8 @@ class TaskRepository(private val dao: TaskDao) {
             timerMinutes = timerMinutes,
             date = date,
             priority = priority,
+            reminderMinuteOfDay = reminderMinuteOfDay,
+            reminderEpochDay = reminderEpochDay,
             repeat = repeat,
             repeatDays = repeatDays.toRepeatDaysString(),
             tag = tag,
@@ -75,6 +79,7 @@ class TaskRepository(private val dao: TaskDao) {
         )
         dao.insert(task)
         CloudBackupRepository.pushTask(task)
+        return task
     }
 
     suspend fun updateTask(
@@ -84,11 +89,13 @@ class TaskRepository(private val dao: TaskDao) {
         timerMinutes: Int?,
         date: Long,
         priority: TaskPriority,
+        reminderMinuteOfDay: Int?,
+        reminderEpochDay: Long?,
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
         postponeIfIncomplete: Boolean
-    ) {
+    ): TaskEntity {
         val now = System.currentTimeMillis()
         val newTotalMillis = (timerMinutes ?: 0) * MILLIS_PER_MINUTE
 
@@ -131,6 +138,8 @@ class TaskRepository(private val dao: TaskDao) {
             timerMinutes = timerMinutes,
             date = date,
             priority = priority,
+            reminderMinuteOfDay = reminderMinuteOfDay,
+            reminderEpochDay = reminderEpochDay,
             repeat = repeat,
             repeatDays = repeatDays.toRepeatDaysString(),
             tag = tag,
@@ -141,6 +150,7 @@ class TaskRepository(private val dao: TaskDao) {
         )
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
+        return updated
     }
 
     suspend fun toggleSubtask(task: TaskEntity, subtaskId: String) {
@@ -153,7 +163,7 @@ class TaskRepository(private val dao: TaskDao) {
     }
 
     /** Marks the task Done, pausing (not resetting) any active timer so its progress is preserved. */
-    suspend fun markTaskDone(task: TaskEntity) {
+    suspend fun markTaskDone(task: TaskEntity): TaskEntity {
         val now = System.currentTimeMillis()
         val remainingMillis = task.timerEndAtMillis?.let { (it - now).coerceAtLeast(0) }
             ?: task.timerRemainingMillis
@@ -165,6 +175,7 @@ class TaskRepository(private val dao: TaskDao) {
         )
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
+        return updated
     }
 
     /** Deleting a recurring series' own definition row also deletes every occurrence already
@@ -293,12 +304,13 @@ class TaskRepository(private val dao: TaskDao) {
      * state; a task with no timer, or a timer that was never started, simply returns to Not
      * Started. Never auto-starts the timer either way.
      */
-    suspend fun uncompleteTask(task: TaskEntity) {
+    suspend fun uncompleteTask(task: TaskEntity): TaskEntity {
         val hasPreservedTimerProgress = task.timerMinutes != null && task.timerRemainingMillis != null
         val newStatus = if (hasPreservedTimerProgress) TaskStatus.IN_PROGRESS else TaskStatus.NOT_STARTED
         val updated = task.copy(status = newStatus, updatedAt = System.currentTimeMillis())
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
+        return updated
     }
 
     /**

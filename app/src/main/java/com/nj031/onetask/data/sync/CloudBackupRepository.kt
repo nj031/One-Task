@@ -117,6 +117,8 @@ private fun TaskEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "timerMinutes" to timerMinutes,
     "date" to date,
     "priority" to priority.name,
+    "reminderMinuteOfDay" to reminderMinuteOfDay,
+    "reminderEpochDay" to reminderEpochDay,
     "repeat" to repeat.name,
     "repeatDays" to repeatDays,
     "seriesId" to seriesId,
@@ -148,6 +150,8 @@ private fun DocumentSnapshot.toTaskEntity(): TaskEntity? {
         date = date,
         priority = getString("priority")?.let { runCatching { TaskPriority.valueOf(it) }.getOrNull() }
             ?: TaskPriority.NONE,
+        reminderMinuteOfDay = (get("reminderMinuteOfDay") as? Long)?.toInt(),
+        reminderEpochDay = get("reminderEpochDay") as? Long,
         repeat = getString("repeat")?.let { runCatching { TaskRepeat.valueOf(it) }.getOrNull() } ?: TaskRepeat.NONE,
         repeatDays = getString("repeatDays").orEmpty(),
         seriesId = getString("seriesId"),

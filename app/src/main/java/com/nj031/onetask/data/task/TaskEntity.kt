@@ -28,6 +28,14 @@ data class TaskEntity(
     val timerMinutes: Int? = null,
     val date: Long,
     val priority: TaskPriority = TaskPriority.NONE,
+    // A task has at most one reminder. Null means no reminder - both default together and are
+    // always set/cleared together. reminderMinuteOfDay (0..1439, minutes since midnight) is the
+    // time of day used for every fire: for repeat == NONE it's paired with reminderEpochDay (the
+    // exact one-shot date); for DAILY/SELECT_DAYS, reminderEpochDay is unused going forward - the
+    // recurrence's own applicable dates (via matchesRecurrenceOn, respecting this task's own
+    // `date` as the series' start date) supply the date instead. See ReminderScheduler.
+    val reminderMinuteOfDay: Int? = null,
+    val reminderEpochDay: Long? = null,
     val repeat: TaskRepeat = TaskRepeat.NONE,
     // Only meaningful when repeat == SELECT_DAYS: comma-separated ISO day-of-week numbers
     // (1=Monday..7=Sunday, see DayOfWeek.getValue) - see repeatDaysSet()/toRepeatDaysString()

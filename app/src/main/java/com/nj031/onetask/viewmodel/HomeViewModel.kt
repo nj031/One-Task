@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nj031.onetask.data.AppDatabase
+import com.nj031.onetask.data.reminder.ReminderManager
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskOrderScope
@@ -85,23 +86,28 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         timerMinutes: Int?,
         date: LocalDate,
         priority: TaskPriority,
+        reminderMinuteOfDay: Int?,
+        reminderEpochDay: Long?,
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
         postponeIfIncomplete: Boolean
     ) {
         viewModelScope.launch {
-            repository.createTask(
+            val created = repository.createTask(
                 name = name,
                 subtasks = subtasks,
                 timerMinutes = timerMinutes,
                 date = date.toEpochDay(),
                 priority = priority,
+                reminderMinuteOfDay = reminderMinuteOfDay,
+                reminderEpochDay = reminderEpochDay,
                 repeat = repeat,
                 repeatDays = repeatDays,
                 tag = tag,
                 postponeIfIncomplete = postponeIfIncomplete
             )
+            ReminderManager.reschedule(getApplication<Application>(), created)
         }
         selectDate(date)
     }
@@ -113,24 +119,29 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         timerMinutes: Int?,
         date: LocalDate,
         priority: TaskPriority,
+        reminderMinuteOfDay: Int?,
+        reminderEpochDay: Long?,
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
         postponeIfIncomplete: Boolean
     ) {
         viewModelScope.launch {
-            repository.updateTask(
+            val updated = repository.updateTask(
                 task = task,
                 name = name,
                 subtasks = subtasks,
                 timerMinutes = timerMinutes,
                 date = date.toEpochDay(),
                 priority = priority,
+                reminderMinuteOfDay = reminderMinuteOfDay,
+                reminderEpochDay = reminderEpochDay,
                 repeat = repeat,
                 repeatDays = repeatDays,
                 tag = tag,
                 postponeIfIncomplete = postponeIfIncomplete
             )
+            ReminderManager.reschedule(getApplication<Application>(), updated)
         }
         selectDate(date)
     }
@@ -143,11 +154,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun toggleTaskStatus(task: TaskEntity) {
         viewModelScope.launch {
-            if (task.status == TaskStatus.COMPLETED) {
+            val updated = if (task.status == TaskStatus.COMPLETED) {
                 repository.uncompleteTask(task)
             } else {
                 repository.markTaskDone(task)
             }
+            // Completing today's occurrence must not cancel a recurring series' future
+            // reminders, only advance today's own (see ReminderManager.reschedule) - and
+            // un-completing a task whose one-shot reminder had already elapsed correctly leaves
+            // it with nothing to reschedule.
+            ReminderManager.reschedule(getApplication<Application>(), updated)
         }
     }
 
@@ -164,11 +180,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun markTaskDone(task: TaskEntity) {
-        viewModelScope.launch { repository.markTaskDone(task) }
+        viewModelScope.launch {
+            val updated = repository.markTaskDone(task)
+            ReminderManager.reschedule(getApplication<Application>(), updated)
+        }
     }
 
     fun deleteTask(task: TaskEntity) {
-        viewModelScope.launch { repository.deleteTask(task) }
+        viewModelScope.launch {
+            repository.deleteTask(task)
+            ReminderManager.cancel(getApplication<Application>(), task.id)
+        }
     }
 
     fun observeTask(id: String): Flow<TaskEntity?> = repository.observeTaskById(id)

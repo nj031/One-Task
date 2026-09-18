@@ -55,6 +55,9 @@ import kotlinx.coroutines.launch
  * indicator); [maxSelectableDate], when set, dims and disables any day after it (e.g. Journal
  * disallows picking a future date). [weekStartDay] only reorders which column each weekday
  * lands in (General Settings > Week Starts On) - it never changes a date's actual value.
+ * [minSelectableDate], when set, dims and disables any day before it (e.g. a Reminder's Custom
+ * Date must never be in the past) - the same mechanism [maxSelectableDate] already provides for
+ * the opposite bound.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,6 +66,7 @@ fun OneTaskCalendarSheet(
     onDateSelected: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
     markedDates: Set<LocalDate> = emptySet(),
+    minSelectableDate: LocalDate? = null,
     maxSelectableDate: LocalDate? = null,
     weekStartDay: DayOfWeek = DayOfWeek.MONDAY
 ) {
@@ -112,6 +116,7 @@ fun OneTaskCalendarSheet(
                 visibleMonth = visibleMonth,
                 selectedDate = initialDate,
                 markedDates = markedDates,
+                minSelectableDate = minSelectableDate,
                 maxSelectableDate = maxSelectableDate,
                 weekStartDay = weekStartDay,
                 onDayClick = { date ->
@@ -197,6 +202,7 @@ private fun CalendarMonthGrid(
     visibleMonth: YearMonth,
     selectedDate: LocalDate,
     markedDates: Set<LocalDate>,
+    minSelectableDate: LocalDate?,
     maxSelectableDate: LocalDate?,
     weekStartDay: DayOfWeek,
     onDayClick: (LocalDate) -> Unit
@@ -212,7 +218,10 @@ private fun CalendarMonthGrid(
                 for (dayOfWeek in 0 until 7) {
                     val dayNumber = week * 7 + dayOfWeek - firstDayOffset + 1
                     val date = if (dayNumber in 1..daysInMonth) visibleMonth.atDay(dayNumber) else null
-                    val isDisabled = date != null && maxSelectableDate != null && date.isAfter(maxSelectableDate)
+                    val isDisabled = date != null && (
+                        (maxSelectableDate != null && date.isAfter(maxSelectableDate)) ||
+                            (minSelectableDate != null && date.isBefore(minSelectableDate))
+                        )
                     CalendarDayCell(
                         date = date,
                         isSelected = date == selectedDate,
