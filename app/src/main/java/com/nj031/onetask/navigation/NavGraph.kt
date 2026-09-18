@@ -1,12 +1,15 @@
 package com.nj031.onetask.navigation
 
+import android.app.Activity
 import android.content.Intent
-import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -16,6 +19,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.nj031.onetask.MainActivity
 import com.nj031.onetask.R
 import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.feedback.FeedbackType
@@ -112,11 +116,10 @@ fun OneTaskNavHost(
     /**
      * Where a signed-in, verified user belongs right now - an in-progress Focus session, the
      * Start Screen preference, or plain Home - and Auth/VerifyEmail for anyone not fully signed
-     * in yet. Shared by [startDestination] below (the graph's initial route) and
-     * [navigateToHomeAfterAuth] (recomputed at the moment sign-in actually completes): the two
-     * MUST agree, since AuthRepository.currentUser can - and does, on every successful sign-in -
-     * change in between those two evaluations without Compose recomposing this function to
-     * recompute a `val` on its own.
+     * in yet. Used below as [startDestination], the graph's initial route - evaluated fresh on
+     * every new Activity instance (including the one [restartToFreshSession] starts right after
+     * a sign-in/sign-out), so it always reflects AuthRepository.currentUser as of that instance's
+     * own first composition.
      */
     fun resolveAuthenticatedDestination(): String = when {
         AuthRepository.currentUser == null -> Screen.Auth.route
@@ -136,52 +139,72 @@ fun OneTaskNavHost(
 
     val startDestination = resolveAuthenticatedDestination()
 
+    // Guards restartToFreshSession() against firing twice for one tap - a fast double-tap on
+    // the sign-in button or the logout confirm button would otherwise call it again before the
+    // first call's startActivity()/finish() has actually taken the old Activity off screen.
+    var accountTransitionStarted by remember { mutableStateOf(false) }
+
     /**
-     * After a successful login/signup, verified accounts always land on Home (or wherever the
+     * Fully restarts the app into a brand-new task/Activity instance - the mechanism every
+     * account transition (sign-in success, sign-out) relies on to guarantee every ViewModel this
+     * NavHost hoists, and every repository/DAO handle those ViewModels cache, is genuinely
+     * reconstructed fresh and correctly bound to whoever is signed in now.
+     *
+     * This intentionally does NOT use Activity.recreate() with a manually cleared
+     * ViewModelStore, which is what PR #96 originally tried and which crashed on both sign-in
+     * and sign-out with `IllegalStateException: ViewModelStore should be set before setGraph
+     * call` (thrown from NavController.setViewModelStore, via NavHost) - Navigation Compose
+     * keeps its own internal NavControllerViewModel inside this same Activity ViewModelStore,
+     * and forcibly clearing that store from application code while NavHost/NavController for it
+     * is still alive and composing breaks an internal invariant neither library documents as
+     * safe to violate. recreate() alone (without the manual clear) doesn't fix the underlying
+     * account-isolation problem either: it's documented to follow essentially the same flow as a
+     * configuration change, which is exactly the mechanism ComponentActivity uses to RETAIN (not
+     * discard) its ViewModelStore across rotation - so a hoisted ViewModel would simply survive
+     * into the next signed-in account unchanged.
+     *
+     * A full task restart (FLAG_ACTIVITY_NEW_TASK + FLAG_ACTIVITY_CLEAR_TASK) sidesteps both
+     * problems at once, using only ordinary, fully-supported Activity lifecycle behavior:
+     * - The new Activity instance gets a genuinely NEW ViewModelStore. onRetainNonConfiguration-
+     *   Instance() (the mechanism that retains a ViewModelStore across recreate()/rotation) is
+     *   never consulted for a normal finish() - the old Activity's ViewModelStore is cleared by
+     *   the framework itself, as part of its own ordinary teardown, never by this code reaching
+     *   into a store a live NavController still owns.
+     * - The new task has no saved Compose Navigation back-stack Bundle to restore, so the fresh
+     *   NavHost's own `startDestination` (computed above from AuthRepository.currentUser at that
+     *   point) is used correctly - unlike recreate(), which restores whatever route was on
+     *   screen the moment it was called, which is what caused sign-in to silently bounce back to
+     *   the login screen before this fix.
+     */
+    fun restartToFreshSession() {
+        if (accountTransitionStarted) return
+        accountTransitionStarted = true
+        val activity = context as? Activity ?: return
+        activity.startActivity(
+            Intent(activity, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+        )
+        activity.finish()
+    }
+
+    /** After a successful login/signup, verified accounts always land on Home (or wherever the
      * Start Screen setting/an in-progress Focus session points); the ambiguous "just verified
      * email, still needs a name" case never reaches here directly, since Verify Email's own
-     * onContinue keeps that decision local.
-     *
-     * Two things happen here, both required for correct account isolation, neither of which
-     * Activity.recreate() provides by itself:
-     *
-     * 1. Navigate explicitly to the freshly-resolved destination, rather than relying on the
-     *    recreated Activity's NavHost to land there via `startDestination`. Navigation Compose
-     *    saves/restores its back stack across an Activity recreation the same way it survives a
-     *    rotation - so without an explicit navigate() first, the recreated NavHost would restore
-     *    whatever route was on screen the moment recreate() was called (still Screen.Auth.route,
-     *    since nothing navigated away from it yet) instead of using `startDestination` at all,
-     *    silently bouncing an already-signed-in user right back to the login screen.
-     * 2. Clear the Activity's ViewModelStore before recreating. Activity.recreate() is documented
-     *    to follow essentially the same flow as a configuration change, which is exactly the
-     *    mechanism ComponentActivity uses to RETAIN (not discard) its ViewModelStore across
-     *    rotation - so recreate() alone does not, by itself, force
-     *    profileViewModel/homeViewModel/journalViewModel/generalSettingsViewModel/authViewModel
-     *    (or TimerViewModel/DataPrivacyViewModel, which live in per-NavBackStackEntry
-     *    ViewModelStores that Navigation Compose itself keeps inside this same Activity
-     *    ViewModelStore) to reconstruct. Explicitly clearing it first is what actually discards
-     *    any instance - and any repository/DAO handle it already cached - from before this
-     *    sign-in, so recreate() then rebuilds every one of them fresh, correctly bound to
-     *    whoever is signed in now.
-     */
+     * onContinue keeps that decision local. See [restartToFreshSession] for why this restarts
+     * the app rather than simply navigating. */
     fun navigateToHomeAfterAuth() {
-        val destination = resolveAuthenticatedDestination()
-        navController.navigate(destination) {
-            popUpTo(Screen.Auth.route) { inclusive = true }
-        }
-        (context as? ComponentActivity)?.viewModelStore?.clear()
-        (context as? ComponentActivity)?.recreate()
+        restartToFreshSession()
     }
 
     /**
-     * Signs out (unless the account was already deleted, which signs itself out) and returns to
-     * the Auth screen, then clears the ViewModelStore and recreates the Activity for the same
-     * account-isolation reason [navigateToHomeAfterAuth] does - so no ViewModel (or cached
-     * repository/DAO handle) hoisted for the just-signed-out account can still be sitting in
-     * memory, ready to serve its data, whenever the next sign-in happens. Also stops any
-     * background Timer/Stopwatch/Focus session service: those run independently of this
-     * Activity's lifecycle (see TimerForegroundService/StandaloneTimerForegroundService, both
-     * `stopWithTask="false"`) and each caches its own account-scoped repository once at
+     * Signs out (unless the account was already deleted, which signs itself out) and restarts
+     * into a fresh session for the same account-isolation reason [restartToFreshSession] does -
+     * so no ViewModel (or cached repository/DAO handle) hoisted for the just-signed-out account
+     * can still be sitting in memory, ready to serve its data, whenever the next sign-in happens.
+     * Also stops any background Timer/Stopwatch/Focus session service: those run independently
+     * of this Activity's lifecycle (see TimerForegroundService/StandaloneTimerForegroundService,
+     * both `stopWithTask="false"`) and each caches its own account-scoped repository once at
      * onCreate() - left running, one would keep reading/writing the just-signed-out account's
      * timer state (and showing it in a system notification) straight through the next account's
      * session.
@@ -190,9 +213,7 @@ fun OneTaskNavHost(
         if (!alreadySignedOut) AuthRepository.signOut()
         context.stopService(Intent(context, TimerForegroundService::class.java))
         StandaloneTimerForegroundService.stop(context)
-        navController.navigate(Screen.Auth.route) { popUpTo(0) { inclusive = true } }
-        (context as? ComponentActivity)?.viewModelStore?.clear()
-        (context as? ComponentActivity)?.recreate()
+        restartToFreshSession()
     }
 
     CompositionLocalProvider(LocalHapticFeedbackEnabled provides hapticFeedbackEnabled) {
