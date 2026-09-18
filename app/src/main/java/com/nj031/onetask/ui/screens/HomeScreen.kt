@@ -155,8 +155,8 @@ fun HomeScreen(
     // is to the actual edge - so the user can drag from the bottom of a long list to the top (or
     // vice versa) as one continuous gesture instead of having to drop, manually scroll, and
     // re-pick-up the task. Every scrolled pixel is immediately fed back through applyDragDelta
-    // (as a negative/compensating delta) so the dragged card's on-screen position stays pinned
-    // under the user's finger while the list moves underneath it, exactly like dragSwapIfNeeded
+    // (as a compensating delta) so the dragged card's on-screen position stays pinned under the
+    // user's finger while the list moves underneath it, exactly like dragSwapIfNeeded
     // already keeps it continuous across a swap. Restarts automatically for each new drag (keyed
     // on draggedTaskId) and stops the instant the drag ends, since draggedTaskId becoming null
     // cancels this effect.
@@ -204,7 +204,13 @@ fun HomeScreen(
                     (maxSpeedPx - minSpeedPx) * (intrusion / edgeZonePx).coerceIn(0f, 1f)
                 val consumed = listState.scrollBy(direction * speedPxPerSec * deltaSeconds)
                 if (consumed != 0f) {
-                    applyDragDelta(taskId, -consumed)
+                    // A LazyListItemInfo.offset is viewport-relative, so it shifts by -consumed
+                    // the instant the list scrolls - the item's slot moves the opposite way the
+                    // content scrolled. dragOffsetY must absorb exactly that shift (+consumed) so
+                    // the drawn position (offset + dragOffsetY, see the graphicsLayer translationY
+                    // below) stays fixed on screen under the stationary finger while the list
+                    // moves underneath it, instead of drifting by 2x consumed every frame.
+                    applyDragDelta(taskId, consumed)
                 }
             }
         }
