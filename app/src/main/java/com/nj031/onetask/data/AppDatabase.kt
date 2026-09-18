@@ -40,9 +40,26 @@ private val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
+/** Adds the recurring-tasks fix's columns to the existing tasks table in place, so every
+ * existing task survives this update: repeatDays defaults to empty (unused until a task's
+ * repeat is actually SELECT_DAYS) and seriesId defaults to null (every existing row is a
+ * plain/one-time task, never a materialized recurring occurrence - that concept didn't exist
+ * before this update). Also drops the Repeat picker's old WEEKLY/MONTHLY options, which never
+ * actually affected which dates a task showed on (repeat was purely a label) - converting any
+ * existing WEEKLY/MONTHLY task to NONE here doesn't change its observable behavior at all (it
+ * already only ever showed on its own literal date), it just retires those two enum values
+ * safely before Room would otherwise fail to read them back. */
+private val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE tasks ADD COLUMN repeatDays TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE tasks ADD COLUMN seriesId TEXT")
+        db.execSQL("UPDATE tasks SET repeat = 'NONE' WHERE repeat IN ('WEEKLY', 'MONTHLY')")
+    }
+}
+
 @Database(
     entities = [JournalNoteEntity::class, NoteLabelEntity::class, TaskEntity::class, TaskTagEntity::class],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 @TypeConverters(Converters::class, TaskConverters::class)
@@ -84,7 +101,7 @@ abstract class AppDatabase : RoomDatabase() {
                 instance?.close()
                 val databaseName = "${LEGACY_DATABASE_NAME}_$userId"
                 val database = Room.databaseBuilder(appContext, AppDatabase::class.java, databaseName)
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .fallbackToDestructiveMigration()
                     .build()
                 instance = database

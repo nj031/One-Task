@@ -1,13 +1,41 @@
 package com.nj031.onetask.data.task
 
 import com.nj031.onetask.data.sync.CloudBackupRepository
+import java.time.DayOfWeek
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 
 class TaskRepository(private val dao: TaskDao) {
-    fun observeTasksByDate(date: Long): Flow<List<TaskEntity>> = dao.getByDate(date)
+    /**
+     * Every task actually due on [date]: real rows stored with that exact date (plain one-time
+     * tasks, a recurring series' own row on its start date, and any occurrence already
+     * materialized for this date - see [TaskEntity.asVirtualOccurrence]) plus a virtual
+     * (not-yet-persisted) occurrence for every OTHER active recurring series whose pattern
+     * matches [date] and hasn't been materialized yet. Repeat is evaluated here, against the
+     * date actually being viewed, rather than being a label stored once on the task.
+     */
+    fun observeTasksByDate(date: Long): Flow<List<TaskEntity>> =
+        combine(dao.getByDate(date), dao.getActiveRecurringSeries()) { exactMatches, series ->
+            val existingIds = exactMatches.mapTo(HashSet()) { it.id }
+            val virtualOccurrences = series.mapNotNull { seriesTask ->
+                if (seriesTask.date == date || !seriesTask.matchesRecurrenceOn(date)) return@mapNotNull null
+                val occurrence = seriesTask.asVirtualOccurrence(date)
+                if (occurrence.id in existingIds) null else occurrence
+            }
+            (exactMatches + virtualOccurrences).sortedBy { it.createdAt }
+        }
 
+    /** Same recurring-aware matching as [observeTasksByDate], applied across a whole date range
+     * for the calendar's per-date task indicator dot - a date only shows a dot if it has a real
+     * task or is due for an active recurring series, without needing every future occurrence to
+     * already be a persisted row. */
     fun observeDatesWithTasksBetween(startDate: Long, endDate: Long): Flow<List<Long>> =
-        dao.getDatesWithTasksBetween(startDate, endDate)
+        combine(dao.getDatesWithTasksBetween(startDate, endDate), dao.getActiveRecurringSeries()) { realDates, series ->
+            val recurringDates = (startDate..endDate).filter { day ->
+                series.any { it.date != day && it.matchesRecurrenceOn(day) }
+            }
+            (realDates + recurringDates).distinct()
+        }
 
     fun observeTaskById(id: String): Flow<TaskEntity?> = dao.getById(id)
 
@@ -23,6 +51,7 @@ class TaskRepository(private val dao: TaskDao) {
         timerMinutes: Int?,
         date: Long,
         repeat: TaskRepeat,
+        repeatDays: Set<DayOfWeek>,
         tag: String?,
         postponeIfIncomplete: Boolean
     ) {
@@ -33,6 +62,7 @@ class TaskRepository(private val dao: TaskDao) {
             timerMinutes = timerMinutes,
             date = date,
             repeat = repeat,
+            repeatDays = repeatDays.toRepeatDaysString(),
             tag = tag,
             postponeIfIncomplete = postponeIfIncomplete,
             createdAt = now,
@@ -49,6 +79,7 @@ class TaskRepository(private val dao: TaskDao) {
         timerMinutes: Int?,
         date: Long,
         repeat: TaskRepeat,
+        repeatDays: Set<DayOfWeek>,
         tag: String?,
         postponeIfIncomplete: Boolean
     ) {
@@ -94,13 +125,14 @@ class TaskRepository(private val dao: TaskDao) {
             timerMinutes = timerMinutes,
             date = date,
             repeat = repeat,
+            repeatDays = repeatDays.toRepeatDaysString(),
             tag = tag,
             postponeIfIncomplete = postponeIfIncomplete,
             timerEndAtMillis = newTimerEndAtMillis,
             timerRemainingMillis = newTimerRemainingMillis,
             updatedAt = now
         )
-        dao.update(updated)
+        dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
     }
 
@@ -109,7 +141,7 @@ class TaskRepository(private val dao: TaskDao) {
             if (subtask.id == subtaskId) subtask.copy(completed = !subtask.completed) else subtask
         }
         val updated = task.copy(subtasks = updatedSubtasks, updatedAt = System.currentTimeMillis())
-        dao.update(updated)
+        dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
     }
 
@@ -124,17 +156,30 @@ class TaskRepository(private val dao: TaskDao) {
             timerRemainingMillis = remainingMillis,
             updatedAt = now
         )
-        dao.update(updated)
+        dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
     }
 
+    /** Deleting a recurring series' own definition row also deletes every occurrence already
+     * materialized from it (see [TaskEntity.asVirtualOccurrence]), so a deleted recurring task
+     * doesn't leave individual-date leftovers behind; deleting a plain task or a single already-
+     * materialized occurrence only ever removes that one row, unchanged from before. Deleting a
+     * recurring occurrence that hasn't been materialized yet (never toggled/edited/started) has
+     * nothing to delete - it simply isn't shown as a virtual occurrence again unless the series
+     * still matches that date, which is a known limitation, not a crash risk. */
     suspend fun deleteTask(task: TaskEntity) {
+        if (task.seriesId == null && task.repeat != TaskRepeat.NONE) {
+            val occurrenceIds = dao.getOccurrenceIdsForSeries(task.id)
+            dao.deleteOccurrencesForSeries(task.id)
+            occurrenceIds.forEach { CloudBackupRepository.deleteTask(it) }
+        }
         dao.delete(task)
         CloudBackupRepository.deleteTask(task.id)
     }
 
     suspend fun addCustomTag(name: String) {
         dao.insertTag(TaskTagEntity(name = name))
+        CloudBackupRepository.pushTag(name)
     }
 
     /** Removes the tag from the available custom-tags list only - deliberately never touches
@@ -142,6 +187,7 @@ class TaskRepository(private val dao: TaskDao) {
      * exactly as before; it just stops being offered for new/edited tasks going forward. */
     suspend fun deleteCustomTag(name: String) {
         dao.deleteTag(name)
+        CloudBackupRepository.deleteTag(name)
     }
 
     /** Upserts (by id) the given tasks/tags into local storage and mirrors the tasks to the
@@ -153,16 +199,21 @@ class TaskRepository(private val dao: TaskDao) {
             dao.insert(task)
             CloudBackupRepository.pushTask(task)
         }
-        tags.forEach { tag -> dao.insertTag(TaskTagEntity(name = tag)) }
+        tags.forEach { tag ->
+            dao.insertTag(TaskTagEntity(name = tag))
+            CloudBackupRepository.pushTag(tag)
+        }
     }
 
     /** Permanently deletes every task and custom tag, locally and from the cloud backup. Does
      * not touch the account itself. */
     suspend fun deleteAllTasksAndTags() {
         val allTasks = dao.getAll()
+        val allTags = dao.getCustomTagsOnce()
         dao.deleteAllTasks()
         dao.deleteAllTags()
         allTasks.forEach { CloudBackupRepository.deleteTask(it.id) }
+        allTags.forEach { CloudBackupRepository.deleteTag(it) }
     }
 
     suspend fun postponeOverdueTasks(today: Long) {
@@ -179,7 +230,7 @@ class TaskRepository(private val dao: TaskDao) {
             timerRemainingMillis = null,
             updatedAt = now
         )
-        dao.update(updated)
+        dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
     }
 
@@ -193,7 +244,7 @@ class TaskRepository(private val dao: TaskDao) {
             timerRemainingMillis = remainingMillis,
             updatedAt = now
         )
-        dao.update(updated)
+        dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
     }
 
@@ -206,7 +257,7 @@ class TaskRepository(private val dao: TaskDao) {
             timerRemainingMillis = totalMillis,
             updatedAt = System.currentTimeMillis()
         )
-        dao.update(updated)
+        dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
     }
 
@@ -224,7 +275,7 @@ class TaskRepository(private val dao: TaskDao) {
             timerRemainingMillis = 0L,
             updatedAt = System.currentTimeMillis()
         )
-        dao.update(updated)
+        dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
     }
 
@@ -239,7 +290,7 @@ class TaskRepository(private val dao: TaskDao) {
         val hasPreservedTimerProgress = task.timerMinutes != null && task.timerRemainingMillis != null
         val newStatus = if (hasPreservedTimerProgress) TaskStatus.IN_PROGRESS else TaskStatus.NOT_STARTED
         val updated = task.copy(status = newStatus, updatedAt = System.currentTimeMillis())
-        dao.update(updated)
+        dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
     }
 
@@ -258,7 +309,7 @@ class TaskRepository(private val dao: TaskDao) {
                 TaskOrderScope.IN_PROGRESS -> task.copy(orderInProgress = index.toLong(), updatedAt = now)
                 TaskOrderScope.DONE -> task.copy(orderInDone = index.toLong(), updatedAt = now)
             }
-            dao.update(updated)
+            dao.upsert(updated)
             CloudBackupRepository.pushTask(updated)
         }
     }

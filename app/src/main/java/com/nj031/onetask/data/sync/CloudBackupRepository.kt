@@ -32,6 +32,9 @@ object CloudBackupRepository {
     private fun notesCollection(uid: String) =
         firestore.collection("users").document(uid).collection("notes")
 
+    private fun tagsCollection(uid: String) =
+        firestore.collection("users").document(uid).collection("tags")
+
     fun pushTask(task: TaskEntity) {
         val currentUid = uid ?: return
         tasksCollection(currentUid).document(task.id).set(task.toFirestoreMap())
@@ -40,6 +43,19 @@ object CloudBackupRepository {
     fun deleteTask(taskId: String) {
         val currentUid = uid ?: return
         tasksCollection(currentUid).document(taskId).delete()
+    }
+
+    /** Custom tags are account-owned data (see [pullTags]) - a tag's own name is both its
+     * identity and its entire content, so the name is used directly as the Firestore document
+     * id, the same way local Room's task_tags table already uses it as the primary key. */
+    fun pushTag(name: String) {
+        val currentUid = uid ?: return
+        tagsCollection(currentUid).document(name).set(mapOf("name" to name))
+    }
+
+    fun deleteTag(name: String) {
+        val currentUid = uid ?: return
+        tagsCollection(currentUid).document(name).delete()
     }
 
     fun pushNote(note: JournalNoteEntity) {
@@ -62,6 +78,13 @@ object CloudBackupRepository {
         return notesCollection(currentUid).get().await().documents.mapNotNull { it.toJournalNoteEntity() }
     }
 
+    /** The signed-in account's own custom tags, previously backed up from this or any other
+     * device - restores them on a fresh install/reinstall or a first sign-in on a new device. */
+    suspend fun pullTags(): List<String> {
+        val currentUid = uid ?: return emptyList()
+        return tagsCollection(currentUid).get().await().documents.mapNotNull { it.getString("name") }
+    }
+
     suspend fun pushAllTasks(tasks: List<TaskEntity>) {
         val currentUid = uid ?: return
         if (tasks.isEmpty()) return
@@ -77,6 +100,14 @@ object CloudBackupRepository {
         notes.forEach { note -> batch.set(notesCollection(currentUid).document(note.id), note.toFirestoreMap()) }
         batch.commit().await()
     }
+
+    suspend fun pushAllTags(tags: List<String>) {
+        val currentUid = uid ?: return
+        if (tags.isEmpty()) return
+        val batch = firestore.batch()
+        tags.forEach { tag -> batch.set(tagsCollection(currentUid).document(tag), mapOf("name" to tag)) }
+        batch.commit().await()
+    }
 }
 
 private fun TaskEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
@@ -85,6 +116,8 @@ private fun TaskEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "timerMinutes" to timerMinutes,
     "date" to date,
     "repeat" to repeat.name,
+    "repeatDays" to repeatDays,
+    "seriesId" to seriesId,
     "tag" to tag,
     "postponeIfIncomplete" to postponeIfIncomplete,
     "status" to status.name,
@@ -112,6 +145,8 @@ private fun DocumentSnapshot.toTaskEntity(): TaskEntity? {
         timerMinutes = (get("timerMinutes") as? Long)?.toInt(),
         date = date,
         repeat = getString("repeat")?.let { runCatching { TaskRepeat.valueOf(it) }.getOrNull() } ?: TaskRepeat.NONE,
+        repeatDays = getString("repeatDays").orEmpty(),
+        seriesId = getString("seriesId"),
         tag = getString("tag"),
         postponeIfIncomplete = getBoolean("postponeIfIncomplete") ?: true,
         status = getString("status")?.let { runCatching { TaskStatus.valueOf(it) }.getOrNull() } ?: TaskStatus.NOT_STARTED,

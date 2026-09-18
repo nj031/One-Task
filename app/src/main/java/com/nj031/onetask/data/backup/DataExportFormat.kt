@@ -70,6 +70,8 @@ private fun TaskEntity.toJson(): JSONObject = JSONObject().apply {
     put("timerMinutes", timerMinutes ?: JSONObject.NULL)
     put("date", date)
     put("repeat", repeat.name)
+    put("repeatDays", repeatDays)
+    put("seriesId", seriesId ?: JSONObject.NULL)
     put("tag", tag ?: JSONObject.NULL)
     put("postponeIfIncomplete", postponeIfIncomplete)
     put("status", status.name)
@@ -99,7 +101,12 @@ private fun JSONObject.toTaskEntity(): TaskEntity {
         subtasks = subtasks,
         timerMinutes = if (isNull("timerMinutes")) null else getInt("timerMinutes"),
         date = getLong("date"),
+        // Absent from any backup file written before the Repeat fix (or naming a repeat option
+        // that fix retired - WEEKLY/MONTHLY) - default to NONE, exactly like an unrecognized
+        // status/note type elsewhere in this file already does, rather than failing the restore.
         repeat = runCatching { TaskRepeat.valueOf(getString("repeat")) }.getOrDefault(TaskRepeat.NONE),
+        repeatDays = optString("repeatDays", ""),
+        seriesId = if (isNull("seriesId")) null else getString("seriesId"),
         tag = if (isNull("tag")) null else getString("tag"),
         postponeIfIncomplete = optBoolean("postponeIfIncomplete", true),
         status = runCatching { TaskStatus.valueOf(getString("status")) }.getOrDefault(TaskStatus.NOT_STARTED),

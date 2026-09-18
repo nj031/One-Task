@@ -16,11 +16,35 @@ interface TaskDao {
     @Update
     suspend fun update(task: TaskEntity)
 
+    /** Same insert-or-replace-by-id behavior as [insert] - used at every "persist a change to a
+     * task that's expected to already exist" call site instead of [update], since a virtual
+     * (not-yet-persisted) recurring occurrence - see [TaskEntity.asVirtualOccurrence] - has no
+     * existing row for a plain @Update to match. Behaves exactly like [update] for a task that
+     * already has a row, and materializes one for a virtual occurrence on its first use. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(task: TaskEntity)
+
     @Delete
     suspend fun delete(task: TaskEntity)
 
     @Query("SELECT * FROM tasks WHERE date = :date ORDER BY createdAt ASC")
     fun getByDate(date: Long): Flow<List<TaskEntity>>
+
+    // A recurring series' own definition row (never a materialized occurrence - see
+    // TaskEntity.seriesId) - combined in TaskRepository with getByDate/getDatesWithTasksBetween
+    // to compute which other dates a series is also due on, without persisting a row for every
+    // future occurrence up front.
+    @Query("SELECT * FROM tasks WHERE repeat != 'NONE' AND seriesId IS NULL")
+    fun getActiveRecurringSeries(): Flow<List<TaskEntity>>
+
+    @Query("SELECT id FROM tasks WHERE seriesId = :seriesId")
+    suspend fun getOccurrenceIdsForSeries(seriesId: String): List<String>
+
+    // Cleans up already-materialized occurrences when their series' own definition row is
+    // deleted, so deleting a recurring task doesn't leave orphaned individual-date leftovers
+    // behind - see TaskRepository.deleteTask.
+    @Query("DELETE FROM tasks WHERE seriesId = :seriesId")
+    suspend fun deleteOccurrencesForSeries(seriesId: String)
 
     // Backs the calendar's per-date task indicator dot - only which dates have at least one
     // task, not the tasks themselves, for whatever month range the calendar currently has open.
