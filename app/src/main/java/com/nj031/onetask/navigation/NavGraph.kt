@@ -1,7 +1,7 @@
 package com.nj031.onetask.navigation
 
-import android.app.Activity
 import android.content.Intent
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -169,8 +169,8 @@ fun OneTaskNavHost(
         navController.navigate(destination) {
             popUpTo(Screen.Auth.route) { inclusive = true }
         }
-        (context as? Activity)?.viewModelStore?.clear()
-        (context as? Activity)?.recreate()
+        (context as? ComponentActivity)?.viewModelStore?.clear()
+        (context as? ComponentActivity)?.recreate()
     }
 
     /**
@@ -191,8 +191,8 @@ fun OneTaskNavHost(
         context.stopService(Intent(context, TimerForegroundService::class.java))
         StandaloneTimerForegroundService.stop(context)
         navController.navigate(Screen.Auth.route) { popUpTo(0) { inclusive = true } }
-        (context as? Activity)?.viewModelStore?.clear()
-        (context as? Activity)?.recreate()
+        (context as? ComponentActivity)?.viewModelStore?.clear()
+        (context as? ComponentActivity)?.recreate()
     }
 
     CompositionLocalProvider(LocalHapticFeedbackEnabled provides hapticFeedbackEnabled) {
