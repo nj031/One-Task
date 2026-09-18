@@ -1,5 +1,6 @@
 package com.nj031.onetask.navigation
 
+import android.app.Activity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -97,6 +98,7 @@ fun OneTaskNavHost(
         }
     }
 
+    val context = LocalContext.current
     val journalViewModel: JournalViewModel = viewModel()
     val homeViewModel: HomeViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
@@ -119,13 +121,41 @@ fun OneTaskNavHost(
         else -> Screen.Home.route
     }
 
-    /** After a successful login/signup, verified accounts always land on Home; the ambiguous
-     * "just verified email, still needs a name" case never reaches here directly, since
-     * Verify Email's own onContinue keeps that decision local. */
-    fun NavHostController.navigateToHomeAfterAuth() {
-        navigate(Screen.Home.route) {
-            popUpTo(Screen.Auth.route) { inclusive = true }
-        }
+    /**
+     * After a successful login/signup, verified accounts always land on Home (or wherever the
+     * Start Screen setting/an in-progress Focus session points - see startDestination above); the
+     * ambiguous "just verified email, still needs a name" case never reaches here directly, since
+     * Verify Email's own onContinue keeps that decision local.
+     *
+     * Recreating the Activity here - rather than simply navigating to Screen.Home - is a
+     * deliberate, critical fix for account-data isolation: every ViewModel this NavHost hoists
+     * (profileViewModel/homeViewModel/journalViewModel/generalSettingsViewModel/...) is
+     * constructed once and caches its own repository/dao/StateFlow at that point, so if any of
+     * them already existed from before this sign-in (typically: constructed while nobody, or a
+     * *different* account, was signed in), they would otherwise keep serving that stale account's
+     * already-loaded Profile/Tasks/Notes/Settings instead of the one that just signed in. Every
+     * per-account store is itself correctly scoped by uid (see UserScope/UserScopedPreferences/
+     * AppDatabase), but that alone doesn't help an already-constructed ViewModel that cached a
+     * handle to the WRONG account's store before this sign-in happened - recreating throws all of
+     * that away and lets the next instance construct everything fresh, correctly bound to
+     * whoever is signed in now. No explicit navigate() call is needed alongside it: the recreated
+     * Activity computes startDestination from scratch above, which already routes a freshly
+     * authenticated user to the right screen.
+     */
+    fun navigateToHomeAfterAuth() {
+        (context as? Activity)?.recreate()
+    }
+
+    /**
+     * Signs out (unless the account was already deleted, which signs itself out) and returns to
+     * the Auth screen, then recreates the Activity for the same account-isolation reason
+     * [navigateToHomeAfterAuth] does - so no ViewModel hoisted for the just-signed-out account
+     * can still be sitting in memory, ready to serve its data, whenever the next sign-in happens.
+     */
+    fun endSessionAndReturnToAuth(alreadySignedOut: Boolean = false) {
+        if (!alreadySignedOut) AuthRepository.signOut()
+        navController.navigate(Screen.Auth.route) { popUpTo(0) { inclusive = true } }
+        (context as? Activity)?.recreate()
     }
 
     CompositionLocalProvider(LocalHapticFeedbackEnabled provides hapticFeedbackEnabled) {
@@ -149,7 +179,7 @@ fun OneTaskNavHost(
                                 popUpTo(Screen.Auth.route) { inclusive = true }
                             }
                         } else {
-                            navController.navigateToHomeAfterAuth()
+                            navigateToHomeAfterAuth()
                         }
                     }
                 }
@@ -195,7 +225,7 @@ fun OneTaskNavHost(
                         if (displayName.isNullOrBlank()) {
                             navController.navigate(Screen.SetUpProfile.route)
                         } else {
-                            navController.navigateToHomeAfterAuth()
+                            navigateToHomeAfterAuth()
                         }
                     }
                 },
@@ -206,8 +236,7 @@ fun OneTaskNavHost(
                     // onBackToHome, so Back can never unexpectedly close the app.
                     val poppedToPassword = navController.popBackStack(Screen.CreateAccountPassword.route, false)
                     if (!poppedToPassword) {
-                        AuthRepository.signOut()
-                        navController.navigate(Screen.Auth.route) { popUpTo(0) { inclusive = true } }
+                        endSessionAndReturnToAuth()
                     }
                 }
             )
@@ -219,7 +248,7 @@ fun OneTaskNavHost(
                 onNameChange = authViewModel::updateProfileSetupName,
                 onFinish = {
                     authViewModel.submitProfileSetup {
-                        navController.navigateToHomeAfterAuth()
+                        navigateToHomeAfterAuth()
                     }
                 },
                 onBack = {
@@ -230,8 +259,7 @@ fun OneTaskNavHost(
                     // root) sign out rather than leave Back with nothing to do.
                     val poppedToVerify = navController.popBackStack(Screen.VerifyEmail.route, false)
                     if (!poppedToVerify && !navController.popBackStack()) {
-                        AuthRepository.signOut()
-                        navController.navigate(Screen.Auth.route) { popUpTo(0) { inclusive = true } }
+                        endSessionAndReturnToAuth()
                     }
                 }
             )
@@ -252,7 +280,7 @@ fun OneTaskNavHost(
                             user?.displayName.isNullOrBlank() -> navController.navigate(Screen.SetUpProfile.route) {
                                 popUpTo(Screen.Auth.route) { inclusive = false }
                             }
-                            else -> navController.navigateToHomeAfterAuth()
+                            else -> navigateToHomeAfterAuth()
                         }
                     }
                 },
@@ -402,12 +430,7 @@ fun OneTaskNavHost(
                 onDataPrivacyClick = { navController.navigate(Screen.DataPrivacy.route) },
                 onAboutClick = { navController.navigate(Screen.AboutOneTask.route) },
                 onHelpFeedbackClick = { navController.navigate(Screen.HelpFeedback.route) },
-                onLogout = {
-                    AuthRepository.signOut()
-                    navController.navigate(Screen.Auth.route) {
-                        popUpTo(0)
-                    }
-                }
+                onLogout = { endSessionAndReturnToAuth() }
             )
         }
         composable(Screen.EditProfile.route) {
@@ -438,11 +461,7 @@ fun OneTaskNavHost(
             DataPrivacyScreen(
                 onBackClick = { navController.popBackStack() },
                 onPrivacyPolicyClick = { navController.navigate(Screen.PrivacyPolicy.route) },
-                onAccountDeleted = {
-                    navController.navigate(Screen.Auth.route) {
-                        popUpTo(0)
-                    }
-                }
+                onAccountDeleted = { endSessionAndReturnToAuth(alreadySignedOut = true) }
             )
         }
         composable(Screen.PrivacyPolicy.route) {

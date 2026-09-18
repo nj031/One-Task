@@ -1,6 +1,7 @@
 package com.nj031.onetask.data.settings
 
 import android.content.Context
+import com.nj031.onetask.data.UserScopedPreferences
 import java.time.DayOfWeek
 
 enum class StartScreen { TASKS, JOURNAL, TIMER }
@@ -27,10 +28,12 @@ private const val KEY_LAST_CLOUD_BACKUP_AT = "last_cloud_backup_at"
  * UserProfileRepository: AppDatabase has no real Migration objects and falls back to
  * fallbackToDestructiveMigration() on any version bump, so a new Room table for a handful of
  * simple preference values isn't worth risking every existing install's Tasks/Journal data on
- * their next update.
+ * their next update. The file itself is scoped per signed-in account (see
+ * [UserScopedPreferences]) - a plain fixed file name would mean every account on this device
+ * shared the exact same settings.
  */
 class GeneralSettingsRepository(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs = UserScopedPreferences.open(context, PREFS_NAME)
 
     /** Tasks is the default for both existing and new users - anyone who hasn't visited this
      * setting yet keeps launching straight into Tasks, exactly as before this setting existed. */

@@ -1,6 +1,7 @@
 package com.nj031.onetask.data.settings
 
 import android.content.Context
+import com.nj031.onetask.data.UserScopedPreferences
 
 /** Follows the device's own light/dark setting, or forces one or the other. */
 enum class DisplayMode { SYSTEM, LIGHT, DARK }
@@ -22,10 +23,12 @@ private const val KEY_COLOR_THEME = "color_theme"
  * SYSTEM/BLUE are the defaults - both exactly match this app's behavior before Appearance
  * Settings existed (OneTaskTheme's own prior default was `isSystemInDarkTheme()`, and Blue was
  * the only color the app ever had), so an existing user who has never opened this screen sees
- * no change at all.
+ * no change at all. The file itself is scoped per signed-in account (see
+ * [UserScopedPreferences]) - a plain fixed file name would mean every account on this device
+ * shared the exact same Display Mode/Color Theme selection.
  */
 class AppearanceSettingsRepository(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs = UserScopedPreferences.open(context, PREFS_NAME)
 
     fun getDisplayMode(): DisplayMode {
         val raw = prefs.getString(KEY_DISPLAY_MODE, null) ?: return DisplayMode.SYSTEM
