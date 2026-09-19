@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -16,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -54,7 +54,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import android.Manifest
 import android.content.Context
@@ -290,7 +289,7 @@ private fun AddTaskScreenContent(
     }
 
     // The Tag row's own picker UI has been replaced on this screen by the Category placeholder
-    // (see the SettingRow below) - task.tag itself is untouched data, so whatever value this task
+    // (see the card below) - task.tag itself is untouched data, so whatever value this task
     // already had (or Default Task Settings seeds a new one with) simply keeps flowing straight
     // through to onSave unedited.
     val tag = initialTag
@@ -341,122 +340,97 @@ private fun AddTaskScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 16.dp)
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 AddTaskTopBar(isEditMode = existingTask != null, onBackClick = onCancel)
 
-                RowLabel(text = stringResource(id = R.string.task_name_label), topPadding = 28.dp)
-                TextField(
-                    value = taskName,
-                    onValueChange = { taskName = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp)
-                        .focusRequester(taskNameFocusRequester),
-                    placeholder = {
-                        Text(text = stringResource(id = R.string.task_name_placeholder))
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    textStyle = MaterialTheme.typography.bodyLarge,
-                    colors = taskFieldColors()
-                )
+                Spacer(modifier = Modifier.height(6.dp))
 
-                SettingRow(
-                    label = stringResource(id = R.string.priority_label),
-                    modifier = Modifier.padding(top = 26.dp)
-                ) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        SelectionChip(
-                            text = stringResource(id = R.string.priority_small),
-                            selected = selectedPriority == TaskPriority.SMALL,
-                            onClick = {
-                                selectedPriority =
-                                    if (selectedPriority == TaskPriority.SMALL) TaskPriority.NONE else TaskPriority.SMALL
-                            }
-                        )
-                        SelectionChip(
-                            text = stringResource(id = R.string.priority_medium),
-                            selected = selectedPriority == TaskPriority.MEDIUM,
-                            onClick = {
-                                selectedPriority =
-                                    if (selectedPriority == TaskPriority.MEDIUM) TaskPriority.NONE else TaskPriority.MEDIUM
-                            }
-                        )
-                        SelectionChip(
-                            text = stringResource(id = R.string.priority_high),
-                            selected = selectedPriority == TaskPriority.HIGH,
-                            onClick = {
-                                selectedPriority =
-                                    if (selectedPriority == TaskPriority.HIGH) TaskPriority.NONE else TaskPriority.HIGH
-                            }
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 28.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+                // 1. Task Name
+                TaskSectionCard {
                     Text(
-                        text = stringResource(id = R.string.subtasks_label),
+                        text = stringResource(id = R.string.task_name_label),
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
                     )
-                    AddChipButton(
-                        text = stringResource(id = R.string.add_subtask),
-                        onClick = {
-                            val newSubtask = Subtask(name = "")
-                            subtasks.add(newSubtask)
-                            pendingFocusSubtaskId = newSubtask.id
-                        }
-                    )
-                }
-                subtasks.forEachIndexed { index, subtask ->
-                    Row(
+                    TextField(
+                        value = taskName,
+                        onValueChange = { taskName = it },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(top = 10.dp)
+                            .focusRequester(taskNameFocusRequester),
+                        placeholder = {
+                            Text(text = stringResource(id = R.string.task_name_placeholder))
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        colors = taskFieldColors()
+                    )
+                }
+
+                // 2. Subtasks
+                TaskSectionCard {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        TextField(
-                            value = subtask.name,
-                            onValueChange = { subtasks[index] = subtask.copy(name = it) },
-                            modifier = Modifier
-                                .weight(1f)
-                                .focusRequester(
-                                    subtaskFocusRequesters.getOrPut(subtask.id) { FocusRequester() }
-                                ),
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            textStyle = MaterialTheme.typography.bodyMedium,
-                            colors = taskFieldColors()
-                        )
                         Text(
-                            text = "×",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .padding(start = 10.dp)
-                                .clickable(onClickLabel = stringResource(id = R.string.remove)) {
-                                    subtasks.removeAt(index)
-                                }
+                            text = stringResource(id = R.string.subtasks_label),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
                         )
+                        AddChipButton(
+                            text = stringResource(id = R.string.add_subtask),
+                            onClick = {
+                                val newSubtask = Subtask(name = "")
+                                subtasks.add(newSubtask)
+                                pendingFocusSubtaskId = newSubtask.id
+                            }
+                        )
+                    }
+                    subtasks.forEachIndexed { index, subtask ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextField(
+                                value = subtask.name,
+                                onValueChange = { subtasks[index] = subtask.copy(name = it) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .focusRequester(
+                                        subtaskFocusRequesters.getOrPut(subtask.id) { FocusRequester() }
+                                    ),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                textStyle = MaterialTheme.typography.bodyMedium,
+                                colors = taskFieldColors()
+                            )
+                            Text(
+                                text = "×",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .padding(start = 10.dp)
+                                    .clickable(onClickLabel = stringResource(id = R.string.remove)) {
+                                        subtasks.removeAt(index)
+                                    }
+                            )
+                        }
                     }
                 }
 
-                SettingRow(
-                    label = stringResource(id = R.string.success_condition_label),
-                    modifier = Modifier.padding(top = 26.dp)
-                ) {
-                    Column {
+                // 3. Success Condition
+                TaskSectionCard {
+                    CardRow(label = stringResource(id = R.string.success_condition_label)) {
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -485,115 +459,119 @@ private fun AddTaskScreenContent(
                                 }
                             )
                         }
-                        if (successConditionLocked) {
-                            Text(
-                                text = stringResource(id = R.string.success_condition_no_subtasks_hint),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 6.dp)
-                            )
-                        } else if (selectedSuccessCondition == SuccessCondition.CUSTOM) {
-                            FlowRow(
-                                modifier = Modifier.padding(top = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                val effectiveThreshold = successConditionThreshold ?: subtasks.size
-                                (1..subtasks.size).forEach { count ->
-                                    SelectionChip(
-                                        text = count.toString(),
-                                        selected = effectiveThreshold == count,
-                                        onClick = { successConditionThreshold = count }
-                                    )
-                                }
+                    }
+                    if (successConditionLocked) {
+                        Text(
+                            text = stringResource(id = R.string.success_condition_no_subtasks_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    } else if (selectedSuccessCondition == SuccessCondition.CUSTOM) {
+                        FlowRow(
+                            modifier = Modifier.padding(top = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val effectiveThreshold = successConditionThreshold ?: subtasks.size
+                            (1..subtasks.size).forEach { count ->
+                                SelectionChip(
+                                    text = count.toString(),
+                                    selected = effectiveThreshold == count,
+                                    onClick = { successConditionThreshold = count }
+                                )
                             }
                         }
                     }
                 }
 
-                SettingRow(
-                    label = stringResource(id = R.string.timer_label),
-                    modifier = Modifier.padding(top = 26.dp)
-                ) {
-                    val isCustomTimerSelected = timerMinutes != null && timerMinutes !in TIMER_PRESETS
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        SelectionChip(
-                            text = stringResource(id = R.string.option_no_timer),
-                            selected = !isCustomTimerSelected && timerMinutes == null,
-                            onClick = { timerMinutes = null }
-                        )
-                        listOf(TIMER_25_MIN, TIMER_45_MIN, TIMER_60_MIN).forEach { minutes ->
+                // 4. Timer
+                TaskSectionCard {
+                    CardRow(label = stringResource(id = R.string.timer_label)) {
+                        val isCustomTimerSelected = timerMinutes != null && timerMinutes !in TIMER_PRESETS
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             SelectionChip(
-                                text = minutes.toString(),
-                                selected = !isCustomTimerSelected && timerMinutes == minutes,
-                                onClick = { timerMinutes = minutes }
+                                text = stringResource(id = R.string.option_no_timer),
+                                selected = !isCustomTimerSelected && timerMinutes == null,
+                                onClick = { timerMinutes = null }
+                            )
+                            listOf(TIMER_25_MIN, TIMER_45_MIN, TIMER_60_MIN).forEach { minutes ->
+                                SelectionChip(
+                                    text = minutes.toString(),
+                                    selected = !isCustomTimerSelected && timerMinutes == minutes,
+                                    onClick = { timerMinutes = minutes }
+                                )
+                            }
+                            SelectionChip(
+                                text = stringResource(id = R.string.option_custom),
+                                selected = isCustomTimerSelected,
+                                onClick = { showCustomDurationPicker = true }
                             )
                         }
-                        SelectionChip(
-                            text = stringResource(id = R.string.option_custom),
-                            selected = isCustomTimerSelected,
-                            onClick = { showCustomDurationPicker = true }
+                    }
+                }
+
+                // 5. Category (UI-only placeholder - no selection/creation/persistence)
+                TaskSectionCard {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.category_label),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        AddChipButton(
+                            text = stringResource(id = R.string.choose_category_button),
+                            enabled = false,
+                            onClick = {}
                         )
                     }
                 }
 
-                SettingRow(
-                    label = stringResource(id = R.string.category_label),
-                    modifier = Modifier.padding(top = 26.dp)
-                ) {
-                    // Placeholder only - selection, creation, and persistence come in a later
-                    // update. Shown disabled/non-interactive so it can't be mistaken for a
-                    // working picker.
-                    SelectionChip(
-                        text = stringResource(id = R.string.category_placeholder_value),
-                        selected = false,
-                        enabled = false,
-                        onClick = {}
+                // 6. Date
+                TaskSectionCard {
+                    CardRow(label = stringResource(id = R.string.date_label)) {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SelectionChip(
+                                text = stringResource(id = R.string.today),
+                                selected = selectedTaskDate == today,
+                                onClick = { selectedTaskDate = today }
+                            )
+                            SelectionChip(
+                                text = stringResource(id = R.string.date_tomorrow),
+                                selected = selectedTaskDate == today.plusDays(1),
+                                onClick = { selectedTaskDate = today.plusDays(1) }
+                            )
+                            SelectionChip(
+                                text = stringResource(id = R.string.option_custom),
+                                selected = selectedTaskDate != today && selectedTaskDate != today.plusDays(1),
+                                onClick = { showDatePickerSheet = true }
+                            )
+                        }
+                    }
+                    Text(
+                        text = stringResource(id = R.string.task_will_be_added_to, formattedTaskDate),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp)
                     )
                 }
 
-                SettingRow(
-                    label = stringResource(id = R.string.date_label),
-                    modifier = Modifier.padding(top = 26.dp)
-                ) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        SelectionChip(
-                            text = stringResource(id = R.string.today),
-                            selected = selectedTaskDate == today,
-                            onClick = { selectedTaskDate = today }
-                        )
-                        SelectionChip(
-                            text = stringResource(id = R.string.date_tomorrow),
-                            selected = selectedTaskDate == today.plusDays(1),
-                            onClick = { selectedTaskDate = today.plusDays(1) }
-                        )
-                        SelectionChip(
-                            text = stringResource(id = R.string.option_custom),
-                            selected = selectedTaskDate != today && selectedTaskDate != today.plusDays(1),
-                            onClick = { showDatePickerSheet = true }
-                        )
-                    }
-                }
-                Text(
-                    text = stringResource(id = R.string.task_will_be_added_to, formattedTaskDate),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp, start = 92.dp)
-                )
-
-                SettingRow(
-                    label = stringResource(id = R.string.repeat_label),
-                    modifier = Modifier.padding(top = 22.dp)
-                ) {
-                    Column {
+                // 7. Repeat
+                TaskSectionCard {
+                    CardRow(label = stringResource(id = R.string.repeat_label)) {
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -614,43 +592,41 @@ private fun AddTaskScreenContent(
                                 onClick = { selectedRepeat = TaskRepeat.SELECT_DAYS }
                             )
                         }
-                        if (selectedRepeat == TaskRepeat.SELECT_DAYS) {
-                            FlowRow(
-                                modifier = Modifier.padding(top = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                DayOfWeek.values().forEach { day ->
-                                    SelectionChip(
-                                        text = day.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
-                                        selected = day in selectedRepeatDays,
-                                        onClick = {
-                                            if (day in selectedRepeatDays) {
-                                                selectedRepeatDays.remove(day)
-                                            } else {
-                                                selectedRepeatDays.add(day)
-                                            }
+                    }
+                    if (selectedRepeat == TaskRepeat.SELECT_DAYS) {
+                        FlowRow(
+                            modifier = Modifier.padding(top = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            DayOfWeek.values().forEach { day ->
+                                SelectionChip(
+                                    text = day.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                                    selected = day in selectedRepeatDays,
+                                    onClick = {
+                                        if (day in selectedRepeatDays) {
+                                            selectedRepeatDays.remove(day)
+                                        } else {
+                                            selectedRepeatDays.add(day)
                                         }
-                                    )
-                                }
-                            }
-                            if (selectedRepeatDays.isEmpty()) {
-                                Text(
-                                    text = stringResource(id = R.string.repeat_select_days_required),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.padding(top = 6.dp)
+                                    }
                                 )
                             }
+                        }
+                        if (selectedRepeatDays.isEmpty()) {
+                            Text(
+                                text = stringResource(id = R.string.repeat_select_days_required),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
                         }
                     }
                 }
 
-                SettingRow(
-                    label = stringResource(id = R.string.reminder_label),
-                    modifier = Modifier.padding(top = 26.dp)
-                ) {
-                    Column {
+                // 8. Reminder
+                TaskSectionCard {
+                    CardRow(label = stringResource(id = R.string.reminder_label)) {
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -686,62 +662,91 @@ private fun AddTaskScreenContent(
                                 }
                             )
                         }
-                        if (reminderEnabled) {
-                            val is24Hour = timeFormat.resolveIs24Hour(context)
-                            Row(
-                                modifier = Modifier.padding(top = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                SelectionChip(
-                                    text = reminderMinuteOfDay?.let { formatReminderTime(it, is24Hour) }
-                                        ?: stringResource(id = R.string.reminder_select_time),
-                                    selected = reminderMinuteOfDay != null,
-                                    onClick = { showReminderTimeSheet = true }
-                                )
-                            }
-                            if (reminderIsInvalid) {
-                                Text(
-                                    text = stringResource(id = R.string.reminder_time_in_past_error),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.padding(top = 6.dp)
-                                )
-                            }
+                    }
+                    if (reminderEnabled) {
+                        val is24Hour = timeFormat.resolveIs24Hour(context)
+                        Row(
+                            modifier = Modifier.padding(top = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SelectionChip(
+                                text = reminderMinuteOfDay?.let { formatReminderTime(it, is24Hour) }
+                                    ?: stringResource(id = R.string.reminder_select_time),
+                                selected = reminderMinuteOfDay != null,
+                                onClick = { showReminderTimeSheet = true }
+                            )
+                        }
+                        if (reminderIsInvalid) {
+                            Text(
+                                text = stringResource(id = R.string.reminder_time_in_past_error),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
                         }
                     }
                 }
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 28.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                // 9. Priority
+                TaskSectionCard {
+                    CardRow(label = stringResource(id = R.string.priority_label)) {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SelectionChip(
+                                text = stringResource(id = R.string.priority_small),
+                                selected = selectedPriority == TaskPriority.SMALL,
+                                onClick = {
+                                    selectedPriority =
+                                        if (selectedPriority == TaskPriority.SMALL) TaskPriority.NONE else TaskPriority.SMALL
+                                }
+                            )
+                            SelectionChip(
+                                text = stringResource(id = R.string.priority_medium),
+                                selected = selectedPriority == TaskPriority.MEDIUM,
+                                onClick = {
+                                    selectedPriority =
+                                        if (selectedPriority == TaskPriority.MEDIUM) TaskPriority.NONE else TaskPriority.MEDIUM
+                                }
+                            )
+                            SelectionChip(
+                                text = stringResource(id = R.string.priority_high),
+                                selected = selectedPriority == TaskPriority.HIGH,
+                                onClick = {
+                                    selectedPriority =
+                                        if (selectedPriority == TaskPriority.HIGH) TaskPriority.NONE else TaskPriority.HIGH
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // 10. Pending Task
+                TaskSectionCard {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         Text(
                             text = stringResource(id = R.string.postpone_if_incomplete),
                             style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
                         )
-                        Text(
-                            text = stringResource(id = R.string.pending_task_description),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 2.dp)
+                        Switch(
+                            checked = postponeIfIncomplete,
+                            enabled = selectedRepeat == TaskRepeat.NONE,
+                            onCheckedChange = {
+                                hapticTick()
+                                postponeIfIncomplete = it
+                            }
                         )
                     }
-                    Switch(
-                        checked = postponeIfIncomplete,
-                        enabled = selectedRepeat == TaskRepeat.NONE,
-                        onCheckedChange = {
-                            hapticTick()
-                            postponeIfIncomplete = it
-                        }
-                    )
                 }
 
+                // 11. Bottom action button
                 Button(
                     onClick = {
                         val finalSubtasks = subtasks.map { it.copy(name = it.name.trim()) }
@@ -771,12 +776,12 @@ private fun AddTaskScreenContent(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 32.dp)
+                        .padding(top = 6.dp)
                         .height(56.dp),
                     enabled = taskName.isNotBlank() &&
                         (selectedRepeat != TaskRepeat.SELECT_DAYS || selectedRepeatDays.isNotEmpty()) &&
                         !reminderIsInvalid,
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(28.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color.White,
@@ -793,7 +798,7 @@ private fun AddTaskScreenContent(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(10.dp))
             }
         }
     }
@@ -856,68 +861,63 @@ private fun formatReminderTime(minuteOfDay: Int, is24Hour: Boolean): String {
     return time.format(DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
 }
 
+/** Back button + centered title, matching the target design's plain centered header (no
+ * subtitle). */
 @Composable
 private fun AddTaskTopBar(isEditMode: Boolean, onBackClick: () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        IconButton(onClick = onBackClick) {
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Text(
+            text = stringResource(id = if (isEditMode) R.string.edit_task_title else R.string.new_task_title),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        IconButton(onClick = onBackClick, modifier = Modifier.align(Alignment.CenterStart)) {
             Icon(
                 imageVector = Icons.Filled.ArrowBack,
                 contentDescription = stringResource(id = R.string.back),
                 tint = MaterialTheme.colorScheme.onBackground
             )
         }
-        Column(modifier = Modifier.padding(top = 14.dp, start = 4.dp)) {
-            Text(
-                text = stringResource(
-                    id = if (isEditMode) R.string.edit_task_title else R.string.new_task_title
-                ),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Text(
-                text = stringResource(id = R.string.new_task_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp)
-            )
-        }
     }
 }
 
-/** Label-left, options-right structure shared by the Priority/Success Condition/Timer/Category/
- * Date/Repeat/Reminder rows. */
+/** The white, rounded-corner card every Add/Edit Task section is presented in - the container
+ * that gives this screen its card-based look, matching the target design. */
 @Composable
-private fun SettingRow(label: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Row(modifier = modifier.fillMaxWidth()) {
+private fun TaskSectionCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(16.dp),
+        content = content
+    )
+}
+
+/** Label-left, content-right structure used inside a [TaskSectionCard] for a section whose
+ * label and chip row/control fit on one line (Success Condition/Timer/Date/Repeat/Reminder/
+ * Priority). The label's width is intrinsic (not fixed), matching how each row's content starts
+ * right after its own label in the target design. */
+@Composable
+private fun CardRow(label: String, content: @Composable () -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier
-                .width(84.dp)
-                .padding(top = 10.dp, end = 8.dp)
+            modifier = Modifier.padding(top = 8.dp, end = 12.dp)
         )
         Box(modifier = Modifier.weight(1f)) { content() }
     }
 }
 
-@Composable
-private fun RowLabel(text: String, topPadding: Dp = 0.dp) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodyMedium,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onBackground,
-        modifier = Modifier.padding(top = topPadding)
-    )
-}
-
-/** A pill-shaped selectable option used by the Priority/Success Condition/Timer/Category/Date/
- * Repeat/Reminder rows - light-blue fill with bold primary-colored text when selected, plain
- * white otherwise, no borders. [enabled] false renders it visibly inert (dimmed, unclickable) -
- * used for a locked Success Condition (no subtasks yet) and for the inert Category placeholder. */
+/** A pill-shaped selectable option used inside a [TaskSectionCard]'s chip rows - filled with the
+ * theme's secondary-container tint and bold primary-colored text when selected, an outlined
+ * white pill otherwise. [enabled] false renders it visibly inert (dimmed, unclickable) - used for
+ * a locked Success Condition (no subtasks yet). */
 @Composable
 private fun SelectionChip(text: String, selected: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     FilterChip(
@@ -933,24 +933,34 @@ private fun SelectionChip(text: String, selected: Boolean, enabled: Boolean = tr
             )
         },
         shape = RoundedCornerShape(50),
-        border = null,
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = enabled,
+            selected = selected,
+            borderColor = MaterialTheme.colorScheme.outline,
+            selectedBorderColor = Color.Transparent,
+            borderWidth = 1.dp,
+            selectedBorderWidth = 0.dp
+        ),
         colors = FilterChipDefaults.filterChipColors(
             containerColor = MaterialTheme.colorScheme.surface,
-            labelColor = MaterialTheme.colorScheme.onBackground,
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
             selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
             selectedLabelColor = MaterialTheme.colorScheme.primary
         )
     )
 }
 
-/** A small light-blue pill button for an inline "add" action (e.g. "+ Add Subtask"). */
+/** A small pill button filled with the theme's secondary-container tint, for an inline "add"
+ * action (e.g. "+ Add Subtask") or the inert "+ Choose Category" placeholder. [enabled] false
+ * keeps the exact same look but makes it unclickable - used for the Category placeholder, which
+ * must not implement any selection behavior yet. */
 @Composable
-private fun AddChipButton(text: String, onClick: () -> Unit) {
+private fun AddChipButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(MaterialTheme.colorScheme.secondaryContainer)
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -970,10 +980,13 @@ private fun AddChipButton(text: String, onClick: () -> Unit) {
     }
 }
 
+/** Input field fill distinct from both the white [TaskSectionCard] behind it and the green
+ * selected-chip tint - uses the theme's own background tone (see Theme.kt) so it stays correct
+ * under every Appearance color, not just the reference design's green. */
 @Composable
 private fun taskFieldColors() = TextFieldDefaults.colors(
-    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-    focusedContainerColor = MaterialTheme.colorScheme.surface,
-    unfocusedIndicatorColor = MaterialTheme.colorScheme.outline,
-    focusedIndicatorColor = MaterialTheme.colorScheme.primary
+    unfocusedContainerColor = MaterialTheme.colorScheme.background,
+    focusedContainerColor = MaterialTheme.colorScheme.background,
+    unfocusedIndicatorColor = Color.Transparent,
+    focusedIndicatorColor = Color.Transparent
 )
