@@ -5,6 +5,7 @@ import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.JournalNoteStatus
 import com.nj031.onetask.data.journal.JournalNoteType
 import com.nj031.onetask.data.task.Subtask
+import com.nj031.onetask.data.task.SuccessCondition
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskPriority
 import com.nj031.onetask.data.task.TaskRepeat
@@ -83,6 +84,8 @@ private fun TaskEntity.toJson(): JSONObject = JSONObject().apply {
     put("timerRemainingMillis", timerRemainingMillis ?: JSONObject.NULL)
     put("createdAt", createdAt)
     put("updatedAt", updatedAt)
+    put("successCondition", successCondition.name)
+    put("successConditionThreshold", successConditionThreshold ?: JSONObject.NULL)
 }
 
 private fun JSONObject.toTaskEntity(): TaskEntity {
@@ -124,7 +127,16 @@ private fun JSONObject.toTaskEntity(): TaskEntity {
         timerEndAtMillis = if (isNull("timerEndAtMillis")) null else getLong("timerEndAtMillis"),
         timerRemainingMillis = if (isNull("timerRemainingMillis")) null else getLong("timerRemainingMillis"),
         createdAt = getLong("createdAt"),
-        updatedAt = getLong("updatedAt")
+        updatedAt = getLong("updatedAt"),
+        // Absent from any backup file written before the Success Condition feature - default to
+        // ALL/null, exactly like a brand-new task without an explicit choice.
+        successCondition = runCatching { SuccessCondition.valueOf(getString("successCondition")) }
+            .getOrDefault(SuccessCondition.ALL),
+        successConditionThreshold = if (has("successConditionThreshold") && !isNull("successConditionThreshold")) {
+            getInt("successConditionThreshold")
+        } else {
+            null
+        }
     )
 }
 

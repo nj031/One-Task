@@ -59,7 +59,9 @@ class TaskRepository(private val dao: TaskDao) {
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
-        postponeIfIncomplete: Boolean
+        postponeIfIncomplete: Boolean,
+        successCondition: SuccessCondition = SuccessCondition.ALL,
+        successConditionThreshold: Int? = null
     ): TaskEntity {
         val now = System.currentTimeMillis()
         val task = TaskEntity(
@@ -74,6 +76,8 @@ class TaskRepository(private val dao: TaskDao) {
             repeatDays = repeatDays.toRepeatDaysString(),
             tag = tag,
             postponeIfIncomplete = postponeIfIncomplete,
+            successCondition = successCondition,
+            successConditionThreshold = successConditionThreshold,
             createdAt = now,
             updatedAt = now,
             // Negated so ascending-by-orderInAll sort (unchanged - see HomeScreen/reorderTasks)
@@ -81,7 +85,7 @@ class TaskRepository(private val dao: TaskDao) {
             // would otherwise invert the position of every task a user has already manually
             // drag-reordered (reorderTasks writes small sequential indices, not timestamps).
             orderInAll = -now
-        )
+        ).reconcileStatusWithSuccessCondition()
         dao.insert(task)
         CloudBackupRepository.pushTask(task)
         return task
@@ -99,7 +103,9 @@ class TaskRepository(private val dao: TaskDao) {
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
-        postponeIfIncomplete: Boolean
+        postponeIfIncomplete: Boolean,
+        successCondition: SuccessCondition = task.successCondition,
+        successConditionThreshold: Int? = task.successConditionThreshold
     ): TaskEntity {
         val now = System.currentTimeMillis()
         val newTotalMillis = (timerMinutes ?: 0) * MILLIS_PER_MINUTE
@@ -149,35 +155,38 @@ class TaskRepository(private val dao: TaskDao) {
             repeatDays = repeatDays.toRepeatDaysString(),
             tag = tag,
             postponeIfIncomplete = postponeIfIncomplete,
+            successCondition = successCondition,
+            successConditionThreshold = successConditionThreshold,
             timerEndAtMillis = newTimerEndAtMillis,
             timerRemainingMillis = newTimerRemainingMillis,
             updatedAt = now
-        )
+        ).reconcileStatusWithSuccessCondition()
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
         return updated
     }
 
-    suspend fun toggleSubtask(task: TaskEntity, subtaskId: String) {
+    /**
+     * Toggles one subtask and re-syncs the parent task's own status with its Success Condition
+     * (see [reconcileStatusWithSuccessCondition]) - e.g. checking off the last subtask an "All
+     * tasks" condition needs auto-completes the parent, and later un-checking one auto-reopens
+     * it. A no-op for a 0-subtask task's own completion, which the manual checkbox alone still
+     * drives, exactly as before Success Condition existed.
+     */
+    suspend fun toggleSubtask(task: TaskEntity, subtaskId: String): TaskEntity {
         val updatedSubtasks = task.subtasks.map { subtask ->
             if (subtask.id == subtaskId) subtask.copy(completed = !subtask.completed) else subtask
         }
         val updated = task.copy(subtasks = updatedSubtasks, updatedAt = System.currentTimeMillis())
+            .reconcileStatusWithSuccessCondition()
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
+        return updated
     }
 
     /** Marks the task Done, pausing (not resetting) any active timer so its progress is preserved. */
     suspend fun markTaskDone(task: TaskEntity): TaskEntity {
-        val now = System.currentTimeMillis()
-        val remainingMillis = task.timerEndAtMillis?.let { (it - now).coerceAtLeast(0) }
-            ?: task.timerRemainingMillis
-        val updated = task.copy(
-            status = TaskStatus.COMPLETED,
-            timerEndAtMillis = null,
-            timerRemainingMillis = remainingMillis,
-            updatedAt = now
-        )
+        val updated = task.markDoneTransition()
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
         return updated
@@ -310,9 +319,7 @@ class TaskRepository(private val dao: TaskDao) {
      * Started. Never auto-starts the timer either way.
      */
     suspend fun uncompleteTask(task: TaskEntity): TaskEntity {
-        val hasPreservedTimerProgress = task.timerMinutes != null && task.timerRemainingMillis != null
-        val newStatus = if (hasPreservedTimerProgress) TaskStatus.IN_PROGRESS else TaskStatus.NOT_STARTED
-        val updated = task.copy(status = newStatus, updatedAt = System.currentTimeMillis())
+        val updated = task.uncompleteTransition()
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
         return updated
@@ -340,5 +347,43 @@ class TaskRepository(private val dao: TaskDao) {
 
     private companion object {
         const val MILLIS_PER_MINUTE = 60_000L
+    }
+}
+
+/** Marks [this] Done, pausing (not resetting) any active timer so its progress is preserved -
+ * the pure transition [TaskRepository.markTaskDone] and [reconcileStatusWithSuccessCondition]'s
+ * own auto-completion both apply before persisting. */
+private fun TaskEntity.markDoneTransition(): TaskEntity {
+    val now = System.currentTimeMillis()
+    val remainingMillis = timerEndAtMillis?.let { (it - now).coerceAtLeast(0) } ?: timerRemainingMillis
+    return copy(status = TaskStatus.COMPLETED, timerEndAtMillis = null, timerRemainingMillis = remainingMillis, updatedAt = now)
+}
+
+/** Restores [this] from Done back to an active state - a timed task that had genuine progress
+ * resumes as a paused IN_PROGRESS timer with its preserved remaining time, a task with no timer
+ * or no progress simply returns to Not Started; never auto-starts the timer either way. The pure
+ * transition [TaskRepository.uncompleteTask] and [reconcileStatusWithSuccessCondition]'s own
+ * auto-uncompletion both apply before persisting. */
+private fun TaskEntity.uncompleteTransition(): TaskEntity {
+    val hasPreservedTimerProgress = timerMinutes != null && timerRemainingMillis != null
+    val newStatus = if (hasPreservedTimerProgress) TaskStatus.IN_PROGRESS else TaskStatus.NOT_STARTED
+    return copy(status = newStatus, updatedAt = System.currentTimeMillis())
+}
+
+/**
+ * Re-syncs [TaskEntity.status] with [TaskEntity.successCondition] after anything that could have
+ * changed subtasks, the condition, or the threshold (a subtask toggle, or a task edit) - so the
+ * invariant "complete iff the condition is satisfied" holds continuously for a task that has
+ * subtasks, not just right after the interaction that most recently changed it. A no-op for a
+ * 0-subtask task ([TaskEntity.successConditionAppliesHere] false): its completion is driven
+ * solely by its own manual checkbox, exactly as before Success Condition existed.
+ */
+private fun TaskEntity.reconcileStatusWithSuccessCondition(): TaskEntity {
+    if (!successConditionAppliesHere()) return this
+    val satisfied = isSuccessConditionSatisfied()
+    return when {
+        satisfied && status != TaskStatus.COMPLETED -> markDoneTransition()
+        !satisfied && status == TaskStatus.COMPLETED -> uncompleteTransition()
+        else -> this
     }
 }

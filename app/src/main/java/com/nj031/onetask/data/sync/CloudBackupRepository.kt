@@ -11,6 +11,7 @@ import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.JournalNoteStatus
 import com.nj031.onetask.data.journal.JournalNoteType
 import com.nj031.onetask.data.task.Subtask
+import com.nj031.onetask.data.task.SuccessCondition
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskPriority
 import com.nj031.onetask.data.task.TaskRepeat
@@ -404,7 +405,9 @@ private fun TaskEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "updatedAt" to updatedAt,
     "orderInAll" to orderInAll,
     "orderInProgress" to orderInProgress,
-    "orderInDone" to orderInDone
+    "orderInDone" to orderInDone,
+    "successCondition" to successCondition.name,
+    "successConditionThreshold" to successConditionThreshold
 )
 
 @Suppress("UNCHECKED_CAST")
@@ -444,7 +447,12 @@ private fun DocumentSnapshot.toTaskEntity(): TaskEntity? {
         // to the same "falls back to creation order" state it already implicitly had.
         orderInAll = getLong("orderInAll") ?: createdAt,
         orderInProgress = getLong("orderInProgress") ?: createdAt,
-        orderInDone = getLong("orderInDone") ?: createdAt
+        orderInDone = getLong("orderInDone") ?: createdAt,
+        // Absent from any task document written before Success Condition existed - default to
+        // ALL/null, exactly matching TaskEntity's own constructor defaults (see TaskEntity.kt).
+        successCondition = getString("successCondition")?.let { runCatching { SuccessCondition.valueOf(it) }.getOrNull() }
+            ?: SuccessCondition.ALL,
+        successConditionThreshold = (get("successConditionThreshold") as? Long)?.toInt()
     )
 }
 
