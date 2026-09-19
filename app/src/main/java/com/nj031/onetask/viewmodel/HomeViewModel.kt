@@ -1,7 +1,6 @@
 package com.nj031.onetask.viewmodel
 
 import android.app.Application
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nj031.onetask.data.AppDatabase
@@ -28,13 +27,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-
-// TEMPORARY DIAGNOSTIC INSTRUMENTATION (task-deletion-bug runtime investigation) - mirrors the
-// same tag used in TaskRepository/HomeScreen/CloudBackupRepository so all diagnostic logs can be
-// correlated across the app in one logcat filter. Remove every Log.d call tagged with this
-// constant (and this constant itself) once the investigation concludes - none of it changes any
-// functional behavior.
-private const val DELETE_DEBUG_TAG = "ONE_TASK_DELETE_DEBUG"
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
@@ -207,15 +199,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deleteTask(task: TaskEntity) {
-        // TEMPORARY DIAGNOSTIC LOG (task-deletion-bug runtime investigation) - see
-        // TaskRepository.DELETE_DEBUG_TAG's own doc comment; this is the same tag, duplicated
-        // here since it's a private top-level const per file. Remove once the investigation
-        // concludes.
-        Log.d(
-            DELETE_DEBUG_TAG,
-            "DELETE_START taskId=${task.id} date=${task.date} recurring=${task.repeat != TaskRepeat.NONE} " +
-                "seriesId=${task.seriesId} ts=${System.currentTimeMillis()}"
-        )
         viewModelScope.launch {
             repository.deleteTask(task)
             ReminderManager.cancel(getApplication<Application>(), task.id)
