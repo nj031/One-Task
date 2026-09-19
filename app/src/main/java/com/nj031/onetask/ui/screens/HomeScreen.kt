@@ -11,6 +11,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -57,6 +58,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -100,6 +102,17 @@ private const val AUTO_SCROLL_EDGE_ZONE_DP = 72
 private const val AUTO_SCROLL_MIN_SPEED_DP_PER_SEC = 200f
 private const val AUTO_SCROLL_MAX_SPEED_DP_PER_SEC = 1200f
 
+// The task list's bottom content padding needs to clear the floating "+" button, which Scaffold
+// positions above/independent of the list (its own height is never reflected in the Scaffold
+// content lambda's innerPadding). FAB_SCAFFOLD_END_MARGIN_DP is Material3 Scaffold's own spacing
+// between a FabPosition.End FAB and the surrounding edges/bottom bar - not a guess at this
+// screen's layout, but the same constant Scaffold itself positions the FAB with. The FAB's own
+// height is measured live (see fabHeight below) rather than hardcoded, so this stays correct even
+// if the FAB's size ever changes. FAB_SAFETY_GAP_DP is the small extra breathing room so the last
+// card never visually touches the button.
+private const val FAB_SCAFFOLD_END_MARGIN_DP = 16
+private const val FAB_SAFETY_GAP_DP = 8
+
 /** The Tasks screen's compact filter strip (All/Basic/Timer, plus a separate non-selectable
  * Category placeholder - see [TaskFilterStrip]). BASIC/TIMER classification depends only on
  * whether [com.nj031.onetask.data.task.TaskEntity.timerMinutes] is set - never Reminder,
@@ -132,6 +145,9 @@ fun HomeScreen(
     var selectedFilter by remember { mutableStateOf(TaskListFilter.ALL) }
     val hapticTick = rememberHapticTick()
     val listState = rememberLazyListState()
+    // The FAB's real, measured height - see FAB_SCAFFOLD_END_MARGIN_DP's own comment for why this
+    // (rather than a hardcoded size) drives the task list's bottom content padding.
+    var fabHeight by remember { mutableStateOf(0.dp) }
 
     // Drag-and-drop reorder state, scoped to whichever tab is currently on screen. draggedTaskId
     // is non-null only while a long-press-drag is in progress; dragOffsetY is that one task's
@@ -267,7 +283,14 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            OneTaskAddButton(onClick = onAddTaskClick, contentDescription = stringResource(id = R.string.add_task))
+            val fabDensity = LocalDensity.current
+            Box(
+                modifier = Modifier.onGloballyPositioned { coordinates ->
+                    fabHeight = with(fabDensity) { coordinates.size.height.toDp() }
+                }
+            ) {
+                OneTaskAddButton(onClick = onAddTaskClick, contentDescription = stringResource(id = R.string.add_task))
+            }
         }
     ) { innerPadding ->
         Box(
@@ -315,6 +338,15 @@ fun HomeScreen(
                             .fillMaxWidth()
                             .weight(1f)
                             .padding(top = 16.dp),
+                        // contentPadding (not a Modifier.padding, which would shrink the
+                        // scrollable viewport itself) lets the last card scroll fully clear of
+                        // the FAB while leaving the drag-and-drop auto-scroll effect's own
+                        // viewport-edge math (see AUTO_SCROLL_EDGE_ZONE_DP above) untouched -
+                        // that effect reads listState.layoutInfo's viewport bounds, which
+                        // contentPadding doesn't change.
+                        contentPadding = PaddingValues(
+                            bottom = fabHeight + FAB_SCAFFOLD_END_MARGIN_DP.dp + FAB_SAFETY_GAP_DP.dp
+                        ),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(displayedTasks, key = { it.id }) { task ->
