@@ -102,6 +102,7 @@
     <string name="success_condition_no_subtasks_hint">Add subtasks to set a success condition</string>
     <string name="category_label">Category</string>
     <string name="category_placeholder_value">No Category</string>
+    <string name="choose_category_button">Choose Category</string>
     <string name="reminder_label">Reminder</string>
     <string name="reminder_none">No Reminder</string>
     <string name="reminder_custom_date">Custom Date</string>
