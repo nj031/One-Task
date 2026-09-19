@@ -1,6 +1,7 @@
 package com.nj031.onetask.data.sync
 
 import android.net.Uri
+import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
@@ -23,6 +24,12 @@ import kotlinx.coroutines.tasks.await
 /** The signed-in account's cloud-backed Appearance settings (Display Mode + Color Theme), plus
  * when they were last changed - see [CloudBackupRepository.pushAppearance]/[pullAppearance]. */
 data class CloudAppearance(val displayMode: String, val colorTheme: String, val updatedAt: Long)
+
+// TEMPORARY DIAGNOSTIC INSTRUMENTATION (task-deletion-bug runtime investigation) - mirrors the
+// same tag used in TaskRepository/HomeViewModel/HomeScreen so all diagnostic logs can be
+// correlated across the app in one logcat filter. Never logs uid/tokens/account info, only the
+// task id and a timestamp. Remove once the investigation concludes.
+private const val DELETE_DEBUG_TAG = "ONE_TASK_DELETE_DEBUG"
 
 /** The signed-in account's cloud-backed General Settings. Deliberately excludes
  * "last cloud backup at" (device/install bookkeeping, not a user preference - see
@@ -156,11 +163,15 @@ object CloudBackupRepository {
 
     suspend fun pushTask(task: TaskEntity) {
         val currentUid = uid ?: return
+        // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment.
+        Log.d(DELETE_DEBUG_TAG, "FIRESTORE_PUSH taskId=${task.id} ts=${System.currentTimeMillis()}")
         runFirestoreWrite { tasksCollection(currentUid).document(task.id).set(task.toFirestoreMap()).await() }
     }
 
     suspend fun deleteTask(taskId: String) {
         val currentUid = uid ?: return
+        // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment.
+        Log.d(DELETE_DEBUG_TAG, "FIRESTORE_DELETE taskId=$taskId ts=${System.currentTimeMillis()}")
         runFirestoreWrite { tasksCollection(currentUid).document(taskId).delete().await() }
     }
 

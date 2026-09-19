@@ -20,12 +20,22 @@ interface TaskDao {
      * task that's expected to already exist" call site instead of [update], since a virtual
      * (not-yet-persisted) recurring occurrence - see [TaskEntity.asVirtualOccurrence] - has no
      * existing row for a plain @Update to match. Behaves exactly like [update] for a task that
-     * already has a row, and materializes one for a virtual occurrence on its first use. */
+     * already has a row, and materializes one for a virtual occurrence on its first use.
+     *
+     * TEMPORARY DIAGNOSTIC CHANGE (task-deletion-bug runtime investigation): returns the rowId
+     * Room already computes internally instead of discarding it, purely so TaskRepository's
+     * diagnostic logging can confirm each upsert actually executed - no query or behavior
+     * change. Revert to a Unit return once this instrumentation is removed. */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(task: TaskEntity)
+    suspend fun upsert(task: TaskEntity): Long
 
+    /** TEMPORARY DIAGNOSTIC CHANGE (task-deletion-bug runtime investigation): returns the
+     * affected-row count Room already computes internally instead of discarding it, purely so
+     * TaskRepository's diagnostic logging can confirm a delete actually removed a row (vs.
+     * matching nothing) - no query or behavior change. Revert to a Unit return once this
+     * instrumentation is removed. */
     @Delete
-    suspend fun delete(task: TaskEntity)
+    suspend fun delete(task: TaskEntity): Int
 
     @Query("SELECT * FROM tasks WHERE date = :date ORDER BY createdAt ASC")
     fun getByDate(date: Long): Flow<List<TaskEntity>>

@@ -1,5 +1,6 @@
 package com.nj031.onetask.ui.screens
 
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -94,6 +95,14 @@ import java.time.format.TextStyle
 import java.util.Locale
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+
+// TEMPORARY DIAGNOSTIC INSTRUMENTATION (task-deletion-bug runtime investigation) - mirrors the
+// same tag used in TaskRepository/HomeViewModel/CloudBackupRepository so all diagnostic logs can
+// be correlated across the app in one logcat filter (adb logcat -s ONE_TASK_DELETE_DEBUG). Every
+// Log.d call site tagged with this constant exists solely to build a timestamped causal chain for
+// a live repro on a real device. Remove every such call site (and this constant) once the
+// investigation concludes - none of it changes any functional behavior.
+private const val DELETE_DEBUG_TAG = "ONE_TASK_DELETE_DEBUG"
 
 // Drag-and-drop edge auto-scroll tuning - see the LaunchedEffect(draggedTaskId) auto-scroll
 // effect in HomeScreen below. The zone is measured from the list's own viewport edge, not the
@@ -267,6 +276,16 @@ fun HomeScreen(
     // fresh Flow emission mid-drag can't yank the list back to the pre-drag order under the
     // user's finger.
     LaunchedEffect(visibleTasks, draggedTaskId) {
+        // TEMPORARY DIAGNOSTIC LOG (task-deletion-bug runtime investigation) - see
+        // ONE_TASK_DELETE_DEBUG's doc comment near the top of this file. Logged before the
+        // conditional sync below so a run where draggedTaskId != null (sync skipped, staleness
+        // window open) is just as visible as one where it runs.
+        Log.d(
+            DELETE_DEBUG_TAG,
+            "DISPLAYED_TASKS_SYNC draggedTaskId=$draggedTaskId visible=${visibleTasks.map { it.id }} " +
+                "displayed=${displayedTasks.map { it.id }} willSync=${draggedTaskId == null} " +
+                "ts=${System.currentTimeMillis()}"
+        )
         if (draggedTaskId == null) {
             displayedTasks = visibleTasks
         }
@@ -374,10 +393,28 @@ fun HomeScreen(
                                     draggedTaskId = task.id
                                     dragOffsetY = 0f
                                     hapticTick()
+                                    // TEMPORARY DIAGNOSTIC LOG (task-deletion-bug runtime
+                                    // investigation) - see ONE_TASK_DELETE_DEBUG's doc comment
+                                    // near the top of this file. Remove once the investigation
+                                    // concludes.
+                                    Log.d(
+                                        DELETE_DEBUG_TAG,
+                                        "DRAG_START draggedTaskId=${task.id} " +
+                                            "displayed=${displayedTasks.map { it.id }} " +
+                                            "visible=${visibleTasks.map { it.id }} ts=${System.currentTimeMillis()}"
+                                    )
                                 },
                                 onDrag = { deltaY -> applyDragDelta(task.id, deltaY) },
-                                onDragEnd = {
+                                onDragEnd = { cancelled ->
                                     val finalOrder = displayedTasks
+                                    // TEMPORARY DIAGNOSTIC LOG - see ONE_TASK_DELETE_DEBUG's
+                                    // doc comment near the top of this file.
+                                    Log.d(
+                                        DELETE_DEBUG_TAG,
+                                        "${if (cancelled) "DRAG_CANCEL" else "DRAG_END"} draggedTaskId=${task.id} " +
+                                            "displayed=${finalOrder.map { it.id }} " +
+                                            "visible=${visibleTasks.map { it.id }} ts=${System.currentTimeMillis()}"
+                                    )
                                     draggedTaskId = null
                                     dragOffsetY = 0f
                                     // All/Basic/Timer share one manual order (see visibleTasks
@@ -661,7 +698,7 @@ private fun HomeTaskListItem(
     dragOffsetY: Float,
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
-    onDragEnd: () -> Unit,
+    onDragEnd: (cancelled: Boolean) -> Unit,
     listState: LazyListState,
     modifier: Modifier = Modifier
 ) {
@@ -736,7 +773,7 @@ private fun TaskCardWithActionRow(
     dragOffsetY: Float,
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
-    onDragEnd: () -> Unit,
+    onDragEnd: (cancelled: Boolean) -> Unit,
     listState: LazyListState,
     modifier: Modifier = Modifier
 ) {
@@ -874,7 +911,7 @@ private fun TaskCard(
     dragOffsetY: Float,
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
-    onDragEnd: () -> Unit,
+    onDragEnd: (cancelled: Boolean) -> Unit,
     listState: LazyListState
 ) {
     var subtasksExpanded by remember(task.id) { mutableStateOf(false) }
@@ -921,8 +958,8 @@ private fun TaskCard(
                         change.consume()
                         onDrag(dragAmount.y)
                     },
-                    onDragEnd = { onDragEnd() },
-                    onDragCancel = { onDragEnd() }
+                    onDragEnd = { onDragEnd(false) },
+                    onDragCancel = { onDragEnd(true) }
                 )
             },
         shape = RoundedCornerShape(16.dp),
