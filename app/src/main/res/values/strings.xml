@@ -74,6 +74,8 @@
     <string name="edit_task_title">Edit Task</string>
     <string name="new_task_subtitle">Turn your intention into progress</string>
     <string name="create_task_button">Create Task</string>
+    <string name="add_task_button">Add Task</string>
+    <string name="save_changes_button">Save Changes</string>
     <string name="task_name_label">Task</string>
     <string name="task_name_placeholder">Enter a task name</string>
     <string name="subtasks_label">Subtasks</string>
@@ -93,6 +95,13 @@
     <string name="priority_small">Low</string>
     <string name="priority_medium">Medium</string>
     <string name="priority_high">High</string>
+    <string name="success_condition_label">Success Condition</string>
+    <string name="success_condition_all">All tasks</string>
+    <string name="success_condition_any_one">Any One</string>
+    <string name="success_condition_custom">Custom</string>
+    <string name="success_condition_no_subtasks_hint">Add subtasks to set a success condition</string>
+    <string name="category_label">Category</string>
+    <string name="category_placeholder_value">No Category</string>
     <string name="reminder_label">Reminder</string>
     <string name="reminder_none">No Reminder</string>
     <string name="reminder_custom_date">Custom Date</string>

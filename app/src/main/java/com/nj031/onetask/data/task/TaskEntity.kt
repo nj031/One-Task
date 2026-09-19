@@ -20,6 +20,15 @@ enum class TaskPriority { NONE, SMALL, MEDIUM, HIGH }
  * columns below. */
 enum class TaskOrderScope { ALL, IN_PROGRESS, DONE }
 
+/** How many of a task's own [TaskEntity.subtasks] must be completed for the task itself to be
+ * considered done - only meaningful once the task actually has at least one subtask (see
+ * [TaskRepository]'s reconciliation logic); a 0-subtask task's completion is driven solely by its
+ * own manual checkbox, exactly as before this existed.
+ * - [ALL]: every subtask must be completed.
+ * - [ANY_ONE]: at least one subtask must be completed.
+ * - [CUSTOM]: at least [TaskEntity.successConditionThreshold] subtasks must be completed. */
+enum class SuccessCondition { ALL, ANY_ONE, CUSTOM }
+
 @Entity(tableName = "tasks")
 data class TaskEntity(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
@@ -68,7 +77,14 @@ data class TaskEntity(
     // creation order - exactly how every tab already behaved before drag-and-drop existed.
     val orderInAll: Long = createdAt,
     val orderInProgress: Long = createdAt,
-    val orderInDone: Long = createdAt
+    val orderInDone: Long = createdAt,
+    // ALL is a sensible default for every task that existed before Success Condition did - it's
+    // also the only condition that's unambiguous without a subtask count in hand.
+    val successCondition: SuccessCondition = SuccessCondition.ALL,
+    // Only meaningful when successCondition == CUSTOM; null otherwise. Always kept within
+    // 1..subtasks.size by the UI (see AddTaskScreen) and re-clamped there whenever subtasks are
+    // added/removed while editing.
+    val successConditionThreshold: Int? = null
 )
 
 @Entity(tableName = "task_tags")
@@ -143,3 +159,26 @@ fun TaskEntity.asVirtualOccurrence(targetEpochDay: Long): TaskEntity = copy(
     orderInProgress = createdAt,
     orderInDone = createdAt
 )
+
+/** Whether [TaskEntity.status] should be auto-managed by [successCondition] right now - only
+ * once the task actually has at least one subtask (see [SuccessCondition]'s own doc comment). */
+fun TaskEntity.successConditionAppliesHere(): Boolean = subtasks.isNotEmpty()
+
+/** [successConditionThreshold] clamped into the only values [1..subtasks.size] can actually mean
+ * right now - used both to interpret [isSuccessConditionSatisfied] and by the Add/Edit Task UI to
+ * keep a stored threshold valid as subtasks are added/removed (see AddTaskScreen). Meaningless
+ * (and never called) when there are no subtasks. */
+fun TaskEntity.effectiveSuccessConditionThreshold(): Int =
+    (successConditionThreshold ?: subtasks.size).coerceIn(1, subtasks.size)
+
+/** Whether the currently-completed subtasks satisfy [successCondition] - see [SuccessCondition]'s
+ * own doc comment for what each option requires. Only meaningful when
+ * [successConditionAppliesHere] is true. */
+fun TaskEntity.isSuccessConditionSatisfied(): Boolean {
+    val completedCount = subtasks.count { it.completed }
+    return when (successCondition) {
+        SuccessCondition.ALL -> completedCount == subtasks.size
+        SuccessCondition.ANY_ONE -> completedCount >= 1
+        SuccessCondition.CUSTOM -> completedCount >= effectiveSuccessConditionThreshold()
+    }
+}

@@ -33,11 +33,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,7 +43,6 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,7 +54,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import android.Manifest
@@ -71,11 +66,11 @@ import androidx.core.content.ContextCompat
 import com.nj031.onetask.R
 import com.nj031.onetask.data.settings.TimeFormat
 import com.nj031.onetask.data.task.Subtask
+import com.nj031.onetask.data.task.SuccessCondition
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskPriority
 import com.nj031.onetask.data.task.TaskRepeat
 import com.nj031.onetask.data.task.repeatDaysSet
-import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.ui.components.OneTaskCalendarDialog
 import com.nj031.onetask.ui.components.OneTaskDurationPickerDialog
 import com.nj031.onetask.ui.components.OneTaskTimePickerDialog
@@ -89,7 +84,6 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
-import kotlinx.coroutines.launch
 
 private const val TIMER_25_MIN = 25
 private const val TIMER_45_MIN = 45
@@ -126,7 +120,6 @@ fun AddTaskScreen(
     }
     val existingTask = existingTaskState.value
     val homeSelectedDate by viewModel.selectedDate.collectAsState()
-    val customTags by viewModel.customTags.collectAsState()
 
     // Wait for an edit-mode lookup to resolve before rendering the form, rather than seeding
     // fields with blank defaults and swapping them for the real values a frame later.
@@ -142,10 +135,10 @@ fun AddTaskScreen(
             initialPostponeIfIncomplete = existingTask?.postponeIfIncomplete ?: defaultPostponeIfIncomplete,
             weekStartDay = weekStartDay,
             timeFormat = timeFormat,
-            customTags = customTags,
-            onAddCustomTag = { name -> viewModel.addCustomTag(name) },
             onCancel = onDone,
-            onSave = { name, subtasks, timerMinutes, date, priority, reminderMinuteOfDay, reminderEpochDay, repeat, repeatDays, tag, postpone ->
+            onSave = {
+                name, subtasks, timerMinutes, date, priority, reminderMinuteOfDay, reminderEpochDay,
+                repeat, repeatDays, tag, postpone, successCondition, successConditionThreshold ->
                 if (existingTask != null) {
                     viewModel.updateTask(
                         task = existingTask,
@@ -159,7 +152,9 @@ fun AddTaskScreen(
                         repeat = repeat,
                         repeatDays = repeatDays,
                         tag = tag,
-                        postponeIfIncomplete = postpone
+                        postponeIfIncomplete = postpone,
+                        successCondition = successCondition,
+                        successConditionThreshold = successConditionThreshold
                     )
                 } else {
                     viewModel.createTask(
@@ -173,7 +168,9 @@ fun AddTaskScreen(
                         repeat = repeat,
                         repeatDays = repeatDays,
                         tag = tag,
-                        postponeIfIncomplete = postpone
+                        postponeIfIncomplete = postpone,
+                        successCondition = successCondition,
+                        successConditionThreshold = successConditionThreshold
                     )
                 }
                 onDone()
@@ -192,8 +189,6 @@ private fun AddTaskScreenContent(
     initialPostponeIfIncomplete: Boolean,
     weekStartDay: DayOfWeek,
     timeFormat: TimeFormat,
-    customTags: List<String>,
-    onAddCustomTag: (String) -> Unit,
     onCancel: () -> Unit,
     onSave: (
         name: String,
@@ -206,7 +201,9 @@ private fun AddTaskScreenContent(
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
-        postponeIfIncomplete: Boolean
+        postponeIfIncomplete: Boolean,
+        successCondition: SuccessCondition,
+        successConditionThreshold: Int?
     ) -> Unit
 ) {
     val today = remember { LocalDate.now() }
@@ -216,16 +213,35 @@ private fun AddTaskScreenContent(
     var taskName by remember { mutableStateOf(existingTask?.name.orEmpty()) }
     val taskNameFocusRequester = remember { FocusRequester() }
 
+    var selectedPriority by remember { mutableStateOf(existingTask?.priority ?: TaskPriority.NONE) }
+
     val subtasks = remember {
         mutableStateListOf<Subtask>().apply { addAll(existingTask?.subtasks ?: emptyList()) }
     }
     val subtaskFocusRequesters = remember { mutableMapOf<String, FocusRequester>() }
     var pendingFocusSubtaskId by remember { mutableStateOf<String?>(null) }
 
+    // Success Condition (see SuccessCondition/TaskEntity.effectiveSuccessConditionThreshold):
+    // ALL is the same sensible default a task without an explicit choice already gets.
+    // successConditionThreshold only matters once CUSTOM is picked - it's kept clamped into
+    // 1..subtasks.size below whenever subtasks shrink, but is never bumped up on its own when
+    // subtasks grow, exactly like the persisted entity's own clamping behaves.
+    var selectedSuccessCondition by remember {
+        mutableStateOf(existingTask?.successCondition ?: SuccessCondition.ALL)
+    }
+    var successConditionThreshold by remember {
+        mutableStateOf(existingTask?.successConditionThreshold)
+    }
+    LaunchedEffect(subtasks.size) {
+        val threshold = successConditionThreshold
+        if (threshold != null && subtasks.isNotEmpty() && threshold > subtasks.size) {
+            successConditionThreshold = subtasks.size
+        }
+    }
+    val successConditionLocked = subtasks.isEmpty()
+
     var selectedTaskDate by remember { mutableStateOf(initialDate) }
     var showDatePickerSheet by remember { mutableStateOf(false) }
-
-    var selectedPriority by remember { mutableStateOf(existingTask?.priority ?: TaskPriority.NONE) }
 
     var selectedRepeat by remember { mutableStateOf(existingTask?.repeat ?: TaskRepeat.NONE) }
     val selectedRepeatDays = remember {
@@ -273,14 +289,11 @@ private fun AddTaskScreenContent(
         }
     }
 
-    var selectedTag by remember { mutableStateOf(initialTag) }
-    var showAddTagSheet by remember { mutableStateOf(false) }
-    val defaultTagNames = listOf(
-        stringResource(id = R.string.tag_personal),
-        stringResource(id = R.string.tag_study),
-        stringResource(id = R.string.tag_health),
-        stringResource(id = R.string.tag_work)
-    )
+    // The Tag row's own picker UI has been replaced on this screen by the Category placeholder
+    // (see the SettingRow below) - task.tag itself is untouched data, so whatever value this task
+    // already had (or Default Task Settings seeds a new one with) simply keeps flowing straight
+    // through to onSave unedited.
+    val tag = initialTag
 
     // Pending Task and Repeat are mutually exclusive: a recurring task's occurrences are already
     // independent per-date, so "postpone to today if incomplete" (which only makes sense for a
@@ -350,48 +363,6 @@ private fun AddTaskScreenContent(
                 )
 
                 SettingRow(
-                    label = stringResource(id = R.string.tag_label),
-                    modifier = Modifier.padding(top = 26.dp)
-                ) {
-                    Column {
-                        TagGroupLabel(text = stringResource(id = R.string.default_tags_group_label))
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            defaultTagNames.forEach { tag ->
-                                SelectionChip(
-                                    text = tag,
-                                    selected = tag == selectedTag,
-                                    onClick = { selectedTag = if (selectedTag == tag) null else tag }
-                                )
-                            }
-                        }
-                        TagGroupLabel(
-                            text = stringResource(id = R.string.custom_tags_section),
-                            topPadding = 14.dp
-                        )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            customTags.forEach { tag ->
-                                SelectionChip(
-                                    text = tag,
-                                    selected = tag == selectedTag,
-                                    onClick = { selectedTag = if (selectedTag == tag) null else tag }
-                                )
-                            }
-                            SelectionChip(
-                                text = stringResource(id = R.string.option_custom),
-                                selected = false,
-                                onClick = { showAddTagSheet = true }
-                            )
-                        }
-                    }
-                }
-
-                SettingRow(
                     label = stringResource(id = R.string.priority_label),
                     modifier = Modifier.padding(top = 26.dp)
                 ) {
@@ -424,6 +395,164 @@ private fun AddTaskScreenContent(
                             }
                         )
                     }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 28.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.subtasks_label),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    AddChipButton(
+                        text = stringResource(id = R.string.add_subtask),
+                        onClick = {
+                            val newSubtask = Subtask(name = "")
+                            subtasks.add(newSubtask)
+                            pendingFocusSubtaskId = newSubtask.id
+                        }
+                    )
+                }
+                subtasks.forEachIndexed { index, subtask ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextField(
+                            value = subtask.name,
+                            onValueChange = { subtasks[index] = subtask.copy(name = it) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(
+                                    subtaskFocusRequesters.getOrPut(subtask.id) { FocusRequester() }
+                                ),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            textStyle = MaterialTheme.typography.bodyMedium,
+                            colors = taskFieldColors()
+                        )
+                        Text(
+                            text = "×",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .padding(start = 10.dp)
+                                .clickable(onClickLabel = stringResource(id = R.string.remove)) {
+                                    subtasks.removeAt(index)
+                                }
+                        )
+                    }
+                }
+
+                SettingRow(
+                    label = stringResource(id = R.string.success_condition_label),
+                    modifier = Modifier.padding(top = 26.dp)
+                ) {
+                    Column {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SelectionChip(
+                                text = stringResource(id = R.string.success_condition_all),
+                                selected = selectedSuccessCondition == SuccessCondition.ALL,
+                                enabled = !successConditionLocked,
+                                onClick = { selectedSuccessCondition = SuccessCondition.ALL }
+                            )
+                            SelectionChip(
+                                text = stringResource(id = R.string.success_condition_any_one),
+                                selected = selectedSuccessCondition == SuccessCondition.ANY_ONE,
+                                enabled = !successConditionLocked,
+                                onClick = { selectedSuccessCondition = SuccessCondition.ANY_ONE }
+                            )
+                            SelectionChip(
+                                text = stringResource(id = R.string.success_condition_custom),
+                                selected = selectedSuccessCondition == SuccessCondition.CUSTOM,
+                                enabled = !successConditionLocked,
+                                onClick = {
+                                    selectedSuccessCondition = SuccessCondition.CUSTOM
+                                    if (successConditionThreshold == null) {
+                                        successConditionThreshold = subtasks.size
+                                    }
+                                }
+                            )
+                        }
+                        if (successConditionLocked) {
+                            Text(
+                                text = stringResource(id = R.string.success_condition_no_subtasks_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 6.dp)
+                            )
+                        } else if (selectedSuccessCondition == SuccessCondition.CUSTOM) {
+                            FlowRow(
+                                modifier = Modifier.padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val effectiveThreshold = successConditionThreshold ?: subtasks.size
+                                (1..subtasks.size).forEach { count ->
+                                    SelectionChip(
+                                        text = count.toString(),
+                                        selected = effectiveThreshold == count,
+                                        onClick = { successConditionThreshold = count }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                SettingRow(
+                    label = stringResource(id = R.string.timer_label),
+                    modifier = Modifier.padding(top = 26.dp)
+                ) {
+                    val isCustomTimerSelected = timerMinutes != null && timerMinutes !in TIMER_PRESETS
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SelectionChip(
+                            text = stringResource(id = R.string.option_no_timer),
+                            selected = !isCustomTimerSelected && timerMinutes == null,
+                            onClick = { timerMinutes = null }
+                        )
+                        listOf(TIMER_25_MIN, TIMER_45_MIN, TIMER_60_MIN).forEach { minutes ->
+                            SelectionChip(
+                                text = minutes.toString(),
+                                selected = !isCustomTimerSelected && timerMinutes == minutes,
+                                onClick = { timerMinutes = minutes }
+                            )
+                        }
+                        SelectionChip(
+                            text = stringResource(id = R.string.option_custom),
+                            selected = isCustomTimerSelected,
+                            onClick = { showCustomDurationPicker = true }
+                        )
+                    }
+                }
+
+                SettingRow(
+                    label = stringResource(id = R.string.category_label),
+                    modifier = Modifier.padding(top = 26.dp)
+                ) {
+                    // Placeholder only - selection, creation, and persistence come in a later
+                    // update. Shown disabled/non-interactive so it can't be mistaken for a
+                    // working picker.
+                    SelectionChip(
+                        text = stringResource(id = R.string.category_placeholder_value),
+                        selected = false,
+                        enabled = false,
+                        onClick = {}
+                    )
                 }
 
                 SettingRow(
@@ -459,6 +588,63 @@ private fun AddTaskScreenContent(
                         .fillMaxWidth()
                         .padding(top = 6.dp, start = 92.dp)
                 )
+
+                SettingRow(
+                    label = stringResource(id = R.string.repeat_label),
+                    modifier = Modifier.padding(top = 22.dp)
+                ) {
+                    Column {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SelectionChip(
+                                text = stringResource(id = R.string.repeat_none),
+                                selected = selectedRepeat == TaskRepeat.NONE,
+                                onClick = { selectedRepeat = TaskRepeat.NONE }
+                            )
+                            SelectionChip(
+                                text = stringResource(id = R.string.repeat_daily),
+                                selected = selectedRepeat == TaskRepeat.DAILY,
+                                onClick = { selectedRepeat = TaskRepeat.DAILY }
+                            )
+                            SelectionChip(
+                                text = stringResource(id = R.string.repeat_select_days),
+                                selected = selectedRepeat == TaskRepeat.SELECT_DAYS,
+                                onClick = { selectedRepeat = TaskRepeat.SELECT_DAYS }
+                            )
+                        }
+                        if (selectedRepeat == TaskRepeat.SELECT_DAYS) {
+                            FlowRow(
+                                modifier = Modifier.padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                DayOfWeek.values().forEach { day ->
+                                    SelectionChip(
+                                        text = day.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                                        selected = day in selectedRepeatDays,
+                                        onClick = {
+                                            if (day in selectedRepeatDays) {
+                                                selectedRepeatDays.remove(day)
+                                            } else {
+                                                selectedRepeatDays.add(day)
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                            if (selectedRepeatDays.isEmpty()) {
+                                Text(
+                                    text = stringResource(id = R.string.repeat_select_days_required),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(top = 6.dp)
+                                )
+                            }
+                        }
+                    }
+                }
 
                 SettingRow(
                     label = stringResource(id = R.string.reminder_label),
@@ -525,147 +711,6 @@ private fun AddTaskScreenContent(
                     }
                 }
 
-                SettingRow(
-                    label = stringResource(id = R.string.repeat_label),
-                    modifier = Modifier.padding(top = 22.dp)
-                ) {
-                    Column {
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            SelectionChip(
-                                text = stringResource(id = R.string.repeat_none),
-                                selected = selectedRepeat == TaskRepeat.NONE,
-                                onClick = { selectedRepeat = TaskRepeat.NONE }
-                            )
-                            SelectionChip(
-                                text = stringResource(id = R.string.repeat_daily),
-                                selected = selectedRepeat == TaskRepeat.DAILY,
-                                onClick = { selectedRepeat = TaskRepeat.DAILY }
-                            )
-                            SelectionChip(
-                                text = stringResource(id = R.string.repeat_select_days),
-                                selected = selectedRepeat == TaskRepeat.SELECT_DAYS,
-                                onClick = { selectedRepeat = TaskRepeat.SELECT_DAYS }
-                            )
-                        }
-                        if (selectedRepeat == TaskRepeat.SELECT_DAYS) {
-                            FlowRow(
-                                modifier = Modifier.padding(top = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                DayOfWeek.values().forEach { day ->
-                                    SelectionChip(
-                                        text = day.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
-                                        selected = day in selectedRepeatDays,
-                                        onClick = {
-                                            if (day in selectedRepeatDays) {
-                                                selectedRepeatDays.remove(day)
-                                            } else {
-                                                selectedRepeatDays.add(day)
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                            if (selectedRepeatDays.isEmpty()) {
-                                Text(
-                                    text = stringResource(id = R.string.repeat_select_days_required),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.padding(top = 6.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                SettingRow(
-                    label = stringResource(id = R.string.timer_label),
-                    modifier = Modifier.padding(top = 26.dp)
-                ) {
-                    val isCustomTimerSelected = timerMinutes != null && timerMinutes !in TIMER_PRESETS
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        SelectionChip(
-                            text = stringResource(id = R.string.option_no_timer),
-                            selected = !isCustomTimerSelected && timerMinutes == null,
-                            onClick = { timerMinutes = null }
-                        )
-                        listOf(TIMER_25_MIN, TIMER_45_MIN, TIMER_60_MIN).forEach { minutes ->
-                            SelectionChip(
-                                text = minutes.toString(),
-                                selected = !isCustomTimerSelected && timerMinutes == minutes,
-                                onClick = { timerMinutes = minutes }
-                            )
-                        }
-                        SelectionChip(
-                            text = stringResource(id = R.string.option_custom),
-                            selected = isCustomTimerSelected,
-                            onClick = { showCustomDurationPicker = true }
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 28.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.subtasks_label),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    AddChipButton(
-                        text = stringResource(id = R.string.add_subtask),
-                        onClick = {
-                            val newSubtask = Subtask(name = "")
-                            subtasks.add(newSubtask)
-                            pendingFocusSubtaskId = newSubtask.id
-                        }
-                    )
-                }
-                subtasks.forEachIndexed { index, subtask ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextField(
-                            value = subtask.name,
-                            onValueChange = { subtasks[index] = subtask.copy(name = it) },
-                            modifier = Modifier
-                                .weight(1f)
-                                .focusRequester(
-                                    subtaskFocusRequesters.getOrPut(subtask.id) { FocusRequester() }
-                                ),
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            textStyle = MaterialTheme.typography.bodyMedium,
-                            colors = taskFieldColors()
-                        )
-                        Text(
-                            text = "×",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .padding(start = 10.dp)
-                                .clickable(onClickLabel = stringResource(id = R.string.remove)) {
-                                    subtasks.removeAt(index)
-                                }
-                        )
-                    }
-                }
-
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -699,10 +744,18 @@ private fun AddTaskScreenContent(
 
                 Button(
                     onClick = {
+                        val finalSubtasks = subtasks.map { it.copy(name = it.name.trim()) }
+                            .filter { it.name.isNotBlank() }
+                        val finalSuccessConditionThreshold =
+                            if (selectedSuccessCondition == SuccessCondition.CUSTOM && finalSubtasks.isNotEmpty()) {
+                                (successConditionThreshold ?: finalSubtasks.size)
+                                    .coerceIn(1, finalSubtasks.size)
+                            } else {
+                                null
+                            }
                         onSave(
                             taskName.trim(),
-                            subtasks.map { it.copy(name = it.name.trim()) }
-                                .filter { it.name.isNotBlank() },
+                            finalSubtasks,
                             timerMinutes,
                             selectedTaskDate,
                             selectedPriority,
@@ -710,8 +763,10 @@ private fun AddTaskScreenContent(
                             if (reminderEnabled) reminderDate.toEpochDay() else null,
                             selectedRepeat,
                             selectedRepeatDays.toSet(),
-                            selectedTag,
-                            postponeIfIncomplete
+                            tag,
+                            postponeIfIncomplete,
+                            selectedSuccessCondition,
+                            finalSuccessConditionThreshold
                         )
                     },
                     modifier = Modifier
@@ -731,7 +786,7 @@ private fun AddTaskScreenContent(
                 ) {
                     Text(
                         text = stringResource(
-                            id = if (existingTask != null) R.string.save else R.string.create_task_button
+                            id = if (existingTask != null) R.string.save_changes_button else R.string.add_task_button
                         ),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
@@ -749,18 +804,6 @@ private fun AddTaskScreenContent(
             onDateSelected = { selectedTaskDate = it },
             onDismiss = { showDatePickerSheet = false },
             weekStartDay = weekStartDay
-        )
-    }
-
-    if (showAddTagSheet) {
-        AddTagSheet(
-            existingTags = defaultTagNames + customTags,
-            onAdd = { name ->
-                onAddCustomTag(name)
-                selectedTag = name
-                showAddTagSheet = false
-            },
-            onDismiss = { showAddTagSheet = false }
         )
     }
 
@@ -842,7 +885,8 @@ private fun AddTaskTopBar(isEditMode: Boolean, onBackClick: () -> Unit) {
     }
 }
 
-/** Label-left, options-right structure shared by the Tag/Date/Repeat/Timer rows. */
+/** Label-left, options-right structure shared by the Priority/Success Condition/Timer/Category/
+ * Date/Repeat/Reminder rows. */
 @Composable
 private fun SettingRow(label: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Row(modifier = modifier.fillMaxWidth()) {
@@ -870,24 +914,15 @@ private fun RowLabel(text: String, topPadding: Dp = 0.dp) {
     )
 }
 
-/** Small header above the Default Tags / Custom Tags chip groups in the Tag row. */
+/** A pill-shaped selectable option used by the Priority/Success Condition/Timer/Category/Date/
+ * Repeat/Reminder rows - light-blue fill with bold primary-colored text when selected, plain
+ * white otherwise, no borders. [enabled] false renders it visibly inert (dimmed, unclickable) -
+ * used for a locked Success Condition (no subtasks yet) and for the inert Category placeholder. */
 @Composable
-private fun TagGroupLabel(text: String, topPadding: Dp = 0.dp) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = topPadding, bottom = 6.dp)
-    )
-}
-
-/** A pill-shaped selectable option used by the Tag/Date/Repeat/Timer rows - light-blue fill
- * with bold primary-colored text when selected, plain white otherwise, no borders. */
-@Composable
-private fun SelectionChip(text: String, selected: Boolean, onClick: () -> Unit) {
+private fun SelectionChip(text: String, selected: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     FilterChip(
         selected = selected,
+        enabled = enabled,
         onClick = onClick,
         label = {
             Text(
@@ -942,85 +977,3 @@ private fun taskFieldColors() = TextFieldDefaults.colors(
     unfocusedIndicatorColor = MaterialTheme.colorScheme.outline,
     focusedIndicatorColor = MaterialTheme.colorScheme.primary
 )
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AddTagSheet(existingTags: List<String>, onAdd: (String) -> Unit, onDismiss: () -> Unit) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    var tagName by remember { mutableStateOf("") }
-    val trimmedName = tagName.trim()
-    val isDuplicate = trimmedName.isNotEmpty() &&
-        existingTags.any { it.equals(trimmedName, ignoreCase = true) }
-
-    fun dismissThen(action: () -> Unit) {
-        scope.launch { sheetState.hide() }.invokeOnCompletion {
-            if (!sheetState.isVisible) action()
-        }
-    }
-
-    CompactBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
-            Text(
-                text = stringResource(id = R.string.add_tag),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                textAlign = TextAlign.Center
-            )
-            TextField(
-                value = tagName,
-                onValueChange = { tagName = it },
-                placeholder = { Text(stringResource(id = R.string.tag_label)) },
-                singleLine = true,
-                isError = isDuplicate,
-                supportingText = if (isDuplicate) {
-                    {
-                        Text(
-                            text = stringResource(id = R.string.custom_tag_error_duplicate),
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                } else null,
-                textStyle = MaterialTheme.typography.bodyMedium,
-                shape = RoundedCornerShape(12.dp),
-                colors = taskFieldColors(),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Button(
-                onClick = { dismissThen { onAdd(trimmedName) } },
-                enabled = trimmedName.isNotEmpty() && !isDuplicate,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp)
-                    .height(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White
-                )
-            ) {
-                Text(text = stringResource(id = R.string.date_picker_ok), fontWeight = FontWeight.Bold)
-            }
-            TextButton(
-                onClick = { dismissThen(onDismiss) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 2.dp)
-            ) {
-                Text(
-                    text = stringResource(id = R.string.cancel),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}

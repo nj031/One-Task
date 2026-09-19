@@ -77,9 +77,21 @@ private val MIGRATION_9_10 = object : Migration(9, 10) {
     }
 }
 
+/** Adds the Success Condition feature's columns to the existing tasks table in place: every task
+ * that existed before this update gets successCondition = 'ALL' (the same default a brand-new
+ * task without an explicit choice gets) and a null successConditionThreshold (only meaningful for
+ * CUSTOM) - together, the same "every subtask must be completed" behavior an unset condition
+ * already implies for a task with subtasks, and a no-op for a task without any. */
+private val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE tasks ADD COLUMN successCondition TEXT NOT NULL DEFAULT 'ALL'")
+        db.execSQL("ALTER TABLE tasks ADD COLUMN successConditionThreshold INTEGER")
+    }
+}
+
 @Database(
     entities = [JournalNoteEntity::class, NoteLabelEntity::class, TaskEntity::class, TaskTagEntity::class],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 @TypeConverters(Converters::class, TaskConverters::class)
@@ -121,7 +133,7 @@ abstract class AppDatabase : RoomDatabase() {
                 instance?.close()
                 val databaseName = "${LEGACY_DATABASE_NAME}_$userId"
                 val database = Room.databaseBuilder(appContext, AppDatabase::class.java, databaseName)
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                     .fallbackToDestructiveMigration()
                     .build()
                 instance = database

@@ -12,6 +12,7 @@ import com.nj031.onetask.data.task.TaskPriority
 import com.nj031.onetask.data.task.TaskRepeat
 import com.nj031.onetask.data.task.TaskRepository
 import com.nj031.onetask.data.task.TaskStatus
+import com.nj031.onetask.data.task.SuccessCondition
 import com.nj031.onetask.service.TimerForegroundService
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -91,7 +92,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
-        postponeIfIncomplete: Boolean
+        postponeIfIncomplete: Boolean,
+        successCondition: SuccessCondition = SuccessCondition.ALL,
+        successConditionThreshold: Int? = null
     ) {
         viewModelScope.launch {
             val created = repository.createTask(
@@ -105,7 +108,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 repeat = repeat,
                 repeatDays = repeatDays,
                 tag = tag,
-                postponeIfIncomplete = postponeIfIncomplete
+                postponeIfIncomplete = postponeIfIncomplete,
+                successCondition = successCondition,
+                successConditionThreshold = successConditionThreshold
             )
             ReminderManager.reschedule(getApplication<Application>(), created)
         }
@@ -124,7 +129,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
-        postponeIfIncomplete: Boolean
+        postponeIfIncomplete: Boolean,
+        successCondition: SuccessCondition = task.successCondition,
+        successConditionThreshold: Int? = task.successConditionThreshold
     ) {
         viewModelScope.launch {
             val updated = repository.updateTask(
@@ -139,7 +146,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 repeat = repeat,
                 repeatDays = repeatDays,
                 tag = tag,
-                postponeIfIncomplete = postponeIfIncomplete
+                postponeIfIncomplete = postponeIfIncomplete,
+                successCondition = successCondition,
+                successConditionThreshold = successConditionThreshold
             )
             ReminderManager.reschedule(getApplication<Application>(), updated)
         }
@@ -176,7 +185,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleSubtask(task: TaskEntity, subtaskId: String) {
-        viewModelScope.launch { repository.toggleSubtask(task, subtaskId) }
+        viewModelScope.launch {
+            val updated = repository.toggleSubtask(task, subtaskId)
+            ReminderManager.reschedule(getApplication<Application>(), updated)
+        }
     }
 
     fun markTaskDone(task: TaskEntity) {

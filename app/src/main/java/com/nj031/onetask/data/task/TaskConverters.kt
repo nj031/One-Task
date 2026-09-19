@@ -41,4 +41,10 @@ class TaskConverters {
 
     @TypeConverter
     fun toStatus(value: String): TaskStatus = TaskStatus.valueOf(value)
+
+    @TypeConverter
+    fun fromSuccessCondition(condition: SuccessCondition): String = condition.name
+
+    @TypeConverter
+    fun toSuccessCondition(value: String): SuccessCondition = SuccessCondition.valueOf(value)
 }
