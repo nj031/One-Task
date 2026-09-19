@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -37,9 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,7 +58,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -80,7 +76,10 @@ import com.nj031.onetask.data.task.TaskPriority
 import com.nj031.onetask.data.task.TaskRepeat
 import com.nj031.onetask.data.task.repeatDaysSet
 import com.nj031.onetask.ui.components.CompactBottomSheet
-import com.nj031.onetask.ui.components.OneTaskCalendarSheet
+import com.nj031.onetask.ui.components.OneTaskCalendarDialog
+import com.nj031.onetask.ui.components.OneTaskDurationPickerDialog
+import com.nj031.onetask.ui.components.OneTaskTimePickerDialog
+import com.nj031.onetask.ui.components.durationMillisToWholeMinutes
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.viewmodel.HomeViewModel
 import java.time.DayOfWeek
@@ -96,6 +95,11 @@ private const val TIMER_25_MIN = 25
 private const val TIMER_45_MIN = 45
 private const val TIMER_60_MIN = 60
 private val TIMER_PRESETS = listOf(TIMER_25_MIN, TIMER_45_MIN, TIMER_60_MIN)
+
+// This screen's own timerMinutes field only ever stores whole minutes (see TaskEntity.timerMinutes),
+// so the shared H/M/S OneTaskDurationPickerDialog's confirm button is disabled below a full minute
+// - a "custom" duration below that would otherwise round down to the same as "No Timer" (0/null).
+private const val MIN_CUSTOM_TASK_TIMER_MILLIS = 60_000L
 
 /**
  * The dedicated full-screen "New Task" / "Edit Task" page opened from the general Add (+)
@@ -293,12 +297,7 @@ private fun AddTaskScreenContent(
     }
 
     var timerMinutes by remember { mutableStateOf(initialTimerMinutes) }
-    val isInitialCustomTimer = initialTimerMinutes != null && initialTimerMinutes !in TIMER_PRESETS
-    var showCustomTimerInput by remember { mutableStateOf(isInitialCustomTimer) }
-    var customTimerText by remember {
-        mutableStateOf(if (isInitialCustomTimer) initialTimerMinutes.toString() else "")
-    }
-    val customTimerFocusRequester = remember { FocusRequester() }
+    var showCustomDurationPicker by remember { mutableStateOf(false) }
 
     val formattedTaskDate = remember(selectedTaskDate) {
         selectedTaskDate.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault()))
@@ -316,13 +315,6 @@ private fun AddTaskScreenContent(
         subtaskFocusRequesters[id]?.requestFocus()
         keyboardController?.show()
         pendingFocusSubtaskId = null
-    }
-
-    LaunchedEffect(showCustomTimerInput) {
-        if (showCustomTimerInput) {
-            customTimerFocusRequester.requestFocus()
-            keyboardController?.show()
-        }
     }
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
@@ -594,53 +586,28 @@ private fun AddTaskScreenContent(
                     label = stringResource(id = R.string.timer_label),
                     modifier = Modifier.padding(top = 26.dp)
                 ) {
-                    Column {
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
+                    val isCustomTimerSelected = timerMinutes != null && timerMinutes !in TIMER_PRESETS
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SelectionChip(
+                            text = stringResource(id = R.string.option_no_timer),
+                            selected = !isCustomTimerSelected && timerMinutes == null,
+                            onClick = { timerMinutes = null }
+                        )
+                        listOf(TIMER_25_MIN, TIMER_45_MIN, TIMER_60_MIN).forEach { minutes ->
                             SelectionChip(
-                                text = stringResource(id = R.string.option_no_timer),
-                                selected = !showCustomTimerInput && timerMinutes == null,
-                                onClick = {
-                                    timerMinutes = null
-                                    showCustomTimerInput = false
-                                }
-                            )
-                            listOf(TIMER_25_MIN, TIMER_45_MIN, TIMER_60_MIN).forEach { minutes ->
-                                SelectionChip(
-                                    text = minutes.toString(),
-                                    selected = !showCustomTimerInput && timerMinutes == minutes,
-                                    onClick = {
-                                        timerMinutes = minutes
-                                        showCustomTimerInput = false
-                                    }
-                                )
-                            }
-                            SelectionChip(
-                                text = stringResource(id = R.string.option_custom),
-                                selected = showCustomTimerInput,
-                                onClick = { showCustomTimerInput = true }
+                                text = minutes.toString(),
+                                selected = !isCustomTimerSelected && timerMinutes == minutes,
+                                onClick = { timerMinutes = minutes }
                             )
                         }
-                        if (showCustomTimerInput) {
-                            TextField(
-                                value = customTimerText,
-                                onValueChange = { customTimerText = it.filter(Char::isDigit) },
-                                placeholder = {
-                                    Text(stringResource(id = R.string.custom_timer_minutes_hint))
-                                },
-                                singleLine = true,
-                                textStyle = MaterialTheme.typography.bodyMedium,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = taskFieldColors(),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 8.dp)
-                                    .focusRequester(customTimerFocusRequester)
-                            )
-                        }
+                        SelectionChip(
+                            text = stringResource(id = R.string.option_custom),
+                            selected = isCustomTimerSelected,
+                            onClick = { showCustomDurationPicker = true }
+                        )
                     }
                 }
 
@@ -736,7 +703,7 @@ private fun AddTaskScreenContent(
                             taskName.trim(),
                             subtasks.map { it.copy(name = it.name.trim()) }
                                 .filter { it.name.isNotBlank() },
-                            if (showCustomTimerInput) customTimerText.toIntOrNull() else timerMinutes,
+                            timerMinutes,
                             selectedTaskDate,
                             selectedPriority,
                             if (reminderEnabled) reminderMinuteOfDay else null,
@@ -777,8 +744,8 @@ private fun AddTaskScreenContent(
     }
 
     if (showDatePickerSheet) {
-        OneTaskCalendarSheet(
-            initialDate = selectedTaskDate,
+        OneTaskCalendarDialog(
+            selectedDate = selectedTaskDate,
             onDateSelected = { selectedTaskDate = it },
             onDismiss = { showDatePickerSheet = false },
             weekStartDay = weekStartDay
@@ -798,8 +765,8 @@ private fun AddTaskScreenContent(
     }
 
     if (showReminderDatePickerSheet) {
-        OneTaskCalendarSheet(
-            initialDate = reminderDate,
+        OneTaskCalendarDialog(
+            selectedDate = reminderDate,
             onDateSelected = { reminderDate = it },
             onDismiss = { showReminderDatePickerSheet = false },
             minSelectableDate = today,
@@ -808,14 +775,25 @@ private fun AddTaskScreenContent(
     }
 
     if (showReminderTimeSheet) {
-        ReminderTimePickerSheet(
+        OneTaskTimePickerDialog(
             initialMinuteOfDay = reminderMinuteOfDay,
-            is24Hour = timeFormat.resolveIs24Hour(context),
             onTimeSelected = {
                 reminderMinuteOfDay = it
                 showReminderTimeSheet = false
             },
             onDismiss = { showReminderTimeSheet = false }
+        )
+    }
+
+    if (showCustomDurationPicker) {
+        OneTaskDurationPickerDialog(
+            initialMillis = (timerMinutes ?: 0).toLong() * 60_000L,
+            minDurationMillis = MIN_CUSTOM_TASK_TIMER_MILLIS,
+            onDismiss = { showCustomDurationPicker = false },
+            onConfirm = { millis ->
+                timerMinutes = durationMillisToWholeMinutes(millis)
+                showCustomDurationPicker = false
+            }
         )
     }
 }
@@ -833,79 +811,6 @@ private fun formatReminderTime(minuteOfDay: Int, is24Hour: Boolean): String {
     val time = LocalTime.of(minuteOfDay / 60, minuteOfDay % 60)
     val pattern = if (is24Hour) "HH:mm" else "h:mm a"
     return time.format(DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ReminderTimePickerSheet(
-    initialMinuteOfDay: Int?,
-    is24Hour: Boolean,
-    onTimeSelected: (Int) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    // 9:00 AM is a plain, unsurprising default for a reminder that hasn't had a time chosen yet
-    // - the past-time validation above the Save button (not this picker) is what actually
-    // enforces the "no reminder in the past" rule, so this default never silently bypasses it.
-    val initialMinute = initialMinuteOfDay ?: (9 * 60)
-    val timePickerState = rememberTimePickerState(
-        initialHour = initialMinute / 60,
-        initialMinute = initialMinute % 60,
-        is24Hour = is24Hour
-    )
-
-    fun dismissThen(action: () -> Unit) {
-        scope.launch { sheetState.hide() }.invokeOnCompletion {
-            if (!sheetState.isVisible) action()
-        }
-    }
-
-    CompactBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = stringResource(id = R.string.reminder_select_time),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
-            TimePicker(state = timePickerState)
-            Button(
-                onClick = { dismissThen { onTimeSelected(timePickerState.hour * 60 + timePickerState.minute) } },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp)
-                    .height(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White
-                )
-            ) {
-                Text(text = stringResource(id = R.string.date_picker_ok), fontWeight = FontWeight.Bold)
-            }
-            TextButton(
-                onClick = { dismissThen(onDismiss) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 2.dp)
-            ) {
-                Text(
-                    text = stringResource(id = R.string.cancel),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
 }
 
 @Composable

@@ -10,14 +10,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
@@ -52,30 +49,36 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 /**
- * The Tasks homepage's own calendar entry point: a centered dialog (not the compact bottom-sheet
- * [OneTaskCalendarSheet] Add Task still uses - this is deliberately a separate component so that
- * screen is completely unaffected). Every color comes from
- * [MaterialTheme.colorScheme] rather than a hardcoded palette, so this follows whichever theme
- * (light/dark) is currently active, including if it changes.
+ * THE single canonical Calendar for the whole One Task app - the source of truth for "pick a
+ * date from a month grid" everywhere it's needed (the Tasks homepage, Add Task's own Date field,
+ * Add Task's Reminder custom date, and any future feature with the same need). Do not copy this
+ * file's contents into a new screen; call this composable instead, or extend it with a new
+ * parameter if a genuine new requirement arises.
  *
- * Always opens on the current real-world month, regardless of what date is currently selected on
- * the Tasks homepage or what month was last browsed - [selectedDate] only controls which day (if
- * any, if it's in the visible month) shows the selected-date highlight, never where the calendar
- * opens. [markedDates] draws a small dot under any date that actually has a task, driven by
- * [onVisibleMonthChanged] telling the caller which month's tasks to look up as the user
- * navigates - the same reactive Flow-backed pattern already used for the rest of this screen's
- * date data, not a separate one-off query.
+ * This is a different component from [OneTaskDatePickerDialog]: this is a month grid you tap a
+ * day in, that one is three independently-scrollable Month/Day/Year wheels - see that file's own
+ * doc comment for why they stay separate.
+ *
+ * Always opens on the current real-world month, regardless of what date is currently selected or
+ * what month was last browsed - [selectedDate] only controls which day (if any, if it's in the
+ * visible month) shows the selected-date highlight, never where the calendar opens.
+ * [markedDates] draws a small dot under any date that actually has a task/note, driven by
+ * [onVisibleMonthChanged] telling the caller which month's data to look up as the user navigates.
+ * [minSelectableDate]/[maxSelectableDate], when set, dim and disable any day outside that range
+ * (e.g. a Reminder's custom date must never be in the past) without restricting month navigation
+ * itself - the user can still browse to see what's there, just not select an out-of-range day.
  *
  * [onDateSelected] fires (and the whole dialog closes) when a day in the grid is tapped, or when
- * Jump to Date's "Go to Date" is used - both go through the exact same callback the Tasks
- * homepage already used for its date navigation.
+ * Jump to Date's "Go to Date" is used - both go through the exact same callback.
  */
 @Composable
-fun HomeCalendarDialog(
+fun OneTaskCalendarDialog(
     selectedDate: LocalDate,
     onDateSelected: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
     markedDates: Set<LocalDate> = emptySet(),
+    minSelectableDate: LocalDate? = null,
+    maxSelectableDate: LocalDate? = null,
     onVisibleMonthChanged: (YearMonth) -> Unit = {},
     weekStartDay: DayOfWeek = DayOfWeek.MONDAY
 ) {
@@ -89,11 +92,16 @@ fun HomeCalendarDialog(
     if (showJumpToDate) {
         // A separate Dialog layered in place of the calendar (not on top of it) - its own
         // back-press/outside-tap only returns here to the month grid, never all the way out to
-        // the Tasks page, matching the two-level "back closes one step at a time" behavior.
-        JumpToDateDialog(
+        // the caller, matching the two-level "back closes one step at a time" behavior. The same
+        // min/max bound the grid enforces is passed through here too, so Jump to Date can never
+        // be used to bypass it - falling back to a wide +/-100 year span when unset, matching
+        // this dialog's own previously-unrestricted Jump to Date behavior.
+        OneTaskDatePickerDialog(
             initialDate = selectedDate,
+            minDate = minSelectableDate ?: today.minusYears(JUMP_TO_DATE_YEAR_SPAN.toLong()),
+            maxDate = maxSelectableDate ?: today.plusYears(JUMP_TO_DATE_YEAR_SPAN.toLong()),
             onDismiss = { showJumpToDate = false },
-            onGoToDate = { date ->
+            onDateSelected = { date ->
                 showJumpToDate = false
                 onDateSelected(date)
                 onDismiss()
@@ -111,20 +119,22 @@ fun HomeCalendarDialog(
                         .fillMaxWidth()
                         .padding(horizontal = 18.dp, vertical = 16.dp)
                 ) {
-                    HomeCalendarHeader(
+                    CalendarDialogHeader(
                         visibleMonth = visibleMonth,
                         onPreviousMonth = { visibleMonth = visibleMonth.minusMonths(1) },
                         onNextMonth = { visibleMonth = visibleMonth.plusMonths(1) },
                         onJumpToDateClick = { showJumpToDate = true }
                     )
 
-                    HomeCalendarWeekdayHeader(weekStartDay = weekStartDay)
+                    CalendarDialogWeekdayHeader(weekStartDay = weekStartDay)
 
-                    HomeCalendarMonthGrid(
+                    CalendarDialogMonthGrid(
                         visibleMonth = visibleMonth,
                         selectedDate = selectedDate,
                         today = today,
                         markedDates = markedDates,
+                        minSelectableDate = minSelectableDate,
+                        maxSelectableDate = maxSelectableDate,
                         weekStartDay = weekStartDay,
                         onDayClick = { date ->
                             hapticTick()
@@ -156,8 +166,10 @@ fun HomeCalendarDialog(
     }
 }
 
+private const val JUMP_TO_DATE_YEAR_SPAN = 100
+
 @Composable
-private fun HomeCalendarHeader(
+private fun CalendarDialogHeader(
     visibleMonth: YearMonth,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
@@ -168,7 +180,7 @@ private fun HomeCalendarHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        HomeCalendarNavButton(
+        CalendarDialogNavButton(
             icon = Icons.Filled.KeyboardArrowLeft,
             contentDescription = stringResource(id = R.string.previous_month),
             onClick = onPreviousMonth
@@ -197,7 +209,7 @@ private fun HomeCalendarHeader(
             )
         }
 
-        HomeCalendarNavButton(
+        CalendarDialogNavButton(
             icon = Icons.Filled.KeyboardArrowRight,
             contentDescription = stringResource(id = R.string.next_month),
             onClick = onNextMonth
@@ -217,7 +229,7 @@ private fun HomeCalendarHeader(
 }
 
 @Composable
-private fun HomeCalendarNavButton(
+private fun CalendarDialogNavButton(
     icon: ImageVector,
     contentDescription: String,
     onClick: () -> Unit
@@ -240,7 +252,7 @@ private fun HomeCalendarNavButton(
 }
 
 @Composable
-private fun HomeCalendarWeekdayHeader(weekStartDay: DayOfWeek) {
+private fun CalendarDialogWeekdayHeader(weekStartDay: DayOfWeek) {
     val labels = remember(weekStartDay) {
         orderedWeekDays(weekStartDay).map { day ->
             day.getDisplayName(TextStyle.SHORT, Locale.getDefault())
@@ -268,15 +280,14 @@ private fun HomeCalendarWeekdayHeader(weekStartDay: DayOfWeek) {
 private fun orderedWeekDays(startDay: DayOfWeek): List<DayOfWeek> =
     (0..6).map { DayOfWeek.of((startDay.value - 1 + it) % 7 + 1) }
 
-/** A day cell in [HomeCalendarMonthGrid] - either a real, selectable day in [visibleMonth], or a
- * muted, non-interactive filler number from the adjacent month (purely visual, matching the
- * reference calendar's leading/trailing days). */
-private sealed class HomeCalendarCell {
-    data class InMonth(val date: LocalDate) : HomeCalendarCell()
-    data class Overflow(val dayNumber: Int) : HomeCalendarCell()
+/** A day cell in [CalendarDialogMonthGrid] - either a real, selectable day in [visibleMonth], or
+ * a muted, non-interactive filler number from the adjacent month (purely visual). */
+private sealed class CalendarDialogCell {
+    data class InMonth(val date: LocalDate) : CalendarDialogCell()
+    data class Overflow(val dayNumber: Int) : CalendarDialogCell()
 }
 
-private fun buildCalendarCells(visibleMonth: YearMonth, weekStartDay: DayOfWeek): List<HomeCalendarCell> {
+private fun buildCalendarCells(visibleMonth: YearMonth, weekStartDay: DayOfWeek): List<CalendarDialogCell> {
     val daysInMonth = visibleMonth.lengthOfMonth()
     val firstDayOfMonth = visibleMonth.atDay(1).dayOfWeek
     val firstDayOffset = (firstDayOfMonth.value - weekStartDay.value + 7) % 7
@@ -286,19 +297,21 @@ private fun buildCalendarCells(visibleMonth: YearMonth, weekStartDay: DayOfWeek)
     return (0 until totalWeeks * 7).map { index ->
         val dayNumber = index - firstDayOffset + 1
         when {
-            dayNumber < 1 -> HomeCalendarCell.Overflow(prevMonthLength + dayNumber)
-            dayNumber > daysInMonth -> HomeCalendarCell.Overflow(dayNumber - daysInMonth)
-            else -> HomeCalendarCell.InMonth(visibleMonth.atDay(dayNumber))
+            dayNumber < 1 -> CalendarDialogCell.Overflow(prevMonthLength + dayNumber)
+            dayNumber > daysInMonth -> CalendarDialogCell.Overflow(dayNumber - daysInMonth)
+            else -> CalendarDialogCell.InMonth(visibleMonth.atDay(dayNumber))
         }
     }
 }
 
 @Composable
-private fun HomeCalendarMonthGrid(
+private fun CalendarDialogMonthGrid(
     visibleMonth: YearMonth,
     selectedDate: LocalDate,
     today: LocalDate,
     markedDates: Set<LocalDate>,
+    minSelectableDate: LocalDate?,
+    maxSelectableDate: LocalDate?,
     weekStartDay: DayOfWeek,
     onDayClick: (LocalDate) -> Unit
 ) {
@@ -312,11 +325,16 @@ private fun HomeCalendarMonthGrid(
         cells.chunked(7).forEach { week ->
             Row(modifier = Modifier.fillMaxWidth()) {
                 week.forEach { cell ->
-                    HomeCalendarDayCell(
+                    val isDisabled = cell is CalendarDialogCell.InMonth && (
+                        (minSelectableDate != null && cell.date.isBefore(minSelectableDate)) ||
+                            (maxSelectableDate != null && cell.date.isAfter(maxSelectableDate))
+                        )
+                    CalendarDialogDayCell(
                         cell = cell,
-                        isSelected = cell is HomeCalendarCell.InMonth && cell.date == selectedDate,
-                        isToday = cell is HomeCalendarCell.InMonth && cell.date == today,
-                        isMarked = cell is HomeCalendarCell.InMonth && markedDates.contains(cell.date),
+                        isSelected = cell is CalendarDialogCell.InMonth && cell.date == selectedDate,
+                        isToday = cell is CalendarDialogCell.InMonth && cell.date == today,
+                        isMarked = cell is CalendarDialogCell.InMonth && markedDates.contains(cell.date),
+                        isDisabled = isDisabled,
                         onClick = onDayClick,
                         modifier = Modifier.weight(1f)
                     )
@@ -327,11 +345,12 @@ private fun HomeCalendarMonthGrid(
 }
 
 @Composable
-private fun HomeCalendarDayCell(
-    cell: HomeCalendarCell,
+private fun CalendarDialogDayCell(
+    cell: CalendarDialogCell,
     isSelected: Boolean,
     isToday: Boolean,
     isMarked: Boolean,
+    isDisabled: Boolean,
     onClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -342,14 +361,14 @@ private fun HomeCalendarDayCell(
         contentAlignment = Alignment.Center
     ) {
         when (cell) {
-            is HomeCalendarCell.Overflow -> {
+            is CalendarDialogCell.Overflow -> {
                 Text(
                     text = cell.dayNumber.toString(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                 )
             }
-            is HomeCalendarCell.InMonth -> {
+            is CalendarDialogCell.InMonth -> {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -366,7 +385,7 @@ private fun HomeCalendarDayCell(
                                 else -> Modifier
                             }
                         )
-                        .clickable { onClick(cell.date) },
+                        .then(if (!isDisabled) Modifier.clickable { onClick(cell.date) } else Modifier),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -375,6 +394,7 @@ private fun HomeCalendarDayCell(
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
                             color = when {
+                                isDisabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                                 isSelected -> MaterialTheme.colorScheme.onPrimary
                                 isToday -> MaterialTheme.colorScheme.primary
                                 else -> MaterialTheme.colorScheme.onSurface
@@ -406,129 +426,3 @@ private fun HomeCalendarDayCell(
 
 private val calendarMonthYearFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
-
-/**
- * The Jump to Date experience: independently scrollable Month/Day/Year columns, each keeping its
- * selected value centered and highlighted, then a Go to Date button. There is no separate date
- * readout field above the columns (deliberately removed per spec). Changing month or year clamps
- * the picked day down when it would otherwise land past the end of the new month, so Go to Date
- * can never build an invalid date (e.g. Feb 30) - the day column's own range always reflects
- * exactly the valid days for whatever month/year is currently picked.
- */
-@Composable
-private fun JumpToDateDialog(
-    initialDate: LocalDate,
-    onDismiss: () -> Unit,
-    onGoToDate: (LocalDate) -> Unit
-) {
-    var pickedYear by remember { mutableStateOf(initialDate.year) }
-    var pickedMonth by remember { mutableStateOf(initialDate.monthValue) }
-    var pickedDay by remember { mutableStateOf(initialDate.dayOfMonth) }
-
-    val daysInPickedMonth = remember(pickedYear, pickedMonth) {
-        YearMonth.of(pickedYear, pickedMonth).lengthOfMonth()
-    }
-    if (pickedDay > daysInPickedMonth) {
-        pickedDay = daysInPickedMonth
-    }
-
-    val currentYear = remember { LocalDate.now().year }
-    val monthLabels = remember { (1..12).map(::monthShortName) }
-    val dayLabels = remember(daysInPickedMonth) { (1..daysInPickedMonth).map(Int::toString) }
-    val yearLabels = remember(currentYear) {
-        (currentYear - JUMP_TO_DATE_YEAR_SPAN..currentYear + JUMP_TO_DATE_YEAR_SPAN).map(Int::toString)
-    }
-    val minYear = currentYear - JUMP_TO_DATE_YEAR_SPAN
-
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 6.dp
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 20.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.jump_to_date),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .clickable(onClick = onDismiss),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = stringResource(id = R.string.close),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 20.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
-                ) {
-                    DateWheelColumn(
-                        items = monthLabels,
-                        selectedIndex = pickedMonth - 1,
-                        onSelectedIndexChange = { pickedMonth = it + 1 },
-                        modifier = Modifier.weight(1f)
-                    )
-                    DateWheelColumnDivider()
-                    DateWheelColumn(
-                        items = dayLabels,
-                        selectedIndex = pickedDay - 1,
-                        onSelectedIndexChange = { pickedDay = it + 1 },
-                        modifier = Modifier.weight(1f)
-                    )
-                    DateWheelColumnDivider()
-                    DateWheelColumn(
-                        items = yearLabels,
-                        selectedIndex = pickedYear - minYear,
-                        onSelectedIndexChange = { pickedYear = minYear + it },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 20.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.primary)
-                        .clickable {
-                            onGoToDate(LocalDate.of(pickedYear, pickedMonth, pickedDay))
-                        }
-                        .padding(vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.go_to_date),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
-            }
-        }
-    }
-}
-
-private const val JUMP_TO_DATE_YEAR_SPAN = 100

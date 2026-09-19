@@ -386,6 +386,10 @@
     <string name="go_to_date">Go to Date</string>
     <string name="jump_to_today">Jump to Today</string>
 
+    <string name="time_picker_title">Select Time</string>
+    <string name="time_picker_am">AM</string>
+    <string name="time_picker_pm">PM</string>
+
     <string name="focus_timer_title">Focus Timer</string>
     <string name="focus_timer_total_format">Total %1$s</string>
     <string name="focus_timer_notification_channel_name">Focus timer</string>

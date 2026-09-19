@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -42,16 +41,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
+import com.nj031.onetask.ui.components.OneTaskDurationPickerDialog
+import com.nj031.onetask.ui.components.durationMillisToWholeMinutes
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 
 private const val TIMER_25_MIN = 25
 private const val TIMER_45_MIN = 45
 private const val TIMER_60_MIN = 60
 private val TIMER_PRESETS = listOf(TIMER_25_MIN, TIMER_45_MIN, TIMER_60_MIN)
+
+// This screen's defaultTimerMinutes only ever stores whole minutes (see
+// GeneralSettingsRepository), so the shared H/M/S OneTaskDurationPickerDialog's confirm button is
+// disabled below a full minute - the same reasoning AddTaskScreen's own Timer field uses.
+private const val MIN_CUSTOM_DEFAULT_TIMER_MILLIS = 60_000L
 
 /**
  * General Settings > Default Task Settings. Seeds only the initial fields a brand-new Add Task
@@ -74,11 +79,7 @@ fun DefaultTaskSettingsScreen(
     onDeleteCustomTag: (String) -> Unit,
     onBackClick: () -> Unit
 ) {
-    val isInitialCustomTimer = defaultTimerMinutes != null && defaultTimerMinutes !in TIMER_PRESETS
-    var showCustomTimerInput by remember { mutableStateOf(isInitialCustomTimer) }
-    var customTimerText by remember {
-        mutableStateOf(if (isInitialCustomTimer) defaultTimerMinutes.toString() else "")
-    }
+    var showCustomDurationPicker by remember { mutableStateOf(false) }
     var showAddCustomTagDialog by remember { mutableStateOf(false) }
     var tagPendingDeletion by remember { mutableStateOf<String?>(null) }
     val hapticTick = rememberHapticTick()
@@ -122,59 +123,28 @@ fun DefaultTaskSettingsScreen(
             )
 
             DefaultSettingSectionLabel(text = stringResource(id = R.string.default_timer_section))
-            Column {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+            val isCustomTimerSelected = defaultTimerMinutes != null && defaultTimerMinutes !in TIMER_PRESETS
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                DefaultSettingChip(
+                    text = stringResource(id = R.string.option_no_timer),
+                    selected = !isCustomTimerSelected && defaultTimerMinutes == null,
+                    onClick = { onDefaultTimerMinutesChange(null) }
+                )
+                TIMER_PRESETS.forEach { minutes ->
                     DefaultSettingChip(
-                        text = stringResource(id = R.string.option_no_timer),
-                        selected = !showCustomTimerInput && defaultTimerMinutes == null,
-                        onClick = {
-                            showCustomTimerInput = false
-                            onDefaultTimerMinutesChange(null)
-                        }
-                    )
-                    TIMER_PRESETS.forEach { minutes ->
-                        DefaultSettingChip(
-                            text = minutes.toString(),
-                            selected = !showCustomTimerInput && defaultTimerMinutes == minutes,
-                            onClick = {
-                                showCustomTimerInput = false
-                                onDefaultTimerMinutesChange(minutes)
-                            }
-                        )
-                    }
-                    DefaultSettingChip(
-                        text = stringResource(id = R.string.option_custom),
-                        selected = showCustomTimerInput,
-                        onClick = { showCustomTimerInput = true }
+                        text = minutes.toString(),
+                        selected = !isCustomTimerSelected && defaultTimerMinutes == minutes,
+                        onClick = { onDefaultTimerMinutesChange(minutes) }
                     )
                 }
-                if (showCustomTimerInput) {
-                    TextField(
-                        value = customTimerText,
-                        onValueChange = {
-                            val digitsOnly = it.filter(Char::isDigit)
-                            customTimerText = digitsOnly
-                            onDefaultTimerMinutesChange(digitsOnly.toIntOrNull())
-                        },
-                        placeholder = { Text(stringResource(id = R.string.custom_timer_minutes_hint)) },
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.bodyMedium,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = TextFieldDefaults.colors(
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedIndicatorColor = MaterialTheme.colorScheme.outline,
-                            focusedIndicatorColor = MaterialTheme.colorScheme.primary
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                    )
-                }
+                DefaultSettingChip(
+                    text = stringResource(id = R.string.option_custom),
+                    selected = isCustomTimerSelected,
+                    onClick = { showCustomDurationPicker = true }
+                )
             }
 
             DefaultSettingSectionLabel(
@@ -273,6 +243,18 @@ fun DefaultTaskSettingsScreen(
                 TextButton(onClick = { tagPendingDeletion = null }) {
                     Text(text = stringResource(id = R.string.cancel))
                 }
+            }
+        )
+    }
+
+    if (showCustomDurationPicker) {
+        OneTaskDurationPickerDialog(
+            initialMillis = (defaultTimerMinutes ?: 0).toLong() * 60_000L,
+            minDurationMillis = MIN_CUSTOM_DEFAULT_TIMER_MILLIS,
+            onDismiss = { showCustomDurationPicker = false },
+            onConfirm = { millis ->
+                onDefaultTimerMinutesChange(durationMillisToWholeMinutes(millis))
+                showCustomDurationPicker = false
             }
         )
     }
