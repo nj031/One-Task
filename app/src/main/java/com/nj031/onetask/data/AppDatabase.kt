@@ -11,6 +11,7 @@ import com.nj031.onetask.data.journal.Converters
 import com.nj031.onetask.data.journal.JournalNoteDao
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.NoteLabelEntity
+import com.nj031.onetask.data.task.RecurringExclusionEntity
 import com.nj031.onetask.data.task.TaskConverters
 import com.nj031.onetask.data.task.TaskDao
 import com.nj031.onetask.data.task.TaskEntity
@@ -89,9 +90,30 @@ private val MIGRATION_10_11 = object : Migration(10, 11) {
     }
 }
 
+/** Adds the recurring-occurrence-deletion fix's table: a brand-new, initially-empty table, so
+ * every existing task/note survives this update untouched. Fixes the bug where deleting a single
+ * occurrence of an active recurring series (Daily/Select Days) - materialized or not - silently
+ * reappeared, because nothing recorded that the user had explicitly deleted that (series, date)
+ * pair; see RecurringExclusionEntity and TaskRepository.deleteTask/observeTasksByDate. */
+private val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS recurring_exclusions (" +
+                "seriesId TEXT NOT NULL, epochDay INTEGER NOT NULL, " +
+                "PRIMARY KEY(seriesId, epochDay))"
+        )
+    }
+}
+
 @Database(
-    entities = [JournalNoteEntity::class, NoteLabelEntity::class, TaskEntity::class, TaskTagEntity::class],
-    version = 11,
+    entities = [
+        JournalNoteEntity::class,
+        NoteLabelEntity::class,
+        TaskEntity::class,
+        TaskTagEntity::class,
+        RecurringExclusionEntity::class
+    ],
+    version = 12,
     exportSchema = false
 )
 @TypeConverters(Converters::class, TaskConverters::class)
@@ -133,7 +155,7 @@ abstract class AppDatabase : RoomDatabase() {
                 instance?.close()
                 val databaseName = "${LEGACY_DATABASE_NAME}_$userId"
                 val database = Room.databaseBuilder(appContext, AppDatabase::class.java, databaseName)
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                     .fallbackToDestructiveMigration()
                     .build()
                 instance = database

@@ -12,15 +12,25 @@ class TaskRepository(private val dao: TaskDao) {
      * occurrence always qualifies, but a recurring series' own row only counts on its start date
      * if that date itself satisfies the series' own pattern) plus a virtual (not-yet-persisted)
      * occurrence for every OTHER active recurring series whose pattern matches [date] and hasn't
-     * been materialized yet. Repeat is evaluated here, against the date actually being viewed,
-     * rather than being a label stored once on the task.
+     * been materialized yet AND hasn't been explicitly deleted on this date (see
+     * [RecurringExclusionEntity] - without this check, deleting a single occurrence would
+     * otherwise be regenerated right back by this same combine on its very next emission, since
+     * the series definition itself is untouched and still matches [date]). Repeat is evaluated
+     * here, against the date actually being viewed, rather than being a label stored once on the
+     * task.
      */
     fun observeTasksByDate(date: Long): Flow<List<TaskEntity>> =
-        combine(dao.getByDate(date), dao.getActiveRecurringSeries()) { exactMatches, series ->
+        combine(
+            dao.getByDate(date),
+            dao.getActiveRecurringSeries(),
+            dao.getExcludedSeriesIdsForDate(date)
+        ) { exactMatches, series, excludedSeriesIds ->
             val dueExactMatches = exactMatches.filter { it.isDueOn(date) }
             val existingIds = dueExactMatches.mapTo(HashSet()) { it.id }
+            val excludedSet = excludedSeriesIds.toHashSet()
             val virtualOccurrences = series.mapNotNull { seriesTask ->
                 if (seriesTask.date == date || !seriesTask.matchesRecurrenceOn(date)) return@mapNotNull null
+                if (seriesTask.id in excludedSet) return@mapNotNull null
                 val occurrence = seriesTask.asVirtualOccurrence(date)
                 if (occurrence.id in existingIds) null else occurrence
             }
@@ -192,21 +202,39 @@ class TaskRepository(private val dao: TaskDao) {
         return updated
     }
 
-    /** Deleting a recurring series' own definition row also deletes every occurrence already
-     * materialized from it (see [TaskEntity.asVirtualOccurrence]), so a deleted recurring task
-     * doesn't leave individual-date leftovers behind; deleting a plain task or a single already-
-     * materialized occurrence only ever removes that one row, unchanged from before. Deleting a
-     * recurring occurrence that hasn't been materialized yet (never toggled/edited/started) has
-     * nothing to delete - it simply isn't shown as a virtual occurrence again unless the series
-     * still matches that date, which is a known limitation, not a crash risk. */
+    /**
+     * Deleting a recurring series' own definition row also deletes every occurrence already
+     * materialized from it (see [TaskEntity.asVirtualOccurrence]) and every per-date exclusion
+     * recorded against it, so a deleted recurring task doesn't leave individual-date leftovers
+     * behind. Deleting a single occurrence of a still-active series (materialized or not) records
+     * a [RecurringExclusionEntity] for that exact (series, date) pair - removing the row alone
+     * isn't enough, since the series definition itself is still active and would otherwise
+     * regenerate a fresh virtual occurrence for that date on the very next
+     * [observeTasksByDate] emission, making the deletion appear to silently undo itself.
+     * Deleting a plain, non-recurring task removes that one row, unchanged from before.
+     */
     suspend fun deleteTask(task: TaskEntity) {
-        if (task.seriesId == null && task.repeat != TaskRepeat.NONE) {
-            val occurrenceIds = dao.getOccurrenceIdsForSeries(task.id)
-            dao.deleteOccurrencesForSeries(task.id)
-            occurrenceIds.forEach { CloudBackupRepository.deleteTask(it) }
+        when {
+            task.seriesId == null && task.repeat != TaskRepeat.NONE -> {
+                val occurrenceIds = dao.getOccurrenceIdsForSeries(task.id)
+                dao.deleteOccurrencesForSeries(task.id)
+                dao.deleteRecurringExclusionsForSeries(task.id)
+                occurrenceIds.forEach { CloudBackupRepository.deleteTask(it) }
+                dao.delete(task)
+                CloudBackupRepository.deleteTask(task.id)
+                CloudBackupRepository.deleteRecurringExclusionsForSeries(task.id)
+            }
+            task.seriesId != null -> {
+                dao.delete(task)
+                CloudBackupRepository.deleteTask(task.id)
+                dao.insertRecurringExclusion(RecurringExclusionEntity(seriesId = task.seriesId, epochDay = task.date))
+                CloudBackupRepository.pushRecurringExclusion(task.seriesId, task.date)
+            }
+            else -> {
+                dao.delete(task)
+                CloudBackupRepository.deleteTask(task.id)
+            }
         }
-        dao.delete(task)
-        CloudBackupRepository.deleteTask(task.id)
     }
 
     suspend fun addCustomTag(name: String) {

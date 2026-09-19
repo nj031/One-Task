@@ -160,6 +160,17 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         try {
+            // See RecurringExclusionEntity - without restoring these too, a recurring
+            // occurrence the user deleted on another device (or before a reinstall) could
+            // reappear here once its still-active series syncs back in above.
+            val cloudExclusions = CloudBackupRepository.pullRecurringExclusions()
+            cloudExclusions.forEach { taskDao.insertRecurringExclusion(it) }
+            CloudBackupRepository.pushAllRecurringExclusions(taskDao.getAllRecurringExclusions())
+        } catch (_: Exception) {
+            // Local recurring-occurrence exclusions left untouched.
+        }
+
+        try {
             val cloudTags = CloudBackupRepository.pullTags()
             // IGNORE (not REPLACE): a tag's name is its entire identity/content, so there's
             // never anything to merge for one already present locally - this only ever adds

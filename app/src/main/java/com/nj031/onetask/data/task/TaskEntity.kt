@@ -92,6 +92,22 @@ data class TaskTagEntity(
     @PrimaryKey val name: String
 )
 
+/**
+ * Records that the user explicitly deleted a recurring series' occurrence on [epochDay] - the
+ * only way to make that deletion stick. Without this, deleting a single occurrence (materialized
+ * or still virtual - see [asVirtualOccurrence]) only ever removes/no-ops on that one row, but the
+ * series' own definition row is untouched and still matches [epochDay], so the very next
+ * [TaskRepository.observeTasksByDate] emission would otherwise regenerate a fresh virtual
+ * occurrence for it, making the deletion silently undo itself. [seriesId] is the series
+ * definition row's own id (never a materialized occurrence's synthetic id). Composite primary
+ * key: at most one exclusion per (series, date) pair.
+ */
+@Entity(tableName = "recurring_exclusions", primaryKeys = ["seriesId", "epochDay"])
+data class RecurringExclusionEntity(
+    val seriesId: String,
+    val epochDay: Long
+)
+
 private const val REPEAT_DAYS_DELIMITER = ","
 
 /** Marks a synthetic id/suffix for a not-yet-persisted recurring occurrence - see
