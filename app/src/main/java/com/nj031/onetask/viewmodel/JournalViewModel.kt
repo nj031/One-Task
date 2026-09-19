@@ -10,6 +10,8 @@ import com.nj031.onetask.data.journal.JournalNoteType
 import com.nj031.onetask.data.journal.JournalRepository
 import com.nj031.onetask.data.settings.GeneralSettingsRepository
 import com.nj031.onetask.data.settings.NotesViewMode
+import com.nj031.onetask.data.sync.CloudBackupRepository
+import com.nj031.onetask.data.sync.CloudGeneralSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -71,6 +73,28 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
     fun setViewMode(mode: NotesViewMode) {
         _viewMode.value = mode
         settingsRepository.setNotesViewMode(mode)
+        // Notes View Mode is one field of the same account-owned General Settings snapshot
+        // GeneralSettingsViewModel's own setters push - see that class's pushToCloud() comment.
+        // Pushed as the full current snapshot (not just this one field), matching how the local
+        // file already stores every General Setting as one unit.
+        viewModelScope.launch {
+            val snapshot = settingsRepository.getSnapshot()
+            CloudBackupRepository.pushGeneralSettings(
+                CloudGeneralSettings(
+                    startScreen = snapshot.startScreen.name,
+                    defaultTimerMinutes = snapshot.defaultTimerMinutes,
+                    defaultTag = snapshot.defaultTag,
+                    defaultPostponeIfIncomplete = snapshot.defaultPostponeIfIncomplete,
+                    focusSessionNotificationsEnabled = snapshot.focusSessionNotificationsEnabled,
+                    focusSessionCompleteEnabled = snapshot.focusSessionCompleteEnabled,
+                    weekStartDay = snapshot.weekStartDay.name,
+                    timeFormat = snapshot.timeFormat.name,
+                    hapticFeedbackEnabled = snapshot.hapticFeedbackEnabled,
+                    notesViewMode = snapshot.notesViewMode.name,
+                    updatedAt = snapshot.updatedAt
+                )
+            )
+        }
     }
 
     fun createNote(title: String, content: String, noteType: JournalNoteType, checklistItems: List<ChecklistItem>) {
