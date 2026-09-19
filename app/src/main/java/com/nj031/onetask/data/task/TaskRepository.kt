@@ -225,9 +225,18 @@ class TaskRepository(private val dao: TaskDao) {
                 CloudBackupRepository.deleteRecurringExclusionsForSeries(task.id)
             }
             task.seriesId != null -> {
+                // The exclusion must exist locally BEFORE the occurrence's row is deleted, not
+                // after: Room's Flow observers (see observeTasksByDate) react to each local write
+                // independently and immediately. Deleting the row first left a real window -
+                // previously extended by an awaited Firestore round-trip sitting between the two
+                // local writes - where the still-active series definition had nothing excluding
+                // this date yet, so its virtual-occurrence generator could regenerate the very
+                // occurrence just deleted. Writing the exclusion first closes that window
+                // entirely: by the time the row disappears, the exclusion that stops it from
+                // being regenerated is already live.
+                dao.insertRecurringExclusion(RecurringExclusionEntity(seriesId = task.seriesId, epochDay = task.date))
                 dao.delete(task)
                 CloudBackupRepository.deleteTask(task.id)
-                dao.insertRecurringExclusion(RecurringExclusionEntity(seriesId = task.seriesId, epochDay = task.date))
                 CloudBackupRepository.pushRecurringExclusion(task.seriesId, task.date)
             }
             else -> {
