@@ -10,6 +10,7 @@ import com.nj031.onetask.data.journal.ChecklistItem
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.JournalNoteStatus
 import com.nj031.onetask.data.journal.JournalNoteType
+import com.nj031.onetask.data.task.RecurringExclusionEntity
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.SuccessCondition
 import com.nj031.onetask.data.task.TaskEntity
@@ -65,6 +66,11 @@ internal fun labelsPath(uid: String) = "users/$uid/labels"
 internal fun accountPath(uid: String) = "users/$uid/account"
 internal fun profilePhotoPath(uid: String) = "profile_photos/$uid.jpg"
 
+/** See [RecurringExclusionEntity] - one document per (series, date) pair the user explicitly
+ * deleted an occurrence on, so the deletion survives sign-out/sign-in and reinstall too, not just
+ * the local Room copy. */
+internal fun recurringExclusionsPath(uid: String) = "users/$uid/recurringExclusions"
+
 /** Which side of an account-settings restore (Appearance/General Settings/Profile - the single-
  * document blobs, as opposed to Tasks/Notes/Tags/Labels' own per-item merge) should win, given
  * the local copy's own updatedAt and the cloud copy's updatedAt (null when no cloud document
@@ -106,6 +112,8 @@ object CloudBackupRepository {
     private val uid: String? get() = auth.currentUser?.uid
 
     private fun tasksCollection(uid: String) = firestore.collection(tasksPath(uid))
+
+    private fun recurringExclusionsCollection(uid: String) = firestore.collection(recurringExclusionsPath(uid))
 
     private fun notesCollection(uid: String) = firestore.collection(notesPath(uid))
 
@@ -154,6 +162,37 @@ object CloudBackupRepository {
     suspend fun deleteTask(taskId: String) {
         val currentUid = uid ?: return
         runFirestoreWrite { tasksCollection(currentUid).document(taskId).delete().await() }
+    }
+
+    /** See [RecurringExclusionEntity] - the document id is deterministic ("seriesId_epochDay"),
+     * so pushing the same exclusion twice is naturally idempotent, the same way tasks/tags
+     * already use a stable id rather than an auto-generated one. */
+    suspend fun pushRecurringExclusion(seriesId: String, epochDay: Long) {
+        val currentUid = uid ?: return
+        runFirestoreWrite {
+            recurringExclusionsCollection(currentUid)
+                .document("${seriesId}_$epochDay")
+                .set(mapOf("seriesId" to seriesId, "epochDay" to epochDay))
+                .await()
+        }
+    }
+
+    /** Mirrors [TaskDao.deleteRecurringExclusionsForSeries] - removes every cloud exclusion
+     * document recorded against [seriesId], called when the series' own definition row is
+     * deleted entirely so no orphaned exclusion documents are left behind. */
+    suspend fun deleteRecurringExclusionsForSeries(seriesId: String) {
+        val currentUid = uid ?: return
+        runFirestoreWrite {
+            val docs = recurringExclusionsCollection(currentUid)
+                .whereEqualTo("seriesId", seriesId)
+                .get()
+                .await()
+                .documents
+            if (docs.isEmpty()) return@runFirestoreWrite
+            val batch = firestore.batch()
+            docs.forEach { batch.delete(it.reference) }
+            batch.commit().await()
+        }
     }
 
     /** Custom tags are account-owned data (see [pullTags]) - a tag's own name is both its
@@ -288,6 +327,18 @@ object CloudBackupRepository {
         return tasksCollection(currentUid).get().await().documents.mapNotNull { it.toTaskEntity() }
     }
 
+    /** The signed-in account's own recurring-occurrence deletions, previously backed up from
+     * this or any other device - restores them on a fresh install/reinstall or a first sign-in
+     * on a new device, the same way [pullTasks] restores tasks. */
+    suspend fun pullRecurringExclusions(): List<RecurringExclusionEntity> {
+        val currentUid = uid ?: return emptyList()
+        return recurringExclusionsCollection(currentUid).get().await().documents.mapNotNull { doc ->
+            val seriesId = doc.getString("seriesId") ?: return@mapNotNull null
+            val epochDay = doc.getLong("epochDay") ?: return@mapNotNull null
+            RecurringExclusionEntity(seriesId = seriesId, epochDay = epochDay)
+        }
+    }
+
     suspend fun pullNotes(): List<JournalNoteEntity> {
         val currentUid = uid ?: return emptyList()
         return notesCollection(currentUid).get().await().documents.mapNotNull { it.toJournalNoteEntity() }
@@ -381,6 +432,21 @@ object CloudBackupRepository {
         if (labels.isEmpty()) return
         val batch = firestore.batch()
         labels.forEach { label -> batch.set(labelsCollection(currentUid).document(label), mapOf("name" to label)) }
+        batch.commit().await()
+    }
+
+    /** Mirrors [pushAllTags] exactly - pushes every local-only exclusion up in one batch (used
+     * by the sign-in sync's push-local-up step). */
+    suspend fun pushAllRecurringExclusions(exclusions: List<RecurringExclusionEntity>) {
+        val currentUid = uid ?: return
+        if (exclusions.isEmpty()) return
+        val batch = firestore.batch()
+        exclusions.forEach { exclusion ->
+            batch.set(
+                recurringExclusionsCollection(currentUid).document("${exclusion.seriesId}_${exclusion.epochDay}"),
+                mapOf("seriesId" to exclusion.seriesId, "epochDay" to exclusion.epochDay)
+            )
+        }
         batch.commit().await()
     }
 }
