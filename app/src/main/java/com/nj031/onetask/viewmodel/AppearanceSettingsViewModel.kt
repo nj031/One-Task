@@ -2,12 +2,16 @@ package com.nj031.onetask.viewmodel
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.nj031.onetask.data.settings.AppearanceSettingsRepository
 import com.nj031.onetask.data.settings.ColorTheme
 import com.nj031.onetask.data.settings.DisplayMode
+import com.nj031.onetask.data.sync.CloudAppearance
+import com.nj031.onetask.data.sync.CloudBackupRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /**
  * Backs both the Appearance Settings screen and the app-wide OneTaskTheme wrapper in
@@ -28,10 +32,28 @@ class AppearanceSettingsViewModel(application: Application) : AndroidViewModel(a
     fun setDisplayMode(mode: DisplayMode) {
         repository.setDisplayMode(mode)
         _displayMode.value = mode
+        pushToCloud()
     }
 
     fun setColorTheme(theme: ColorTheme) {
         repository.setColorTheme(theme)
         _colorTheme.value = theme
+        pushToCloud()
+    }
+
+    /** Account-owned - see the "Future Account-Persistence Architecture Rule": Appearance must
+     * survive uninstall/reinstall for the same account, not just this installation. The local
+     * SharedPreferences write above already happened synchronously (driving the UI instantly);
+     * this only pushes the durable cloud copy, off the calling thread. */
+    private fun pushToCloud() {
+        viewModelScope.launch {
+            CloudBackupRepository.pushAppearance(
+                CloudAppearance(
+                    displayMode = repository.getDisplayMode().name,
+                    colorTheme = repository.getColorTheme().name,
+                    updatedAt = repository.getUpdatedAt()
+                )
+            )
+        }
     }
 }

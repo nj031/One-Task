@@ -156,7 +156,8 @@ fun EditProfileScreen(
                 name = trimmedName,
                 dateOfBirth = dateOfBirth,
                 gender = genderName?.let { raw -> runCatching { Gender.valueOf(raw) }.getOrNull() },
-                photoPath = finalPhotoPath
+                photoPath = finalPhotoPath,
+                photoChanged = photoRemoved || croppedPhotoBitmap != null
             )
             onDone()
         }

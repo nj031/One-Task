@@ -13,6 +13,14 @@ enum class ColorTheme { BLUE, GREEN, TEAL, AMBER, PINK }
 private const val PREFS_NAME = "appearance_settings_prefs"
 private const val KEY_DISPLAY_MODE = "display_mode"
 private const val KEY_COLOR_THEME = "color_theme"
+private const val KEY_UPDATED_AT = "updated_at"
+
+/** A point-in-time snapshot of every field this account's Appearance settings sync to the cloud
+ * as one unit (see [CloudBackupRepository.pushAppearance]/[CloudBackupRepository.pullAppearance]) -
+ * [updatedAt] is what lets the post-sign-in restore decide whether the local or cloud copy is
+ * newer when both already exist, the same way every Task/Note row's own updatedAt already
+ * decides which side of a sync should win for that item. */
+data class AppearanceSnapshot(val displayMode: DisplayMode, val colorTheme: ColorTheme, val updatedAt: Long)
 
 /**
  * Stores Appearance Settings (Display Mode, Color Theme) in a private SharedPreferences file,
@@ -36,7 +44,7 @@ class AppearanceSettingsRepository(context: Context) {
     }
 
     fun setDisplayMode(mode: DisplayMode) {
-        prefs.edit().putString(KEY_DISPLAY_MODE, mode.name).apply()
+        prefs.edit().putString(KEY_DISPLAY_MODE, mode.name).putLong(KEY_UPDATED_AT, System.currentTimeMillis()).apply()
     }
 
     fun getColorTheme(): ColorTheme {
@@ -45,6 +53,23 @@ class AppearanceSettingsRepository(context: Context) {
     }
 
     fun setColorTheme(theme: ColorTheme) {
-        prefs.edit().putString(KEY_COLOR_THEME, theme.name).apply()
+        prefs.edit().putString(KEY_COLOR_THEME, theme.name).putLong(KEY_UPDATED_AT, System.currentTimeMillis()).apply()
+    }
+
+    fun getUpdatedAt(): Long = prefs.getLong(KEY_UPDATED_AT, 0L)
+
+    fun getSnapshot(): AppearanceSnapshot = AppearanceSnapshot(getDisplayMode(), getColorTheme(), getUpdatedAt())
+
+    /** Applies a cloud-restored Appearance snapshot locally - used only by the post-sign-in
+     * restore, never by the Appearance screen's own chip taps (which go through
+     * [setDisplayMode]/[setColorTheme] above instead, each bumping its own fresh
+     * [KEY_UPDATED_AT]). Writes [updatedAt] as given (the cloud value being restored), not
+     * "now", so this restore is never mistaken for a newer local edit on the very next sync. */
+    fun applyRemote(displayMode: DisplayMode, colorTheme: ColorTheme, updatedAt: Long) {
+        prefs.edit()
+            .putString(KEY_DISPLAY_MODE, displayMode.name)
+            .putString(KEY_COLOR_THEME, colorTheme.name)
+            .putLong(KEY_UPDATED_AT, updatedAt)
+            .apply()
     }
 }

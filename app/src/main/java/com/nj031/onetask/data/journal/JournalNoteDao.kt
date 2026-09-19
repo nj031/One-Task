@@ -39,4 +39,7 @@ interface JournalNoteDao {
 
     @Query("SELECT name FROM note_labels ORDER BY name ASC")
     fun getLabels(): Flow<List<String>>
+
+    @Query("SELECT name FROM note_labels ORDER BY name ASC")
+    suspend fun getLabelsOnce(): List<String>
 }

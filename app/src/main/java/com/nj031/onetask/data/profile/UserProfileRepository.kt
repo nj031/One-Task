@@ -18,6 +18,7 @@ private const val KEY_NAME = "name"
 private const val KEY_DOB = "date_of_birth"
 private const val KEY_GENDER = "gender"
 private const val KEY_PHOTO_PATH = "photo_path"
+private const val KEY_UPDATED_AT = "updated_at"
 
 /**
  * Stores the user's editable profile fields (name/date of birth/gender/photo path) in a private
@@ -55,6 +56,27 @@ class UserProfileRepository(context: Context) {
             if (profile.dateOfBirth != null) putLong(KEY_DOB, profile.dateOfBirth) else remove(KEY_DOB)
             if (profile.gender != null) putString(KEY_GENDER, profile.gender.name) else remove(KEY_GENDER)
             if (profile.photoPath != null) putString(KEY_PHOTO_PATH, profile.photoPath) else remove(KEY_PHOTO_PATH)
+            putLong(KEY_UPDATED_AT, System.currentTimeMillis())
+        }.apply()
+    }
+
+    fun getUpdatedAt(): Long = prefs.getLong(KEY_UPDATED_AT, 0L)
+
+    /** Applies a cloud-restored Profile (name/DOB/gender only - see
+     * [com.nj031.onetask.data.sync.CloudBackupRepository]'s own doc comment for why the photo is
+     * backed by Storage instead of this Firestore document) locally. Used only by the
+     * post-sign-in restore, never by [saveProfile] (Edit Profile's own save action) - writes
+     * [updatedAt] as given (the cloud value being restored), not "now", so this restore is never
+     * mistaken for a newer local edit on the very next sync. The local photoPath is left exactly
+     * as it already is; photo restoration is a separate step (see ProfilePhotoStorage /
+     * CloudBackupRepository.downloadProfilePhoto), since it's a file, not a preference value. */
+    fun applyRemote(name: String, dateOfBirth: Long?, gender: Gender?, updatedAt: Long) {
+        prefs.edit().apply {
+            putBoolean(KEY_HAS_PROFILE, true)
+            putString(KEY_NAME, name)
+            if (dateOfBirth != null) putLong(KEY_DOB, dateOfBirth) else remove(KEY_DOB)
+            if (gender != null) putString(KEY_GENDER, gender.name) else remove(KEY_GENDER)
+            putLong(KEY_UPDATED_AT, updatedAt)
         }.apply()
     }
 }

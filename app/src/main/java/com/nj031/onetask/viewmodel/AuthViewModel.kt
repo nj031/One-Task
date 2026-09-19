@@ -12,8 +12,26 @@ import com.nj031.onetask.data.auth.AuthErrorContext
 import com.nj031.onetask.data.auth.AuthErrorMessages
 import com.nj031.onetask.data.auth.AuthRepository
 import com.nj031.onetask.data.auth.AuthValidation
+import com.nj031.onetask.data.journal.NoteLabelEntity
+import com.nj031.onetask.data.profile.Gender
+import com.nj031.onetask.data.profile.ProfilePhotoStorage
+import com.nj031.onetask.data.profile.UserProfileRepository
+import com.nj031.onetask.data.settings.AppearanceSettingsRepository
+import com.nj031.onetask.data.settings.ColorTheme
+import com.nj031.onetask.data.settings.DisplayMode
+import com.nj031.onetask.data.settings.GeneralSettingsRepository
+import com.nj031.onetask.data.settings.GeneralSettingsSnapshot
+import com.nj031.onetask.data.settings.NotesViewMode
+import com.nj031.onetask.data.settings.StartScreen
+import com.nj031.onetask.data.settings.TimeFormat
+import com.nj031.onetask.data.sync.CloudAppearance
 import com.nj031.onetask.data.sync.CloudBackupRepository
+import com.nj031.onetask.data.sync.CloudGeneralSettings
+import com.nj031.onetask.data.sync.CloudProfile
+import com.nj031.onetask.data.sync.SyncDecision
+import com.nj031.onetask.data.sync.decideSync
 import com.nj031.onetask.data.task.TaskTagEntity
+import java.time.DayOfWeek
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -99,39 +117,132 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * One-time reconciliation run right after a successful sign-in: pulls any existing cloud
-     * backup down into local Room (so a reinstall/new device restores prior data), then pushes
-     * everything currently local up to the cloud (so anything created before signing in, or
-     * only present locally, also becomes backed up). Every mutation from this point on is
-     * mirrored to the cloud automatically by TaskRepository/JournalRepository.
+     * backup down into local storage (Room for Tasks/Notes/Tags/Labels, SharedPreferences for
+     * Appearance/General Settings/Profile, a local file for the profile photo) - so a reinstall
+     * or a first sign-in on a new device restores everything this account owns - then pushes
+     * anything currently local-only up to the cloud. Every mutation from this point on is
+     * mirrored to the cloud automatically by the relevant repository/ViewModel.
      *
-     * taskDao/journalNoteDao are deliberately looked up fresh here rather than cached as fields:
-     * this ViewModel is constructed once (hoisted in NavGraph) and may already exist from before
-     * this sign-in - typically while nobody was signed in yet, but a plain field captured then
-     * would stay bound to that stale (pre-sign-in) per-account database connection forever. Since
+     * Each category below (Tasks/Notes, Tags, Labels, Appearance, General Settings, Profile) is
+     * isolated in its own try/catch: a failure pulling/pushing one (a transient network error, a
+     * permission issue) must never prevent the others from restoring, and must never leave this
+     * function throwing all the way out to the sign-in screen's generic "Sign-in failed" handler
+     * - Firebase Auth has already genuinely succeeded by the time this runs, and a sync hiccup
+     * here shouldn't contradict that. A failed PULL for any one category always leaves that
+     * category's local state untouched rather than proceeding to push - never treating "the pull
+     * failed" the same as "the cloud has nothing", which would risk pushing a stale/incomplete
+     * local copy over a cloud copy this function was never actually able to see.
+     *
+     * DAOs/repositories are deliberately looked up fresh here rather than cached as fields: this
+     * ViewModel is constructed once (hoisted in NavGraph) and may already exist from before this
+     * sign-in - typically while nobody was signed in yet, but a plain field captured then would
+     * stay bound to that stale (pre-sign-in) per-account database/prefs connection forever. Since
      * this function runs immediately after AuthRepository's own sign-in call succeeds - and
-     * before anything else reacts to the account change - resolving AppDatabase.getInstance()
-     * here is what makes it see the account that JUST signed in, not whichever one (or none) was
-     * active when this ViewModel was originally constructed.
+     * before anything else reacts to the account change - resolving AppDatabase.getInstance()/
+     * UserScopedPreferences here is what makes every one of them see the account that JUST
+     * signed in, not whichever one (or none) was active when this ViewModel was originally
+     * constructed.
      */
     private suspend fun syncAfterSignIn() {
         val application = getApplication<Application>()
         val taskDao = AppDatabase.getInstance(application).taskDao()
         val journalNoteDao = AppDatabase.getInstance(application).journalNoteDao()
 
-        val cloudTasks = CloudBackupRepository.pullTasks()
-        val cloudNotes = CloudBackupRepository.pullNotes()
-        val cloudTags = CloudBackupRepository.pullTags()
+        try {
+            val cloudTasks = CloudBackupRepository.pullTasks()
+            val cloudNotes = CloudBackupRepository.pullNotes()
+            cloudTasks.forEach { taskDao.insert(it) }
+            cloudNotes.forEach { journalNoteDao.insert(it) }
+            CloudBackupRepository.pushAllTasks(taskDao.getAll())
+            CloudBackupRepository.pushAllNotes(journalNoteDao.getAllOnce())
+        } catch (_: Exception) {
+            // Local Tasks/Notes are left exactly as they were - never partially merged.
+        }
 
-        cloudTasks.forEach { taskDao.insert(it) }
-        cloudNotes.forEach { journalNoteDao.insert(it) }
-        // IGNORE (not REPLACE): a tag's name is its entire identity/content, so there's never
-        // anything to merge for one already present locally - this only ever adds tags this
-        // account created on another device that aren't here yet.
-        cloudTags.forEach { taskDao.insertTag(TaskTagEntity(name = it)) }
+        try {
+            val cloudTags = CloudBackupRepository.pullTags()
+            // IGNORE (not REPLACE): a tag's name is its entire identity/content, so there's
+            // never anything to merge for one already present locally - this only ever adds
+            // tags this account created on another device that aren't here yet.
+            cloudTags.forEach { taskDao.insertTag(TaskTagEntity(name = it)) }
+            CloudBackupRepository.pushAllTags(taskDao.getCustomTagsOnce())
+        } catch (_: Exception) {
+            // Local Custom Tags left untouched.
+        }
 
-        CloudBackupRepository.pushAllTasks(taskDao.getAll())
-        CloudBackupRepository.pushAllNotes(journalNoteDao.getAllOnce())
-        CloudBackupRepository.pushAllTags(taskDao.getCustomTagsOnce())
+        try {
+            val cloudLabels = CloudBackupRepository.pullLabels()
+            cloudLabels.forEach { journalNoteDao.insertLabel(NoteLabelEntity(name = it)) }
+            CloudBackupRepository.pushAllLabels(journalNoteDao.getLabelsOnce())
+        } catch (_: Exception) {
+            // Local Note Labels left untouched.
+        }
+
+        try {
+            val appearanceRepo = AppearanceSettingsRepository(application)
+            val localAppearance = appearanceRepo.getSnapshot()
+            val cloudAppearance = CloudBackupRepository.pullAppearance()
+            when (decideSync(localAppearance.updatedAt, cloudAppearance?.updatedAt)) {
+                SyncDecision.APPLY_REMOTE -> {
+                    checkNotNull(cloudAppearance)
+                    appearanceRepo.applyRemote(
+                        displayMode = runCatching { DisplayMode.valueOf(cloudAppearance.displayMode) }.getOrDefault(DisplayMode.SYSTEM),
+                        colorTheme = runCatching { ColorTheme.valueOf(cloudAppearance.colorTheme) }.getOrDefault(ColorTheme.BLUE),
+                        updatedAt = cloudAppearance.updatedAt
+                    )
+                }
+                SyncDecision.PUSH_LOCAL -> CloudBackupRepository.pushAppearance(
+                    CloudAppearance(localAppearance.displayMode.name, localAppearance.colorTheme.name, localAppearance.updatedAt)
+                )
+            }
+        } catch (_: Exception) {
+            // Local Appearance left untouched.
+        }
+
+        try {
+            val settingsRepo = GeneralSettingsRepository(application)
+            val local = settingsRepo.getSnapshot()
+            val cloud = CloudBackupRepository.pullGeneralSettings()
+            when (decideSync(local.updatedAt, cloud?.updatedAt)) {
+                SyncDecision.APPLY_REMOTE -> settingsRepo.applyRemote(checkNotNull(cloud).toLocal())
+                SyncDecision.PUSH_LOCAL -> CloudBackupRepository.pushGeneralSettings(local.toCloud())
+            }
+        } catch (_: Exception) {
+            // Local General Settings left untouched.
+        }
+
+        try {
+            val profileRepo = UserProfileRepository(application)
+            val local = profileRepo.getProfile(defaultName = AuthRepository.currentUser?.displayName.orEmpty())
+            val localUpdatedAt = profileRepo.getUpdatedAt()
+            val cloudProfile = CloudBackupRepository.pullProfile()
+            when (decideSync(localUpdatedAt, cloudProfile?.updatedAt)) {
+                SyncDecision.APPLY_REMOTE -> {
+                    checkNotNull(cloudProfile)
+                    profileRepo.applyRemote(
+                        name = cloudProfile.name,
+                        dateOfBirth = cloudProfile.dateOfBirth,
+                        gender = cloudProfile.gender?.let { raw -> runCatching { Gender.valueOf(raw) }.getOrNull() },
+                        updatedAt = cloudProfile.updatedAt
+                    )
+                }
+                SyncDecision.PUSH_LOCAL -> CloudBackupRepository.pushProfile(
+                    CloudProfile(local.name, local.dateOfBirth, local.gender?.name, localUpdatedAt)
+                )
+            }
+
+            // The photo is a file, not a preference value, so it's restored separately: only
+            // when this install doesn't already have one locally (a fresh install/reinstall is
+            // exactly when that's true) - never overwrites an already-present local photo, and
+            // never deletes the cloud copy just because a download attempt found nothing to
+            // restore from (see CloudBackupRepository.downloadProfilePhoto's own doc comment).
+            val photoFile = ProfilePhotoStorage.photoFile(application)
+            if (!photoFile.exists()) {
+                CloudBackupRepository.downloadProfilePhoto(photoFile)
+            }
+        } catch (_: Exception) {
+            // Local Profile left untouched.
+        }
     }
 
     // --- Create Account: Screen 1 (Email) + Screen 2 (Password) ---
@@ -229,6 +340,14 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 AuthRepository.reloadCurrentUser()
                 if (AuthRepository.isCurrentUserEmailVerified) {
+                    // Only when this lands directly on Home: NavGraph routes a still-blank
+                    // displayName to Set Up Profile instead, whose own submitProfileSetup()
+                    // already runs this same sync once profile setup finishes - calling it here
+                    // too for that branch would just be a redundant duplicate sync for an
+                    // account that, being brand new, has nothing to restore yet anyway.
+                    if (!AuthRepository.currentUser?.displayName.isNullOrBlank()) {
+                        syncAfterSignIn()
+                    }
                     onVerified()
                 } else {
                     _verifyEmailState.update {
@@ -354,3 +473,35 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 }
+
+/** Local<->cloud conversion for General Settings - kept as plain, internal top-level functions
+ * (not part of GeneralSettingsRepository/CloudBackupRepository themselves) since this specific
+ * enum<->String mapping, with its specific unrecognized-value fallbacks, is only needed at sync
+ * boundaries: [syncAfterSignIn] (restore) and [DataPrivacyViewModel.backupNow] (push-on-demand). */
+internal fun GeneralSettingsSnapshot.toCloud(): CloudGeneralSettings = CloudGeneralSettings(
+    startScreen = startScreen.name,
+    defaultTimerMinutes = defaultTimerMinutes,
+    defaultTag = defaultTag,
+    defaultPostponeIfIncomplete = defaultPostponeIfIncomplete,
+    focusSessionNotificationsEnabled = focusSessionNotificationsEnabled,
+    focusSessionCompleteEnabled = focusSessionCompleteEnabled,
+    weekStartDay = weekStartDay.name,
+    timeFormat = timeFormat.name,
+    hapticFeedbackEnabled = hapticFeedbackEnabled,
+    notesViewMode = notesViewMode.name,
+    updatedAt = updatedAt
+)
+
+internal fun CloudGeneralSettings.toLocal(): GeneralSettingsSnapshot = GeneralSettingsSnapshot(
+    startScreen = runCatching { StartScreen.valueOf(startScreen) }.getOrDefault(StartScreen.TASKS),
+    defaultTimerMinutes = defaultTimerMinutes,
+    defaultTag = defaultTag,
+    defaultPostponeIfIncomplete = defaultPostponeIfIncomplete,
+    focusSessionNotificationsEnabled = focusSessionNotificationsEnabled,
+    focusSessionCompleteEnabled = focusSessionCompleteEnabled,
+    weekStartDay = runCatching { DayOfWeek.valueOf(weekStartDay) }.getOrDefault(DayOfWeek.MONDAY),
+    timeFormat = runCatching { TimeFormat.valueOf(timeFormat) }.getOrDefault(TimeFormat.SYSTEM_DEFAULT),
+    hapticFeedbackEnabled = hapticFeedbackEnabled,
+    notesViewMode = runCatching { NotesViewMode.valueOf(notesViewMode) }.getOrDefault(NotesViewMode.LIST),
+    updatedAt = updatedAt
+)
