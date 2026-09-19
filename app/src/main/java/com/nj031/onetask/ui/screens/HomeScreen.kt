@@ -76,7 +76,7 @@ import com.nj031.onetask.data.task.TaskPriority
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
-import com.nj031.onetask.ui.components.HomeCalendarDialog
+import com.nj031.onetask.ui.components.OneTaskCalendarDialog
 import com.nj031.onetask.ui.components.OneTaskBottomNav
 import com.nj031.onetask.ui.components.ProfileAvatar
 import com.nj031.onetask.ui.haptics.rememberHapticTick
@@ -362,7 +362,7 @@ fun HomeScreen(
 
     if (showDatePicker) {
         val datesWithTasks by viewModel.datesWithTasksInCalendarMonth.collectAsState()
-        HomeCalendarDialog(
+        OneTaskCalendarDialog(
             selectedDate = selectedDate,
             onDateSelected = { viewModel.selectDate(it) },
             onDismiss = { showDatePicker = false },

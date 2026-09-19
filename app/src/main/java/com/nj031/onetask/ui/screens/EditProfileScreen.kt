@@ -25,7 +25,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
@@ -38,7 +37,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -56,18 +54,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.profile.Gender
 import com.nj031.onetask.data.profile.ProfilePhotoStorage
-import com.nj031.onetask.ui.components.DateWheelColumn
-import com.nj031.onetask.ui.components.DateWheelColumnDivider
-import com.nj031.onetask.ui.components.monthShortName
+import com.nj031.onetask.ui.components.OneTaskDatePickerDialog
 import com.nj031.onetask.viewmodel.ProfileViewModel
 import java.time.Instant
 import java.time.LocalDate
-import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.io.File
@@ -336,10 +330,19 @@ fun EditProfileScreen(
     }
 
     if (showDatePicker) {
-        DobPickerDialog(
+        // Always opens on today's date, never the previously saved DOB, and structurally
+        // excludes every future date via maxDate = today - both preserved unchanged from before
+        // this screen migrated to the shared canonical Date Picker.
+        val today = remember { LocalDate.now() }
+        OneTaskDatePickerDialog(
+            initialDate = today,
+            minDate = LocalDate.of(today.year - DOB_PICKER_MIN_YEAR_SPAN, 1, 1),
+            maxDate = today,
+            title = stringResource(id = R.string.profile_edit_dob_label),
+            confirmButtonText = stringResource(id = R.string.profile_edit_dob_confirm),
             onDismiss = { showDatePicker = false },
-            onSelect = { millis ->
-                dateOfBirth = millis
+            onDateSelected = { date ->
+                dateOfBirth = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
                 showDatePicker = false
             }
         )
@@ -385,139 +388,6 @@ fun EditProfileScreen(
                 }
             }
         )
-    }
-}
-
-/**
- * Compact three-column Month/Day/Year wheel picker for Date of Birth, reusing the same
- * DateWheelColumn mechanism as the Tasks homepage's Jump to Date. Always opens on today's date
- * (never the previously saved DOB) and structurally excludes every future date - the current
- * year's future months and the current month's future days are simply absent from their wheels,
- * not merely disabled - so no invalid combination is ever selectable through the picker itself.
- */
-@Composable
-private fun DobPickerDialog(
-    onDismiss: () -> Unit,
-    onSelect: (Long) -> Unit
-) {
-    val today = remember { LocalDate.now() }
-
-    var pickedYear by remember { mutableStateOf(today.year) }
-    var pickedMonth by remember { mutableStateOf(today.monthValue) }
-    var pickedDay by remember { mutableStateOf(today.dayOfMonth) }
-
-    val maxMonth = if (pickedYear == today.year) today.monthValue else 12
-    if (pickedMonth > maxMonth) {
-        pickedMonth = maxMonth
-    }
-
-    val daysInPickedMonth = YearMonth.of(pickedYear, pickedMonth).lengthOfMonth()
-    val maxDay = if (pickedYear == today.year && pickedMonth == today.monthValue) {
-        today.dayOfMonth
-    } else {
-        daysInPickedMonth
-    }
-    if (pickedDay > maxDay) {
-        pickedDay = maxDay
-    }
-
-    val minYear = today.year - DOB_PICKER_MIN_YEAR_SPAN
-    val monthLabels = remember(maxMonth) { (1..maxMonth).map(::monthShortName) }
-    val dayLabels = remember(maxDay) { (1..maxDay).map(Int::toString) }
-    val yearLabels = remember(minYear) { (minYear..today.year).map(Int::toString) }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 6.dp
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 20.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.profile_edit_dob_label),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .clickable(onClick = onDismiss),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = stringResource(id = R.string.close),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 20.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
-                ) {
-                    DateWheelColumn(
-                        items = monthLabels,
-                        selectedIndex = pickedMonth - 1,
-                        onSelectedIndexChange = { pickedMonth = it + 1 },
-                        modifier = Modifier.weight(1f)
-                    )
-                    DateWheelColumnDivider()
-                    DateWheelColumn(
-                        items = dayLabels,
-                        selectedIndex = pickedDay - 1,
-                        onSelectedIndexChange = { pickedDay = it + 1 },
-                        modifier = Modifier.weight(1f)
-                    )
-                    DateWheelColumnDivider()
-                    DateWheelColumn(
-                        items = yearLabels,
-                        selectedIndex = pickedYear - minYear,
-                        onSelectedIndexChange = { pickedYear = minYear + it },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 20.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.primary)
-                        .clickable {
-                            val epochMillis = LocalDate.of(pickedYear, pickedMonth, pickedDay)
-                                .atStartOfDay(ZoneId.of("UTC"))
-                                .toInstant()
-                                .toEpochMilli()
-                            onSelect(epochMillis)
-                        }
-                        .padding(vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.profile_edit_dob_confirm),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
-            }
-        }
     }
 }
 
