@@ -75,7 +75,12 @@ class TaskRepository(private val dao: TaskDao) {
             tag = tag,
             postponeIfIncomplete = postponeIfIncomplete,
             createdAt = now,
-            updatedAt = now
+            updatedAt = now,
+            // Negated so ascending-by-orderInAll sort (unchanged - see HomeScreen/reorderTasks)
+            // places the newest task first without touching the sort direction itself, which
+            // would otherwise invert the position of every task a user has already manually
+            // drag-reordered (reorderTasks writes small sequential indices, not timestamps).
+            orderInAll = -now
         )
         dao.insert(task)
         CloudBackupRepository.pushTask(task)

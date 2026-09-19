@@ -76,12 +76,13 @@ import com.nj031.onetask.data.task.TaskPriority
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
+import com.nj031.onetask.ui.components.OneTaskAddButton
 import com.nj031.onetask.ui.components.OneTaskCalendarDialog
 import com.nj031.onetask.ui.components.OneTaskBottomNav
 import com.nj031.onetask.ui.components.ProfileAvatar
 import com.nj031.onetask.ui.haptics.rememberHapticTick
-import com.nj031.onetask.ui.theme.OneTaskAddIcon
 import com.nj031.onetask.ui.theme.OneTaskCalendarIcon
+import com.nj031.onetask.ui.theme.OneTaskTasksIcon
 import com.nj031.onetask.ui.theme.OneTaskTheme
 import com.nj031.onetask.viewmodel.HomeViewModel
 import java.time.DayOfWeek
@@ -98,6 +99,14 @@ import kotlinx.coroutines.launch
 private const val AUTO_SCROLL_EDGE_ZONE_DP = 72
 private const val AUTO_SCROLL_MIN_SPEED_DP_PER_SEC = 200f
 private const val AUTO_SCROLL_MAX_SPEED_DP_PER_SEC = 1200f
+
+/** The Tasks screen's compact filter strip (All/Basic/Timer, plus a separate non-selectable
+ * Category placeholder - see [TaskFilterStrip]). BASIC/TIMER classification depends only on
+ * whether [com.nj031.onetask.data.task.TaskEntity.timerMinutes] is set - never Reminder,
+ * Category, Priority, Subtasks, Repeat, or Pending Task. All/Basic/Timer are filtered views over
+ * the exact same manual order (see [TaskOrderScope.ALL]'s use in HomeScreen), not independent
+ * drag-and-drop scopes the way the old In Progress/Done tabs were. */
+private enum class TaskListFilter { ALL, BASIC, TIMER }
 
 @Composable
 fun HomeScreen(
@@ -118,8 +127,9 @@ fun HomeScreen(
     var deleteConfirmTask by remember { mutableStateOf<TaskEntity?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
     // All is the default per spec - every task for the day is visible until the user narrows
-    // it down, matching what this screen always showed before tabs existed.
-    var selectedTab by remember { mutableStateOf(TaskOrderScope.ALL) }
+    // it down. Category is a visual-only placeholder (see TaskFilterStrip's own doc comment) -
+    // it's never a value selectedFilter can hold, so there is nothing to invent behavior for.
+    var selectedFilter by remember { mutableStateOf(TaskListFilter.ALL) }
     val hapticTick = rememberHapticTick()
     val listState = rememberLazyListState()
 
@@ -218,16 +228,24 @@ fun HomeScreen(
 
     val selectedDate by viewModel.selectedDate.collectAsState()
     val tasks by viewModel.tasksForSelectedDate.collectAsState()
-    // A view/filter over the same task list, sorted by the current tab's own independent manual
-    // order - switching tabs, or completing a task, never reorders or touches another tab's
-    // order.
-    val visibleTasks = when (selectedTab) {
-        TaskOrderScope.ALL -> tasks.sortedBy { it.orderInAll }
-        TaskOrderScope.IN_PROGRESS ->
-            tasks.filter { it.status == TaskStatus.IN_PROGRESS }.sortedBy { it.orderInProgress }
-        TaskOrderScope.DONE ->
-            tasks.filter { it.status == TaskStatus.COMPLETED }.sortedBy { it.orderInDone }
-    }
+    // All/Basic/Timer are filtered VIEWS over one single shared manual order (orderInAll) -
+    // filtering never re-sorts the remaining tasks, it only narrows which of them are shown, per
+    // spec. Basic/Timer classification depends only on whether a timer is set - Reminder,
+    // Category, Priority, Subtasks, Repeat, and Pending Task never affect it. Within that
+    // filtered set, completed tasks are sunk below active ones (each group keeps its own
+    // orderInAll ordering) rather than being a separate tab/scope the way Done used to be - so
+    // completing/un-completing a task only ever moves it between these two groups, never touches
+    // orderInAll itself, and un-completing naturally restores its prior position.
+    val visibleTasks = tasks
+        .filter { task ->
+            when (selectedFilter) {
+                TaskListFilter.ALL -> true
+                TaskListFilter.BASIC -> task.timerMinutes == null
+                TaskListFilter.TIMER -> task.timerMinutes != null
+            }
+        }
+        .partition { it.status == TaskStatus.COMPLETED }
+        .let { (completed, active) -> active.sortedBy { it.orderInAll } + completed.sortedBy { it.orderInAll } }
 
     // Only re-sync from the real (persisted) order while nothing is actively being dragged, so a
     // fresh Flow emission mid-drag can't yank the list back to the pre-drag order under the
@@ -247,6 +265,9 @@ fun HomeScreen(
                 onTasksClick = {},
                 onTimerClick = onOpenTimerPlaceholder
             )
+        },
+        floatingActionButton = {
+            OneTaskAddButton(onClick = onAddTaskClick, contentDescription = stringResource(id = R.string.add_task))
         }
     ) { innerPadding ->
         Box(
@@ -270,44 +291,23 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
-                HomeTopBar(
+                TaskScreenHeader(
                     profilePhotoPath = profilePhotoPath,
+                    selectedDate = selectedDate,
                     onAvatarClick = onProfileAvatarClick,
+                    onPreviousDay = viewModel::goToPreviousDay,
+                    onNextDay = viewModel::goToNextDay,
                     onCalendarClick = { showDatePicker = true }
                 )
 
-                DateNavigationRow(
-                    selectedDate = selectedDate,
-                    onPreviousDay = viewModel::goToPreviousDay,
-                    onNextDay = viewModel::goToNextDay,
-                    modifier = Modifier.padding(top = 24.dp)
-                )
-
-                val completedCount = tasks.count { it.status == TaskStatus.COMPLETED }
-                Text(
-                    modifier = Modifier
-                        .padding(top = 20.dp)
-                        .fillMaxWidth(),
-                    text = stringResource(id = R.string.tasks_completed, completedCount, tasks.size),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.primary,
-                    textAlign = TextAlign.Center
-                )
-
-                HomeAddTaskBar(
-                    onClick = onAddTaskClick,
-                    modifier = Modifier.padding(top = 16.dp)
-                )
-
-                HomeTaskTabRow(
-                    selectedTab = selectedTab,
-                    onTabSelected = { selectedTab = it },
+                TaskFilterStrip(
+                    selectedFilter = selectedFilter,
+                    onFilterSelected = { selectedFilter = it },
                     modifier = Modifier.padding(top = 16.dp)
                 )
 
                 if (visibleTasks.isEmpty()) {
-                    HomeEmptyState(modifier = Modifier.padding(top = 40.dp))
+                    HomeEmptyState(modifier = Modifier.weight(1f))
                 } else {
                     LazyColumn(
                         state = listState,
@@ -348,7 +348,11 @@ fun HomeScreen(
                                     val finalOrder = displayedTasks
                                     draggedTaskId = null
                                     dragOffsetY = 0f
-                                    viewModel.reorderTasks(selectedTab, finalOrder)
+                                    // All/Basic/Timer share one manual order (see visibleTasks
+                                    // above), so a reorder from any of them always persists to
+                                    // the same ALL scope - unchanged drag-and-drop mechanics,
+                                    // just always targeting the one scope that now exists.
+                                    viewModel.reorderTasks(TaskOrderScope.ALL, finalOrder)
                                 },
                                 listState = listState,
                                 modifier = if (isDragged) Modifier else Modifier.animateItem()
@@ -385,137 +389,24 @@ fun HomeScreen(
 }
 
 /**
- * The Tasks screen's Add Task control - a horizontal rounded bar in the normal page flow,
- * replacing the old circular floating action button. It's a general/global control (not scoped
- * to any one tab below it) and triggers the exact same [onClick] the FAB used to call; only its
- * shape and position changed. Uses the same primary/white pairing the old FAB used, so it stays
- * visually consistent with the rest of this screen.
+ * The Tasks screen's compact header: profile avatar, previous-day, the selected date, next-day,
+ * and the calendar entry point, all in one row - replacing the old two-row header (branding
+ * title/tagline centered above a separate date-navigation row) per the UI revamp. Every callback
+ * here is the exact same one the old two-row layout already called; only the arrangement changed
+ * - date-navigation and calendar/profile access all still work exactly as before.
  */
 @Composable
-private fun HomeAddTaskBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val addTaskDescription = stringResource(id = R.string.add_task)
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
-            .background(MaterialTheme.colorScheme.primary)
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = addTaskDescription }
-            .padding(vertical = 14.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        OneTaskAddIcon(size = 20.dp, drawContainer = false, plusColor = Color.White)
-        Text(
-            text = addTaskDescription,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.padding(start = 8.dp)
-        )
-    }
-}
-
-/**
- * Replaces the old In Progress/Done section headings with a 3-way filter over the same task
- * list. IN_PROGRESS and DONE reuse [TaskStatus] exactly as it already worked before this change
- * (status == IN_PROGRESS covers a running, paused, or finished-but-not-completed timer; status ==
- * COMPLETED only ever changes via the task's own checkbox) - no new completion/timer logic was
- * introduced, this is purely a presentation change. Reuses [TaskOrderScope] (rather than a
- * separate UI-only enum) since each tab is now also a distinct drag-and-drop order scope - one
- * ALL/IN_PROGRESS/DONE concept, not two.
- */
-@Composable
-private fun HomeTaskTabRow(
-    selectedTab: TaskOrderScope,
-    onTabSelected: (TaskOrderScope) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val tabs = listOf(
-        TaskOrderScope.ALL to stringResource(id = R.string.tab_all),
-        TaskOrderScope.IN_PROGRESS to stringResource(id = R.string.status_in_progress),
-        TaskOrderScope.DONE to stringResource(id = R.string.section_done)
-    )
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(4.dp)
-    ) {
-        tabs.forEach { (tab, label) ->
-            val isSelected = tab == selectedTab
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .then(if (isSelected) Modifier.background(MaterialTheme.colorScheme.primary) else Modifier)
-                    .clickable { onTabSelected(tab) }
-                    .padding(vertical = 8.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun HomeTopBar(profilePhotoPath: String?, onAvatarClick: () -> Unit, onCalendarClick: () -> Unit) {
-    val profileDescription = stringResource(id = R.string.nav_profile)
-    val calendarDescription = stringResource(id = R.string.calendar)
-
-    Box(modifier = Modifier.fillMaxWidth()) {
-        IconButton(
-            onClick = onAvatarClick,
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .semantics { contentDescription = profileDescription }
-        ) {
-            ProfileAvatar(photoPath = profilePhotoPath, size = 32.dp)
-        }
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .padding(horizontal = 48.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = stringResource(id = R.string.home_title),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = stringResource(id = R.string.home_tagline),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-        }
-
-        IconButton(
-            onClick = onCalendarClick,
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .semantics { contentDescription = calendarDescription }
-        ) {
-            OneTaskCalendarIcon(tint = MaterialTheme.colorScheme.primary)
-        }
-    }
-}
-
-@Composable
-private fun DateNavigationRow(
+private fun TaskScreenHeader(
+    profilePhotoPath: String?,
     selectedDate: LocalDate,
+    onAvatarClick: () -> Unit,
     onPreviousDay: () -> Unit,
     onNextDay: () -> Unit,
+    onCalendarClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val profileDescription = stringResource(id = R.string.nav_profile)
+    val calendarDescription = stringResource(id = R.string.calendar)
     val today = remember { LocalDate.now() }
     val relativeLabel = when (selectedDate) {
         today -> stringResource(id = R.string.today)
@@ -532,6 +423,13 @@ private fun DateNavigationRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        IconButton(
+            onClick = onAvatarClick,
+            modifier = Modifier.semantics { contentDescription = profileDescription }
+        ) {
+            ProfileAvatar(photoPath = profilePhotoPath, size = 32.dp)
+        }
+
         IconButton(onClick = onPreviousDay) {
             Icon(
                 imageVector = Icons.Filled.KeyboardArrowLeft,
@@ -540,17 +438,22 @@ private fun DateNavigationRow(
             )
         }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Text(
                 text = relativeLabel,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center
             )
             Text(
                 text = formattedDate,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
             )
         }
 
@@ -561,29 +464,105 @@ private fun DateNavigationRow(
                 tint = MaterialTheme.colorScheme.primary
             )
         }
+
+        IconButton(
+            onClick = onCalendarClick,
+            modifier = Modifier.semantics { contentDescription = calendarDescription }
+        ) {
+            OneTaskCalendarIcon(tint = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+/**
+ * The compact filter strip under date navigation: All/Basic/Timer/Category. All/Basic/Timer
+ * drive [TaskListFilter] (see its own doc comment for the exact All/Basic/Timer classification
+ * rule); Category is a visual-only placeholder for now - tapping it intentionally does nothing
+ * (never calls [onFilterSelected], never becomes the selected pill) since Category filtering
+ * isn't implemented yet. Do not wire it up to any filtering behavior until that's built.
+ */
+@Composable
+private fun TaskFilterStrip(
+    selectedFilter: TaskListFilter,
+    onFilterSelected: (TaskListFilter) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val filters = listOf(
+        TaskListFilter.ALL to stringResource(id = R.string.tab_all),
+        TaskListFilter.BASIC to stringResource(id = R.string.task_filter_basic),
+        TaskListFilter.TIMER to stringResource(id = R.string.task_filter_timer)
+    )
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        filters.forEach { (filter, label) ->
+            FilterPill(
+                text = label,
+                selected = filter == selectedFilter,
+                onClick = { onFilterSelected(filter) }
+            )
+        }
+        FilterPill(
+            text = stringResource(id = R.string.task_filter_category),
+            selected = false,
+            onClick = {}
+        )
     }
 }
 
 @Composable
+private fun FilterPill(text: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.Bold,
+        color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+    )
+}
+
+/**
+ * Centered, calm empty state - the existing Tasks-tab glyph ([OneTaskTasksIcon], reused rather
+ * than a new illustration asset) on a soft tonal backdrop, plus the same title/subtitle text this
+ * screen already used. Shown identically whether the whole day has no tasks or the current
+ * All/Basic/Timer filter simply has no matches within an otherwise non-empty day - no task data
+ * is ever fabricated to avoid this state.
+ */
+@Composable
 private fun HomeEmptyState(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = stringResource(id = R.string.home_empty_title),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center
-        )
-        Text(
-            text = stringResource(id = R.string.home_empty_subtitle),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 8.dp)
-        )
+    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier = Modifier
+                    .size(96.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                OneTaskTasksIcon(active = false, size = 48.dp)
+            }
+            Text(
+                text = stringResource(id = R.string.home_empty_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 20.dp)
+            )
+            Text(
+                text = stringResource(id = R.string.home_empty_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
     }
 }
 
