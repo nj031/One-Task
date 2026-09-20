@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
@@ -49,7 +50,12 @@ fun OneTaskBottomNav(
     activeTab: BottomNavTab,
     onJournalClick: () -> Unit,
     onTasksClick: () -> Unit,
-    onTimerClick: () -> Unit
+    onTimerClick: () -> Unit,
+    // Defaults to the ordinary theme surface color, exactly as before this param existed - only
+    // a wallpaper-active screen (see WallpaperBackdrop) ever passes its own distinct translucent
+    // Bottom Navigation color instead (see the Wallpaper spec's own exact opacity values, kept
+    // separate from every other card-like surface's own translucency).
+    backgroundColor: Color = MaterialTheme.colorScheme.surface
 ) {
     val journalLabel = stringResource(id = R.string.nav_journal)
     val tasksLabel = stringResource(id = R.string.nav_tasks)
@@ -62,7 +68,7 @@ fun OneTaskBottomNav(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
+            .background(backgroundColor)
     ) {
         Box(
             modifier = Modifier

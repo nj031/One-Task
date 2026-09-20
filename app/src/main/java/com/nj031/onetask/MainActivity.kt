@@ -76,6 +76,7 @@ class MainActivity : ComponentActivity() {
             val appearanceSettingsViewModel: AppearanceSettingsViewModel = viewModel()
             val displayMode by appearanceSettingsViewModel.displayMode.collectAsState()
             val colorTheme by appearanceSettingsViewModel.colorTheme.collectAsState()
+            val wallpaper by appearanceSettingsViewModel.wallpaper.collectAsState()
             val systemInDarkTheme = isSystemInDarkTheme()
             val darkTheme = when (displayMode) {
                 DisplayMode.SYSTEM -> systemInDarkTheme
@@ -83,14 +84,16 @@ class MainActivity : ComponentActivity() {
                 DisplayMode.DARK -> true
             }
 
-            OneTaskTheme(darkTheme = darkTheme, colorTheme = colorTheme) {
+            OneTaskTheme(darkTheme = darkTheme, colorTheme = colorTheme, wallpaper = wallpaper) {
                 OneTaskNavHost(
                     activeFocusTaskId = activeFocusTaskId,
                     reopenFocusTaskId = reopenFocusTaskIdState,
                     reopenFocusRequestId = reopenFocusRequestIdState,
                     reopenTaskId = reopenTaskIdState,
                     reopenTaskRequestId = reopenTaskRequestIdState,
-                    appearanceSettingsViewModel = appearanceSettingsViewModel
+                    appearanceSettingsViewModel = appearanceSettingsViewModel,
+                    wallpaper = wallpaper,
+                    darkTheme = darkTheme
                 )
             }
         }

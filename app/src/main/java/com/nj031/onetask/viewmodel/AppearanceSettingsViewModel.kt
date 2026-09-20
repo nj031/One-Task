@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.nj031.onetask.data.settings.AppearanceSettingsRepository
 import com.nj031.onetask.data.settings.ColorTheme
 import com.nj031.onetask.data.settings.DisplayMode
+import com.nj031.onetask.data.settings.Wallpaper
 import com.nj031.onetask.data.sync.CloudAppearance
 import com.nj031.onetask.data.sync.CloudBackupRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +30,9 @@ class AppearanceSettingsViewModel(application: Application) : AndroidViewModel(a
     private val _colorTheme = MutableStateFlow(repository.getColorTheme())
     val colorTheme: StateFlow<ColorTheme> = _colorTheme.asStateFlow()
 
+    private val _wallpaper = MutableStateFlow(repository.getWallpaper())
+    val wallpaper: StateFlow<Wallpaper> = _wallpaper.asStateFlow()
+
     fun setDisplayMode(mode: DisplayMode) {
         repository.setDisplayMode(mode)
         _displayMode.value = mode
@@ -38,6 +42,14 @@ class AppearanceSettingsViewModel(application: Application) : AndroidViewModel(a
     fun setColorTheme(theme: ColorTheme) {
         repository.setColorTheme(theme)
         _colorTheme.value = theme
+        pushToCloud()
+    }
+
+    /** Never touches the saved Theme Color (see [AppearanceSettingsRepository.setWallpaper]'s own
+     * doc comment) - selecting a wallpaper only changes which one is visually active right now. */
+    fun setWallpaper(wallpaper: Wallpaper) {
+        repository.setWallpaper(wallpaper)
+        _wallpaper.value = wallpaper
         pushToCloud()
     }
 
@@ -51,6 +63,7 @@ class AppearanceSettingsViewModel(application: Application) : AndroidViewModel(a
                 CloudAppearance(
                     displayMode = repository.getDisplayMode().name,
                     colorTheme = repository.getColorTheme().name,
+                    wallpaper = repository.getWallpaper().name,
                     updatedAt = repository.getUpdatedAt()
                 )
             )

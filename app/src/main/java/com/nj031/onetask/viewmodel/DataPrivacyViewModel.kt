@@ -55,7 +55,12 @@ class DataPrivacyViewModel(application: Application) : AndroidViewModel(applicat
 
         val appearance = appearanceRepository.getSnapshot()
         CloudBackupRepository.pushAppearance(
-            CloudAppearance(appearance.displayMode.name, appearance.colorTheme.name, appearance.updatedAt)
+            CloudAppearance(
+                displayMode = appearance.displayMode.name,
+                colorTheme = appearance.colorTheme.name,
+                updatedAt = appearance.updatedAt,
+                wallpaper = appearance.wallpaper.name
+            )
         )
         CloudBackupRepository.pushGeneralSettings(settingsRepository.getSnapshot().toCloud())
         val profile = profileRepository.getProfile(defaultName = AuthRepository.currentUser?.displayName.orEmpty())
