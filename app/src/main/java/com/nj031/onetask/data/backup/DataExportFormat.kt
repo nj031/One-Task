@@ -78,6 +78,7 @@ private fun TaskEntity.toJson(): JSONObject = JSONObject().apply {
     put("repeatDays", repeatDays)
     put("seriesId", seriesId ?: JSONObject.NULL)
     put("tag", tag ?: JSONObject.NULL)
+    put("categoryId", categoryId ?: JSONObject.NULL)
     put("postponeIfIncomplete", postponeIfIncomplete)
     put("status", status.name)
     put("timerEndAtMillis", timerEndAtMillis ?: JSONObject.NULL)
@@ -122,6 +123,9 @@ private fun JSONObject.toTaskEntity(): TaskEntity {
         repeatDays = optString("repeatDays", ""),
         seriesId = if (isNull("seriesId")) null else getString("seriesId"),
         tag = if (isNull("tag")) null else getString("tag"),
+        // Absent from any backup file written before Category existed - default to null ("No
+        // Category"), exactly like a brand-new task without one.
+        categoryId = if (has("categoryId") && !isNull("categoryId")) getString("categoryId") else null,
         postponeIfIncomplete = optBoolean("postponeIfIncomplete", true),
         status = runCatching { TaskStatus.valueOf(getString("status")) }.getOrDefault(TaskStatus.NOT_STARTED),
         timerEndAtMillis = if (isNull("timerEndAtMillis")) null else getLong("timerEndAtMillis"),

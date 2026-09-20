@@ -77,6 +77,7 @@ import com.nj031.onetask.data.task.TaskOrderScope
 import com.nj031.onetask.data.task.TaskPriority
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.ui.components.BottomNavTab
+import com.nj031.onetask.ui.components.CategorySelectorDialog
 import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.ui.components.OneTaskAddButton
 import com.nj031.onetask.ui.components.OneTaskCalendarDialog
@@ -113,13 +114,24 @@ private const val AUTO_SCROLL_MAX_SPEED_DP_PER_SEC = 1200f
 private const val FAB_SCAFFOLD_END_MARGIN_DP = 16
 private const val FAB_SAFETY_GAP_DP = 8
 
-/** The Tasks screen's compact filter strip (All/Basic/Timer, plus a separate non-selectable
- * Category placeholder - see [TaskFilterStrip]). BASIC/TIMER classification depends only on
- * whether [com.nj031.onetask.data.task.TaskEntity.timerMinutes] is set - never Reminder,
- * Category, Priority, Subtasks, Repeat, or Pending Task. All/Basic/Timer are filtered views over
- * the exact same manual order (see [TaskOrderScope.ALL]'s use in HomeScreen), not independent
- * drag-and-drop scopes the way the old In Progress/Done tabs were. */
-private enum class TaskListFilter { ALL, BASIC, TIMER }
+/** The Tasks screen's compact filter strip (All/Basic/Timer/Category - see [TaskFilterStrip]).
+ * BASIC/TIMER classification depends only on whether
+ * [com.nj031.onetask.data.task.TaskEntity.timerMinutes] is set - never Reminder, Category,
+ * Priority, Subtasks, Repeat, or Pending Task; this is unchanged by Category's own filter mode
+ * below. All/Basic/Timer/Category are filtered views over the exact same manual order (see
+ * [TaskOrderScope.ALL]'s use in HomeScreen), not independent drag-and-drop scopes the way the old
+ * In Progress/Done tabs were.
+ *
+ * [CATEGORY.categoryId] is which category the filter is currently narrowed to - null means "No
+ * Category" (a task with no category assigned), never "nothing chosen yet"; tapping the Category
+ * pill always opens [CategorySelectorDialog] to choose or change it (see
+ * onCategoryFilterClick below), it never toggles CATEGORY on by itself. */
+private sealed class TaskListFilter {
+    object ALL : TaskListFilter()
+    object BASIC : TaskListFilter()
+    object TIMER : TaskListFilter()
+    data class CATEGORY(val categoryId: String?) : TaskListFilter()
+}
 
 @Composable
 fun HomeScreen(
@@ -131,6 +143,7 @@ fun HomeScreen(
     onOpenFocusTimer: (String) -> Unit = {},
     onAddTaskClick: () -> Unit = {},
     onEditTaskClick: (String) -> Unit = {},
+    onAddCategoryClick: () -> Unit = {},
     weekStartDay: DayOfWeek = DayOfWeek.MONDAY
 ) {
     // Which task's compact Action Row is currently open, if any - only one at a time, replacing
@@ -140,9 +153,10 @@ fun HomeScreen(
     var deleteConfirmTask by remember { mutableStateOf<TaskEntity?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
     // All is the default per spec - every task for the day is visible until the user narrows
-    // it down. Category is a visual-only placeholder (see TaskFilterStrip's own doc comment) -
-    // it's never a value selectedFilter can hold, so there is nothing to invent behavior for.
-    var selectedFilter by remember { mutableStateOf(TaskListFilter.ALL) }
+    // it down.
+    var selectedFilter by remember { mutableStateOf<TaskListFilter>(TaskListFilter.ALL) }
+    var showCategoryFilterSelector by remember { mutableStateOf(false) }
+    val customCategories by viewModel.customCategories.collectAsState()
     val hapticTick = rememberHapticTick()
     val listState = rememberLazyListState()
     // The FAB's real, measured height - see FAB_SCAFFOLD_END_MARGIN_DP's own comment for why this
@@ -254,10 +268,11 @@ fun HomeScreen(
     // orderInAll itself, and un-completing naturally restores its prior position.
     val visibleTasks = tasks
         .filter { task ->
-            when (selectedFilter) {
+            when (val filter = selectedFilter) {
                 TaskListFilter.ALL -> true
                 TaskListFilter.BASIC -> task.timerMinutes == null
                 TaskListFilter.TIMER -> task.timerMinutes != null
+                is TaskListFilter.CATEGORY -> task.categoryId == filter.categoryId
             }
         }
         .partition { it.status == TaskStatus.COMPLETED }
@@ -326,6 +341,7 @@ fun HomeScreen(
                 TaskFilterStrip(
                     selectedFilter = selectedFilter,
                     onFilterSelected = { selectedFilter = it },
+                    onCategoryFilterClick = { showCategoryFilterSelector = true },
                     modifier = Modifier.padding(top = 16.dp)
                 )
 
@@ -394,6 +410,22 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    if (showCategoryFilterSelector) {
+        CategorySelectorDialog(
+            currentCategoryId = (selectedFilter as? TaskListFilter.CATEGORY)?.categoryId,
+            customCategories = customCategories,
+            onDismiss = { showCategoryFilterSelector = false },
+            onConfirm = { chosen ->
+                selectedFilter = TaskListFilter.CATEGORY(chosen)
+                showCategoryFilterSelector = false
+            },
+            onAddCategoryClick = {
+                showCategoryFilterSelector = false
+                onAddCategoryClick()
+            }
+        )
     }
 
     if (showDatePicker) {
@@ -508,15 +540,18 @@ private fun TaskScreenHeader(
 
 /**
  * The compact filter strip under date navigation: All/Basic/Timer/Category. All/Basic/Timer
- * drive [TaskListFilter] (see its own doc comment for the exact All/Basic/Timer classification
- * rule); Category is a visual-only placeholder for now - tapping it intentionally does nothing
- * (never calls [onFilterSelected], never becomes the selected pill) since Category filtering
- * isn't implemented yet. Do not wire it up to any filtering behavior until that's built.
+ * drive [TaskListFilter] directly (see its own doc comment for the exact All/Basic/Timer
+ * classification rule, unchanged by Category). Tapping Category never toggles a filter by
+ * itself - it always calls [onCategoryFilterClick] to open the Category selector (see
+ * HomeScreen's own [CategorySelectorDialog] usage), which is what actually applies a
+ * [TaskListFilter.CATEGORY] value via [onFilterSelected]. The pill shows selected whenever
+ * [selectedFilter] is already CATEGORY, regardless of which category it's narrowed to.
  */
 @Composable
 private fun TaskFilterStrip(
     selectedFilter: TaskListFilter,
     onFilterSelected: (TaskListFilter) -> Unit,
+    onCategoryFilterClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val filters = listOf(
@@ -537,8 +572,8 @@ private fun TaskFilterStrip(
         }
         FilterPill(
             text = stringResource(id = R.string.task_filter_category),
-            selected = false,
-            onClick = {}
+            selected = selectedFilter is TaskListFilter.CATEGORY,
+            onClick = onCategoryFilterClick
         )
     }
 }

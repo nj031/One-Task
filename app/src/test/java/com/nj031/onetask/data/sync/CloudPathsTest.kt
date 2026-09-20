@@ -18,6 +18,7 @@ class CloudPathsTest {
         assertEquals("users/$uidA/tasks", tasksPath(uidA))
         assertEquals("users/$uidA/notes", notesPath(uidA))
         assertEquals("users/$uidA/tags", tagsPath(uidA))
+        assertEquals("users/$uidA/categories", categoriesPath(uidA))
         assertEquals("users/$uidA/labels", labelsPath(uidA))
         assertEquals("users/$uidA/account", accountPath(uidA))
     }
@@ -27,6 +28,7 @@ class CloudPathsTest {
         assertNotEquals(tasksPath(uidA), tasksPath(uidB))
         assertNotEquals(notesPath(uidA), notesPath(uidB))
         assertNotEquals(tagsPath(uidA), tagsPath(uidB))
+        assertNotEquals(categoriesPath(uidA), categoriesPath(uidB))
         assertNotEquals(labelsPath(uidA), labelsPath(uidB))
         assertNotEquals(accountPath(uidA), accountPath(uidB))
         assertNotEquals(profilePhotoPath(uidA), profilePhotoPath(uidB))
@@ -42,7 +44,9 @@ class CloudPathsTest {
 
     @Test
     fun `different collection types for the same account never collide with each other`() {
-        val allPaths = listOf(tasksPath(uidA), notesPath(uidA), tagsPath(uidA), labelsPath(uidA), accountPath(uidA))
+        val allPaths = listOf(
+            tasksPath(uidA), notesPath(uidA), tagsPath(uidA), categoriesPath(uidA), labelsPath(uidA), accountPath(uidA)
+        )
         assertEquals(allPaths.size, allPaths.toSet().size)
     }
 

@@ -11,6 +11,7 @@ import com.nj031.onetask.data.journal.Converters
 import com.nj031.onetask.data.journal.JournalNoteDao
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.NoteLabelEntity
+import com.nj031.onetask.data.task.CategoryEntity
 import com.nj031.onetask.data.task.RecurringExclusionEntity
 import com.nj031.onetask.data.task.TaskConverters
 import com.nj031.onetask.data.task.TaskDao
@@ -105,15 +106,33 @@ private val MIGRATION_11_12 = object : Migration(11, 12) {
     }
 }
 
+/** Adds the Category feature's column/table in place, so every existing task/tag survives this
+ * update: categoryId defaults to null ("No Category" - the same non-default state a brand-new
+ * task without an explicit choice gets, per the Category spec's "no task is auto-assigned a
+ * category" rule), and categories is a brand-new, initially-empty table for custom categories
+ * (the 5 fixed default categories are never rows here - see DefaultCategory). Deliberately
+ * separate from the old task_tags table/TaskEntity.tag column, which are untouched by this
+ * migration - Category replaces Tag's user-facing UI, not its underlying data. */
+private val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE tasks ADD COLUMN categoryId TEXT")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS categories (" +
+                "id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, createdAt INTEGER NOT NULL)"
+        )
+    }
+}
+
 @Database(
     entities = [
         JournalNoteEntity::class,
         NoteLabelEntity::class,
         TaskEntity::class,
         TaskTagEntity::class,
-        RecurringExclusionEntity::class
+        RecurringExclusionEntity::class,
+        CategoryEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 @TypeConverters(Converters::class, TaskConverters::class)
@@ -155,7 +174,7 @@ abstract class AppDatabase : RoomDatabase() {
                 instance?.close()
                 val databaseName = "${LEGACY_DATABASE_NAME}_$userId"
                 val database = Room.databaseBuilder(appContext, AppDatabase::class.java, databaseName)
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                     .fallbackToDestructiveMigration()
                     .build()
                 instance = database

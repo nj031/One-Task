@@ -106,4 +106,41 @@ interface TaskDao {
     // rows behind either.
     @Query("DELETE FROM recurring_exclusions WHERE seriesId = :seriesId")
     suspend fun deleteRecurringExclusionsForSeries(seriesId: String)
+
+    // REPLACE (not IGNORE, unlike insertTag) - a category's id is stable but its name can change
+    // (see TaskRepository.renameCustomCategory), so re-inserting the same id must overwrite the
+    // existing row rather than silently no-op.
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCategory(category: CategoryEntity)
+
+    @Query("SELECT * FROM categories ORDER BY createdAt DESC")
+    fun getCustomCategories(): Flow<List<CategoryEntity>>
+
+    @Query("SELECT * FROM categories ORDER BY createdAt DESC")
+    suspend fun getCustomCategoriesOnce(): List<CategoryEntity>
+
+    @Query("SELECT * FROM categories WHERE id = :id")
+    suspend fun getCategoryById(id: String): CategoryEntity?
+
+    @Query("UPDATE categories SET name = :name WHERE id = :id")
+    suspend fun renameCategory(id: String, name: String)
+
+    @Query("DELETE FROM categories WHERE id = :id")
+    suspend fun deleteCategory(id: String)
+
+    @Query("DELETE FROM categories")
+    suspend fun deleteAllCategories()
+
+    // Every task currently assigned the category about to be deleted - fetched BEFORE
+    // clearCategoryFromTasks below so TaskRepository.deleteCustomCategory can mirror the same
+    // "become No Category" change to each one's cloud copy too.
+    @Query("SELECT * FROM tasks WHERE categoryId = :categoryId")
+    suspend fun getTasksByCategoryId(categoryId: String): List<TaskEntity>
+
+    // Deleting a category must cascade to every task that had it (unlike deleteTag, which
+    // deliberately never touches the tasks table) - every affected task becomes "No Category"
+    // rather than being left referencing a category id that no longer exists, per the Category
+    // spec's delete-confirmation behavior.
+    @Query("UPDATE tasks SET categoryId = NULL WHERE categoryId = :categoryId")
+    suspend fun clearCategoryFromTasks(categoryId: String)
 }

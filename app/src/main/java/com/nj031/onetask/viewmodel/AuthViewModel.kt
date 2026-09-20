@@ -182,6 +182,17 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         try {
+            val cloudCategories = CloudBackupRepository.pullCategories()
+            // REPLACE (not IGNORE, unlike insertTag) - a category's id is stable but its name can
+            // change (see TaskRepository.renameCustomCategory), so a category already present
+            // locally must still pick up a rename that happened on another device.
+            cloudCategories.forEach { taskDao.insertCategory(it) }
+            CloudBackupRepository.pushAllCategories(taskDao.getCustomCategoriesOnce())
+        } catch (_: Exception) {
+            // Local Custom Categories left untouched.
+        }
+
+        try {
             val cloudLabels = CloudBackupRepository.pullLabels()
             cloudLabels.forEach { journalNoteDao.insertLabel(NoteLabelEntity(name = it)) }
             CloudBackupRepository.pushAllLabels(journalNoteDao.getLabelsOnce())

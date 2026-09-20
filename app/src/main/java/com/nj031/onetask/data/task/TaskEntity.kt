@@ -29,6 +29,24 @@ enum class TaskOrderScope { ALL, IN_PROGRESS, DONE }
  * - [CUSTOM]: at least [TaskEntity.successConditionThreshold] subtasks must be completed. */
 enum class SuccessCondition { ALL, ANY_ONE, CUSTOM }
 
+/** The 5 fixed Categories every account has, in addition to whatever Custom Categories it has
+ * created (see [CategoryEntity]) - unlike a custom category, none of these can be renamed or
+ * deleted, so they need no durable row/stable UUID of their own; [id] is simply a fixed, stable
+ * string [TaskEntity.categoryId] can reference directly, the same way a custom category's own
+ * [CategoryEntity.id] is referenced. Display names are resolved in the UI layer (see
+ * AddTaskScreen/CategorySelectorDialog), not stored here. */
+enum class DefaultCategory(val id: String) {
+    PERSONAL("default_personal"),
+    WORK("default_work"),
+    STUDY("default_study"),
+    HEALTH("default_health"),
+    FOCUS("default_focus");
+
+    companion object {
+        fun fromId(id: String): DefaultCategory? = values().find { it.id == id }
+    }
+}
+
 @Entity(tableName = "tasks")
 data class TaskEntity(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
@@ -58,6 +76,13 @@ data class TaskEntity(
     // being treated as a series definition in its own right.
     val seriesId: String? = null,
     val tag: String? = null,
+    // A task has at most one Category (optional - null is the valid, non-default "No Category"
+    // state; a brand-new task never gets one auto-assigned). Either a [DefaultCategory.id] or a
+    // [CategoryEntity.id] - resolved to a display name in the UI layer (see
+    // AddTaskScreen/CategorySelectorDialog), never stored as a name string here, so renaming a
+    // custom category (or deleting one, which nulls this field back out on every task that had
+    // it - see TaskRepository.deleteCustomCategory) never requires touching this column.
+    val categoryId: String? = null,
     val postponeIfIncomplete: Boolean = true,
     val status: TaskStatus = TaskStatus.NOT_STARTED,
     // Non-null while the timer is actively running: the absolute wall-clock time
@@ -90,6 +115,24 @@ data class TaskEntity(
 @Entity(tableName = "task_tags")
 data class TaskTagEntity(
     @PrimaryKey val name: String
+)
+
+/**
+ * A user-created Custom Category (see [DefaultCategory] for the 5 fixed ones, which are NOT rows
+ * in this table). Unlike [TaskTagEntity] - whose primary key IS the tag's own name, so a tag has
+ * no identity independent of its current name - [id] is a separately-generated, stable UUID that
+ * never changes: renaming (see [TaskRepository.renameCustomCategory]) only ever updates [name],
+ * so every task already referencing this category by [id] (see [TaskEntity.categoryId]) picks up
+ * the new name automatically. Deleting a category (see [TaskRepository.deleteCustomCategory])
+ * removes this row entirely - a later category created with the same [name] gets a brand-new
+ * [id], so tasks that referenced the deleted one never silently reconnect to it. Names are
+ * case-sensitive and duplicates (including a name matching a [DefaultCategory]) are allowed.
+ */
+@Entity(tableName = "categories")
+data class CategoryEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val createdAt: Long = System.currentTimeMillis()
 )
 
 /**

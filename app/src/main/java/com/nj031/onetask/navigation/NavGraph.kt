@@ -65,6 +65,7 @@ import com.nj031.onetask.ui.screens.VerifyEmailScreen
 import com.nj031.onetask.service.StandaloneTimerForegroundService
 import com.nj031.onetask.service.TimerForegroundService
 import com.nj031.onetask.ui.screens.WeekStartsOnSettingScreen
+import com.nj031.onetask.viewmodel.AddTaskDraftViewModel
 import com.nj031.onetask.viewmodel.AppearanceSettingsViewModel
 import com.nj031.onetask.viewmodel.AuthViewModel
 import com.nj031.onetask.viewmodel.GeneralSettingsViewModel
@@ -127,6 +128,10 @@ fun OneTaskNavHost(
     val coroutineScope = rememberCoroutineScope()
     val journalViewModel: JournalViewModel = viewModel()
     val homeViewModel: HomeViewModel = viewModel()
+    // Hoisted here (not inside the AddTask composable() block below) for the same reason
+    // homeViewModel is - see AddTaskDraftViewModel's own doc comment - so the in-progress Add/
+    // Edit Task form survives a round trip to Settings' Custom Category management and back.
+    val addTaskDraftViewModel: AddTaskDraftViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
     val generalSettingsViewModel: GeneralSettingsViewModel = viewModel()
@@ -414,6 +419,7 @@ fun OneTaskNavHost(
                 onEditTaskClick = { taskId ->
                     navController.navigate(Screen.AddTask.createRoute(taskId))
                 },
+                onAddCategoryClick = { navController.navigate(Screen.DefaultTaskSettings.route) },
                 weekStartDay = weekStartDay
             )
         }
@@ -463,15 +469,25 @@ fun OneTaskNavHost(
             val defaultPostponeIfIncomplete by generalSettingsViewModel.defaultPostponeIfIncomplete.collectAsState()
             val weekStartDay by generalSettingsViewModel.weekStartDay.collectAsState()
             val timeFormat by generalSettingsViewModel.timeFormat.collectAsState()
+            val customCategories by homeViewModel.customCategories.collectAsState()
             AddTaskScreen(
                 viewModel = homeViewModel,
+                draftViewModel = addTaskDraftViewModel,
                 taskId = backStackEntry.arguments?.getString("taskId"),
+                customCategories = customCategories,
+                onAddCategoryClick = { navController.navigate(Screen.DefaultTaskSettings.route) },
                 defaultTimerMinutes = defaultTimerMinutes,
                 defaultTag = defaultTag,
                 defaultPostponeIfIncomplete = defaultPostponeIfIncomplete,
                 weekStartDay = weekStartDay,
                 timeFormat = timeFormat,
-                onDone = { navController.popBackStack() }
+                onDone = {
+                    // See AddTaskDraftViewModel's own doc comment - only Save/Cancel actually
+                    // leaving this screen clears the draft; navigating to Settings (above) does
+                    // not, since that's a mid-flow round trip, not leaving.
+                    addTaskDraftViewModel.clear()
+                    navController.popBackStack()
+                }
             )
         }
         composable(
@@ -630,19 +646,17 @@ fun OneTaskNavHost(
         }
         composable(Screen.DefaultTaskSettings.route) {
             val defaultTimerMinutes by generalSettingsViewModel.defaultTimerMinutes.collectAsState()
-            val defaultTag by generalSettingsViewModel.defaultTag.collectAsState()
             val defaultPostponeIfIncomplete by generalSettingsViewModel.defaultPostponeIfIncomplete.collectAsState()
-            val customTags by homeViewModel.customTags.collectAsState()
+            val customCategories by homeViewModel.customCategories.collectAsState()
             DefaultTaskSettingsScreen(
                 defaultTimerMinutes = defaultTimerMinutes,
-                defaultTag = defaultTag,
                 defaultPostponeIfIncomplete = defaultPostponeIfIncomplete,
-                customTags = customTags,
+                customCategories = customCategories,
                 onDefaultTimerMinutesChange = generalSettingsViewModel::setDefaultTimerMinutes,
-                onDefaultTagChange = generalSettingsViewModel::setDefaultTag,
                 onDefaultPostponeIfIncompleteChange = generalSettingsViewModel::setDefaultPostponeIfIncomplete,
-                onAddCustomTag = homeViewModel::addCustomTag,
-                onDeleteCustomTag = homeViewModel::deleteCustomTag,
+                onAddCustomCategory = homeViewModel::addCustomCategory,
+                onRenameCustomCategory = homeViewModel::renameCustomCategory,
+                onDeleteCustomCategory = homeViewModel::deleteCustomCategory,
                 onBackClick = { navController.popBackStack() }
             )
         }
