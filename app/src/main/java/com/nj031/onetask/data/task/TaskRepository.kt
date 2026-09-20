@@ -54,9 +54,16 @@ class TaskRepository(private val dao: TaskDao) {
 
     fun observeCustomTags(): Flow<List<String>> = dao.getCustomTags()
 
+    /** Custom Categories only - see [DefaultCategory] for the 5 fixed ones, which never need a
+     * Room row/Flow of their own since they can't be created, renamed, or deleted. Newest-first
+     * (see [TaskDao.getCustomCategories]), per the Category spec. */
+    fun observeCustomCategories(): Flow<List<CategoryEntity>> = dao.getCustomCategories()
+
     suspend fun getAllTasksOnce(): List<TaskEntity> = dao.getAll()
 
     suspend fun getAllCustomTagsOnce(): List<String> = dao.getCustomTagsOnce()
+
+    suspend fun getAllCustomCategoriesOnce(): List<CategoryEntity> = dao.getCustomCategoriesOnce()
 
     suspend fun createTask(
         name: String,
@@ -69,6 +76,7 @@ class TaskRepository(private val dao: TaskDao) {
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
+        categoryId: String? = null,
         postponeIfIncomplete: Boolean,
         successCondition: SuccessCondition = SuccessCondition.ALL,
         successConditionThreshold: Int? = null
@@ -85,6 +93,7 @@ class TaskRepository(private val dao: TaskDao) {
             repeat = repeat,
             repeatDays = repeatDays.toRepeatDaysString(),
             tag = tag,
+            categoryId = categoryId,
             postponeIfIncomplete = postponeIfIncomplete,
             successCondition = successCondition,
             successConditionThreshold = successConditionThreshold,
@@ -113,6 +122,7 @@ class TaskRepository(private val dao: TaskDao) {
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
+        categoryId: String? = task.categoryId,
         postponeIfIncomplete: Boolean,
         successCondition: SuccessCondition = task.successCondition,
         successConditionThreshold: Int? = task.successConditionThreshold
@@ -164,6 +174,7 @@ class TaskRepository(private val dao: TaskDao) {
             repeat = repeat,
             repeatDays = repeatDays.toRepeatDaysString(),
             tag = tag,
+            categoryId = categoryId,
             postponeIfIncomplete = postponeIfIncomplete,
             successCondition = successCondition,
             successConditionThreshold = successConditionThreshold,
@@ -225,9 +236,18 @@ class TaskRepository(private val dao: TaskDao) {
                 CloudBackupRepository.deleteRecurringExclusionsForSeries(task.id)
             }
             task.seriesId != null -> {
+                // The exclusion must exist locally BEFORE the occurrence's row is deleted, not
+                // after: Room's Flow observers (see observeTasksByDate) react to each local write
+                // independently and immediately. Deleting the row first left a real window -
+                // previously extended by an awaited Firestore round-trip sitting between the two
+                // local writes - where the still-active series definition had nothing excluding
+                // this date yet, so its virtual-occurrence generator could regenerate the very
+                // occurrence just deleted. Writing the exclusion first closes that window
+                // entirely: by the time the row disappears, the exclusion that stops it from
+                // being regenerated is already live.
+                dao.insertRecurringExclusion(RecurringExclusionEntity(seriesId = task.seriesId, epochDay = task.date))
                 dao.delete(task)
                 CloudBackupRepository.deleteTask(task.id)
-                dao.insertRecurringExclusion(RecurringExclusionEntity(seriesId = task.seriesId, epochDay = task.date))
                 CloudBackupRepository.pushRecurringExclusion(task.seriesId, task.date)
             }
             else -> {
@@ -265,15 +285,48 @@ class TaskRepository(private val dao: TaskDao) {
         }
     }
 
-    /** Permanently deletes every task and custom tag, locally and from the cloud backup. Does
-     * not touch the account itself. */
+    /** Permanently deletes every task, custom tag, and custom category, locally and from the
+     * cloud backup. Does not touch the account itself. */
     suspend fun deleteAllTasksAndTags() {
         val allTasks = dao.getAll()
         val allTags = dao.getCustomTagsOnce()
+        val allCategories = dao.getCustomCategoriesOnce()
         dao.deleteAllTasks()
         dao.deleteAllTags()
+        dao.deleteAllCategories()
         allTasks.forEach { CloudBackupRepository.deleteTask(it.id) }
         allTags.forEach { CloudBackupRepository.deleteTag(it) }
+        allCategories.forEach { CloudBackupRepository.deleteCategory(it.id) }
+    }
+
+    suspend fun addCustomCategory(name: String): CategoryEntity {
+        val category = CategoryEntity(name = name)
+        dao.insertCategory(category)
+        CloudBackupRepository.pushCategory(category)
+        return category
+    }
+
+    /** Renames a custom category in place (same [CategoryEntity.id]) - every task already
+     * referencing it by id (see [TaskEntity.categoryId]) picks up the new name automatically,
+     * without needing any of those task rows to be touched. */
+    suspend fun renameCustomCategory(id: String, name: String) {
+        dao.renameCategory(id, name)
+        val updated = dao.getCategoryById(id) ?: return
+        CloudBackupRepository.pushCategory(updated)
+    }
+
+    /** Deletes a custom category entirely and, per the Category spec's delete-confirmation
+     * behavior, turns every task that had it into "No Category" (never reassigned to anything
+     * else) rather than leaving them referencing an id that no longer exists - both locally and
+     * in each affected task's own cloud copy, so a later sign-in/reinstall doesn't resurrect the
+     * stale reference. A category later created with the same name gets a brand-new id (see
+     * [CategoryEntity]), so these tasks never silently reconnect to it. */
+    suspend fun deleteCustomCategory(id: String) {
+        val affectedTasks = dao.getTasksByCategoryId(id)
+        dao.clearCategoryFromTasks(id)
+        dao.deleteCategory(id)
+        CloudBackupRepository.deleteCategory(id)
+        affectedTasks.forEach { task -> CloudBackupRepository.pushTask(task.copy(categoryId = null)) }
     }
 
     suspend fun postponeOverdueTasks(today: Long) {

@@ -44,7 +44,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
+import com.nj031.onetask.data.task.CategoryEntity
+import com.nj031.onetask.data.task.DefaultCategory
 import com.nj031.onetask.ui.components.OneTaskDurationPickerDialog
+import com.nj031.onetask.ui.components.categoryDisplayName
 import com.nj031.onetask.ui.components.durationMillisToWholeMinutes
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 
@@ -69,26 +72,20 @@ private const val MIN_CUSTOM_DEFAULT_TIMER_MILLIS = 60_000L
 @Composable
 fun DefaultTaskSettingsScreen(
     defaultTimerMinutes: Int?,
-    defaultTag: String?,
     defaultPostponeIfIncomplete: Boolean,
-    customTags: List<String>,
+    customCategories: List<CategoryEntity>,
     onDefaultTimerMinutesChange: (Int?) -> Unit,
-    onDefaultTagChange: (String?) -> Unit,
     onDefaultPostponeIfIncompleteChange: (Boolean) -> Unit,
-    onAddCustomTag: (String) -> Unit,
-    onDeleteCustomTag: (String) -> Unit,
+    onAddCustomCategory: (String) -> Unit,
+    onRenameCustomCategory: (id: String, name: String) -> Unit,
+    onDeleteCustomCategory: (String) -> Unit,
     onBackClick: () -> Unit
 ) {
     var showCustomDurationPicker by remember { mutableStateOf(false) }
-    var showAddCustomTagDialog by remember { mutableStateOf(false) }
-    var tagPendingDeletion by remember { mutableStateOf<String?>(null) }
+    var showAddCustomCategoryDialog by remember { mutableStateOf(false) }
+    var categoryPendingRename by remember { mutableStateOf<CategoryEntity?>(null) }
+    var categoryPendingDeletion by remember { mutableStateOf<CategoryEntity?>(null) }
     val hapticTick = rememberHapticTick()
-    val builtInTagNames = listOf(
-        stringResource(id = R.string.tag_personal),
-        stringResource(id = R.string.tag_work),
-        stringResource(id = R.string.tag_study),
-        stringResource(id = R.string.tag_health)
-    )
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
         Column(
@@ -147,40 +144,44 @@ fun DefaultTaskSettingsScreen(
                 )
             }
 
+            // The 5 fixed Categories every account has (see DefaultCategory) - display-only here,
+            // unlike the old Default Tag chips this replaces: Category is never auto-assigned to
+            // a new task (see the Category spec), so there's no "pick which one seeds new tasks"
+            // selection to make.
             DefaultSettingSectionLabel(
-                text = stringResource(id = R.string.default_tag_section),
+                text = stringResource(id = R.string.default_category_section),
                 topPadding = 24.dp
             )
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                builtInTagNames.forEach { tag ->
+                DefaultCategory.values().forEach { category ->
                     DefaultSettingChip(
-                        text = tag,
-                        selected = tag == defaultTag,
-                        onClick = { onDefaultTagChange(if (defaultTag == tag) null else tag) }
+                        text = categoryDisplayName(category.id, emptyList()),
+                        selected = false,
+                        onClick = {}
                     )
                 }
             }
 
-            // Built-in tags (above) can only be selected as the Default Tag, never deleted.
-            // Custom tags (below) are user-created, permanently persisted (Room, not in-memory),
-            // and deletable - deleting one only removes it from this list/from Add Task's Tag
-            // picker going forward; it never touches any task that already uses it (see
-            // TaskRepository.deleteCustomTag).
+            // Default Categories (above) can never be renamed or deleted. Custom Categories
+            // (below) are user-created, permanently persisted (Room, not in-memory), and can be
+            // renamed (tap the name) or deleted (see CustomCategoryRow) - both managed only from
+            // this screen, never from Add/Edit Task directly, per the Category spec.
             DefaultSettingSectionLabel(
-                text = stringResource(id = R.string.custom_tags_section),
+                text = stringResource(id = R.string.custom_categories_section),
                 topPadding = 24.dp
             )
             Column {
-                customTags.forEach { tag ->
-                    CustomTagRow(
-                        name = tag,
-                        onDeleteClick = { tagPendingDeletion = tag }
+                customCategories.forEach { category ->
+                    CustomCategoryRow(
+                        category = category,
+                        onRenameClick = { categoryPendingRename = category },
+                        onDeleteClick = { categoryPendingDeletion = category }
                     )
                 }
-                AddCustomTagButton(onClick = { showAddCustomTagDialog = true })
+                AddCustomCategoryButton(onClick = { showAddCustomCategoryDialog = true })
             }
 
             DefaultSettingSectionLabel(
@@ -209,30 +210,51 @@ fun DefaultTaskSettingsScreen(
         }
     }
 
-    if (showAddCustomTagDialog) {
-        AddCustomTagDialog(
-            existingNames = builtInTagNames,
-            customTags = customTags,
-            onAdd = { name ->
-                onAddCustomTag(name)
-                showAddCustomTagDialog = false
+    if (showAddCustomCategoryDialog) {
+        AddOrRenameCustomCategoryDialog(
+            titleRes = R.string.add_custom_category_button,
+            initialName = "",
+            confirmLabelRes = R.string.add,
+            onConfirm = { name ->
+                onAddCustomCategory(name)
+                showAddCustomCategoryDialog = false
             },
-            onDismiss = { showAddCustomTagDialog = false }
+            onDismiss = { showAddCustomCategoryDialog = false }
         )
     }
 
-    val tagToDelete = tagPendingDeletion
-    if (tagToDelete != null) {
+    val categoryToRename = categoryPendingRename
+    if (categoryToRename != null) {
+        AddOrRenameCustomCategoryDialog(
+            titleRes = R.string.rename_custom_category_title,
+            initialName = categoryToRename.name,
+            confirmLabelRes = R.string.save,
+            onConfirm = { name ->
+                onRenameCustomCategory(categoryToRename.id, name)
+                categoryPendingRename = null
+            },
+            onDismiss = { categoryPendingRename = null }
+        )
+    }
+
+    val categoryToDelete = categoryPendingDeletion
+    if (categoryToDelete != null) {
         AlertDialog(
-            onDismissRequest = { tagPendingDeletion = null },
-            title = { Text(text = stringResource(id = R.string.delete_custom_tag_confirm_title, tagToDelete)) },
-            text = { Text(text = stringResource(id = R.string.delete_custom_tag_confirm_message)) },
+            onDismissRequest = { categoryPendingDeletion = null },
+            text = {
+                Text(
+                    text = stringResource(
+                        id = R.string.delete_custom_category_confirm_message,
+                        categoryToDelete.name
+                    )
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
                         hapticTick()
-                        onDeleteCustomTag(tagToDelete)
-                        tagPendingDeletion = null
+                        onDeleteCustomCategory(categoryToDelete.id)
+                        categoryPendingDeletion = null
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
@@ -240,7 +262,7 @@ fun DefaultTaskSettingsScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { tagPendingDeletion = null }) {
+                TextButton(onClick = { categoryPendingDeletion = null }) {
                     Text(text = stringResource(id = R.string.cancel))
                 }
             }
@@ -260,18 +282,21 @@ fun DefaultTaskSettingsScreen(
     }
 }
 
+/** [onRenameClick] on the name itself (not a separate edit icon) is Settings' own affordance for
+ * the Category spec's rename requirement - Add/Edit Task's Category row deliberately has no
+ * equivalent, since creating/renaming/deleting is managed only from here. */
 @Composable
-private fun CustomTagRow(name: String, onDeleteClick: () -> Unit) {
+private fun CustomCategoryRow(category: CategoryEntity, onRenameClick: () -> Unit, onDeleteClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
-            text = name,
+            text = category.name,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f).clickable(onClick = onRenameClick)
         )
         IconButton(onClick = onDeleteClick) {
             Icon(
@@ -286,7 +311,7 @@ private fun CustomTagRow(name: String, onDeleteClick: () -> Unit) {
 
 /** Same small "+ label" pill style AddTaskScreen's AddChipButton (e.g. "+ Add Subtask") uses. */
 @Composable
-private fun AddCustomTagButton(onClick: () -> Unit) {
+private fun AddCustomCategoryButton(onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .padding(top = 4.dp)
@@ -303,7 +328,7 @@ private fun AddCustomTagButton(onClick: () -> Unit) {
             modifier = Modifier.size(16.dp)
         )
         Text(
-            text = stringResource(id = R.string.add_custom_tag_button),
+            text = stringResource(id = R.string.add_custom_category_button),
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary,
@@ -312,36 +337,29 @@ private fun AddCustomTagButton(onClick: () -> Unit) {
     }
 }
 
+/** Shared by both "Add Custom Category" and "Rename Category" - the Category spec allows
+ * duplicate names (including matching a default category's name), so unlike the old Tag dialog
+ * this replaces, there is no duplicate-name validation here at all. */
 @Composable
-private fun AddCustomTagDialog(
-    existingNames: List<String>,
-    customTags: List<String>,
-    onAdd: (String) -> Unit,
+private fun AddOrRenameCustomCategoryDialog(
+    titleRes: Int,
+    initialName: String,
+    confirmLabelRes: Int,
+    onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var newTagName by remember { mutableStateOf("") }
-    val trimmedName = newTagName.trim()
-    val isDuplicate = trimmedName.isNotEmpty() &&
-        (existingNames + customTags).any { it.equals(trimmedName, ignoreCase = true) }
+    var name by remember { mutableStateOf(initialName) }
+    val trimmedName = name.trim()
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(id = R.string.add_custom_tag_button)) },
+        title = { Text(text = stringResource(id = titleRes)) },
         text = {
             TextField(
-                value = newTagName,
-                onValueChange = { newTagName = it },
-                placeholder = { Text(stringResource(id = R.string.custom_tag_name_hint)) },
+                value = name,
+                onValueChange = { name = it },
+                placeholder = { Text(stringResource(id = R.string.custom_category_name_hint)) },
                 singleLine = true,
-                isError = isDuplicate,
-                supportingText = if (isDuplicate) {
-                    {
-                        Text(
-                            text = stringResource(id = R.string.custom_tag_error_duplicate),
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                } else null,
                 shape = RoundedCornerShape(12.dp),
                 colors = TextFieldDefaults.colors(
                     unfocusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -354,10 +372,10 @@ private fun AddCustomTagDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onAdd(trimmedName) },
-                enabled = trimmedName.isNotEmpty() && !isDuplicate
+                onClick = { onConfirm(trimmedName) },
+                enabled = trimmedName.isNotEmpty()
             ) {
-                Text(text = stringResource(id = R.string.add))
+                Text(text = stringResource(id = confirmLabelRes))
             }
         },
         dismissButton = {

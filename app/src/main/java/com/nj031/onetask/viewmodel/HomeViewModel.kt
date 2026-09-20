@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nj031.onetask.data.AppDatabase
 import com.nj031.onetask.data.reminder.ReminderManager
+import com.nj031.onetask.data.task.CategoryEntity
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskOrderScope
@@ -41,6 +42,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     val customTags: StateFlow<List<String>> =
         repository.observeCustomTags()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val customCategories: StateFlow<List<CategoryEntity>> =
+        repository.observeCustomCategories()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Which month the Tasks calendar currently has open - drives datesWithTasksInCalendarMonth
@@ -92,6 +97,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
+        categoryId: String?,
         postponeIfIncomplete: Boolean,
         successCondition: SuccessCondition = SuccessCondition.ALL,
         successConditionThreshold: Int? = null
@@ -108,6 +114,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 repeat = repeat,
                 repeatDays = repeatDays,
                 tag = tag,
+                categoryId = categoryId,
                 postponeIfIncomplete = postponeIfIncomplete,
                 successCondition = successCondition,
                 successConditionThreshold = successConditionThreshold
@@ -129,6 +136,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
+        categoryId: String?,
         postponeIfIncomplete: Boolean,
         successCondition: SuccessCondition = task.successCondition,
         successConditionThreshold: Int? = task.successConditionThreshold
@@ -146,6 +154,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 repeat = repeat,
                 repeatDays = repeatDays,
                 tag = tag,
+                categoryId = categoryId,
                 postponeIfIncomplete = postponeIfIncomplete,
                 successCondition = successCondition,
                 successConditionThreshold = successConditionThreshold
@@ -182,6 +191,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteCustomTag(name: String) {
         viewModelScope.launch { repository.deleteCustomTag(name) }
+    }
+
+    fun addCustomCategory(name: String) {
+        viewModelScope.launch { repository.addCustomCategory(name) }
+    }
+
+    fun renameCustomCategory(id: String, name: String) {
+        viewModelScope.launch { repository.renameCustomCategory(id, name) }
+    }
+
+    fun deleteCustomCategory(id: String) {
+        viewModelScope.launch { repository.deleteCustomCategory(id) }
     }
 
     fun toggleSubtask(task: TaskEntity, subtaskId: String) {

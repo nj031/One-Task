@@ -39,7 +39,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -64,17 +63,20 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.nj031.onetask.R
 import com.nj031.onetask.data.settings.TimeFormat
+import com.nj031.onetask.data.task.CategoryEntity
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.SuccessCondition
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskPriority
 import com.nj031.onetask.data.task.TaskRepeat
-import com.nj031.onetask.data.task.repeatDaysSet
+import com.nj031.onetask.ui.components.CategorySelectorDialog
 import com.nj031.onetask.ui.components.OneTaskCalendarDialog
 import com.nj031.onetask.ui.components.OneTaskDurationPickerDialog
 import com.nj031.onetask.ui.components.OneTaskTimePickerDialog
+import com.nj031.onetask.ui.components.categoryDisplayName
 import com.nj031.onetask.ui.components.durationMillisToWholeMinutes
 import com.nj031.onetask.ui.haptics.rememberHapticTick
+import com.nj031.onetask.viewmodel.AddTaskDraftViewModel
 import com.nj031.onetask.viewmodel.HomeViewModel
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -103,7 +105,10 @@ private const val MIN_CUSTOM_TASK_TIMER_MILLIS = 60_000L
 @Composable
 fun AddTaskScreen(
     viewModel: HomeViewModel,
+    draftViewModel: AddTaskDraftViewModel,
     taskId: String?,
+    customCategories: List<CategoryEntity> = emptyList(),
+    onAddCategoryClick: () -> Unit = {},
     defaultTimerMinutes: Int? = null,
     defaultTag: String? = null,
     defaultPostponeIfIncomplete: Boolean = true,
@@ -123,21 +128,31 @@ fun AddTaskScreen(
     // Wait for an edit-mode lookup to resolve before rendering the form, rather than seeding
     // fields with blank defaults and swapping them for the real values a frame later.
     if (taskId == null || existingTask != null) {
-        AddTaskScreenContent(
+        // See AddTaskDraftViewModel's own doc comment - a no-op if this is a resume (after a
+        // round trip to Settings' Custom Category management) of the same draft, so it never
+        // clobbers what the user already entered.
+        draftViewModel.initializeIfNeeded(
+            key = taskId ?: "new",
             existingTask = existingTask,
             initialDate = existingTask?.date?.let(LocalDate::ofEpochDay) ?: homeSelectedDate,
             // Default Task Settings only ever seed a brand-new task's initial fields - an
             // existing task being edited always keeps showing its own saved values, since
             // existingTask?.x is already non-null in that case and short-circuits the default.
-            initialTimerMinutes = existingTask?.timerMinutes ?: defaultTimerMinutes,
+            initialTimerMinutes = defaultTimerMinutes,
+            initialPostponeIfIncomplete = defaultPostponeIfIncomplete
+        )
+        AddTaskScreenContent(
+            draft = draftViewModel,
+            existingTask = existingTask,
             initialTag = existingTask?.tag ?: defaultTag,
-            initialPostponeIfIncomplete = existingTask?.postponeIfIncomplete ?: defaultPostponeIfIncomplete,
+            customCategories = customCategories,
+            onAddCategoryClick = onAddCategoryClick,
             weekStartDay = weekStartDay,
             timeFormat = timeFormat,
             onCancel = onDone,
             onSave = {
                 name, subtasks, timerMinutes, date, priority, reminderMinuteOfDay, reminderEpochDay,
-                repeat, repeatDays, tag, postpone, successCondition, successConditionThreshold ->
+                repeat, repeatDays, tag, categoryId, postpone, successCondition, successConditionThreshold ->
                 if (existingTask != null) {
                     viewModel.updateTask(
                         task = existingTask,
@@ -151,6 +166,7 @@ fun AddTaskScreen(
                         repeat = repeat,
                         repeatDays = repeatDays,
                         tag = tag,
+                        categoryId = categoryId,
                         postponeIfIncomplete = postpone,
                         successCondition = successCondition,
                         successConditionThreshold = successConditionThreshold
@@ -167,6 +183,7 @@ fun AddTaskScreen(
                         repeat = repeat,
                         repeatDays = repeatDays,
                         tag = tag,
+                        categoryId = categoryId,
                         postponeIfIncomplete = postpone,
                         successCondition = successCondition,
                         successConditionThreshold = successConditionThreshold
@@ -181,11 +198,11 @@ fun AddTaskScreen(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AddTaskScreenContent(
+    draft: AddTaskDraftViewModel,
     existingTask: TaskEntity?,
-    initialDate: LocalDate,
-    initialTimerMinutes: Int?,
     initialTag: String?,
-    initialPostponeIfIncomplete: Boolean,
+    customCategories: List<CategoryEntity>,
+    onAddCategoryClick: () -> Unit,
     weekStartDay: DayOfWeek,
     timeFormat: TimeFormat,
     onCancel: () -> Unit,
@@ -200,6 +217,7 @@ private fun AddTaskScreenContent(
         repeat: TaskRepeat,
         repeatDays: Set<DayOfWeek>,
         tag: String?,
+        categoryId: String?,
         postponeIfIncomplete: Boolean,
         successCondition: SuccessCondition,
         successConditionThreshold: Int?
@@ -209,14 +227,18 @@ private fun AddTaskScreenContent(
     val keyboardController = LocalSoftwareKeyboardController.current
     val hapticTick = rememberHapticTick()
 
-    var taskName by remember { mutableStateOf(existingTask?.name.orEmpty()) }
+    var taskName by remember(draft) { mutableStateOf(draft.taskName) }
+    // Mirrors every write back into the hoisted draft so it's what actually survives a round
+    // trip to Settings - see AddTaskDraftViewModel's own doc comment. Kept as a local `taskName`
+    // (rather than reading/writing draft.taskName directly at every use site below) purely so
+    // this screen's existing structure - every other field the same way - doesn't need touching.
+    LaunchedEffect(taskName) { draft.taskName = taskName }
     val taskNameFocusRequester = remember { FocusRequester() }
 
-    var selectedPriority by remember { mutableStateOf(existingTask?.priority ?: TaskPriority.NONE) }
+    var selectedPriority by remember(draft) { mutableStateOf(draft.selectedPriority) }
+    LaunchedEffect(selectedPriority) { draft.selectedPriority = selectedPriority }
 
-    val subtasks = remember {
-        mutableStateListOf<Subtask>().apply { addAll(existingTask?.subtasks ?: emptyList()) }
-    }
+    val subtasks = draft.subtasks
     val subtaskFocusRequesters = remember { mutableMapOf<String, FocusRequester>() }
     var pendingFocusSubtaskId by remember { mutableStateOf<String?>(null) }
 
@@ -225,12 +247,10 @@ private fun AddTaskScreenContent(
     // successConditionThreshold only matters once CUSTOM is picked - it's kept clamped into
     // 1..subtasks.size below whenever subtasks shrink, but is never bumped up on its own when
     // subtasks grow, exactly like the persisted entity's own clamping behaves.
-    var selectedSuccessCondition by remember {
-        mutableStateOf(existingTask?.successCondition ?: SuccessCondition.ALL)
-    }
-    var successConditionThreshold by remember {
-        mutableStateOf(existingTask?.successConditionThreshold)
-    }
+    var selectedSuccessCondition by remember(draft) { mutableStateOf(draft.selectedSuccessCondition) }
+    LaunchedEffect(selectedSuccessCondition) { draft.selectedSuccessCondition = selectedSuccessCondition }
+    var successConditionThreshold by remember(draft) { mutableStateOf(draft.successConditionThreshold) }
+    LaunchedEffect(successConditionThreshold) { draft.successConditionThreshold = successConditionThreshold }
     LaunchedEffect(subtasks.size) {
         val threshold = successConditionThreshold
         if (threshold != null && subtasks.isNotEmpty() && threshold > subtasks.size) {
@@ -239,13 +259,13 @@ private fun AddTaskScreenContent(
     }
     val successConditionLocked = subtasks.isEmpty()
 
-    var selectedTaskDate by remember { mutableStateOf(initialDate) }
+    var selectedTaskDate by remember(draft) { mutableStateOf(draft.selectedTaskDate) }
+    LaunchedEffect(selectedTaskDate) { draft.selectedTaskDate = selectedTaskDate }
     var showDatePickerSheet by remember { mutableStateOf(false) }
 
-    var selectedRepeat by remember { mutableStateOf(existingTask?.repeat ?: TaskRepeat.NONE) }
-    val selectedRepeatDays = remember {
-        mutableStateListOf<DayOfWeek>().apply { addAll(existingTask?.repeatDaysSet().orEmpty()) }
-    }
+    var selectedRepeat by remember(draft) { mutableStateOf(draft.selectedRepeat) }
+    LaunchedEffect(selectedRepeat) { draft.selectedRepeat = selectedRepeat }
+    val selectedRepeatDays = draft.selectedRepeatDays
 
     // Reminder: at most one per task. reminderDate always holds a concrete date (defaulting to
     // today, exactly like selectedTaskDate above) rather than being null while "Custom Date" is
@@ -253,11 +273,12 @@ private fun AddTaskScreenContent(
     // resolved date isn't today/tomorrow" pattern the Date row above already uses, reused here
     // rather than inventing a second convention. reminderEnabled off is the literal "No Reminder"
     // default state.
-    var reminderEnabled by remember { mutableStateOf(existingTask?.reminderMinuteOfDay != null) }
-    var reminderDate by remember {
-        mutableStateOf(existingTask?.reminderEpochDay?.let(LocalDate::ofEpochDay) ?: today)
-    }
-    var reminderMinuteOfDay by remember { mutableStateOf(existingTask?.reminderMinuteOfDay) }
+    var reminderEnabled by remember(draft) { mutableStateOf(draft.reminderEnabled) }
+    LaunchedEffect(reminderEnabled) { draft.reminderEnabled = reminderEnabled }
+    var reminderDate by remember(draft) { mutableStateOf(draft.reminderDate) }
+    LaunchedEffect(reminderDate) { draft.reminderDate = reminderDate }
+    var reminderMinuteOfDay by remember(draft) { mutableStateOf(draft.reminderMinuteOfDay) }
+    LaunchedEffect(reminderMinuteOfDay) { draft.reminderMinuteOfDay = reminderMinuteOfDay }
     var showReminderDatePickerSheet by remember { mutableStateOf(false) }
     var showReminderTimeSheet by remember { mutableStateOf(false) }
 
@@ -288,27 +309,31 @@ private fun AddTaskScreenContent(
         }
     }
 
-    // The Tag row's own picker UI has been replaced on this screen by the Category placeholder
-    // (see the card below) - task.tag itself is untouched data, so whatever value this task
-    // already had (or Default Task Settings seeds a new one with) simply keeps flowing straight
-    // through to onSave unedited.
+    // The Tag row's own picker UI has been replaced on this screen by the Category section below
+    // - task.tag itself is untouched data, so whatever value this task already had (or Default
+    // Task Settings seeds a new one with) simply keeps flowing straight through to onSave
+    // unedited.
     val tag = initialTag
+
+    var categoryId by remember(draft) { mutableStateOf(draft.categoryId) }
+    LaunchedEffect(categoryId) { draft.categoryId = categoryId }
+    var showCategorySelector by remember { mutableStateOf(false) }
 
     // Pending Task and Repeat are mutually exclusive: a recurring task's occurrences are already
     // independent per-date, so "postpone to today if incomplete" (which only makes sense for a
     // single one-time task) is force-disabled whenever Repeat isn't "Does not repeat" - both for
     // an existing recurring task being edited (hence the selectedRepeat check here too, not just
     // in the effect below) and the instant the user picks Daily/Select Days on a new one.
-    var postponeIfIncomplete by remember {
-        mutableStateOf(initialPostponeIfIncomplete && selectedRepeat == TaskRepeat.NONE)
-    }
+    var postponeIfIncomplete by remember(draft) { mutableStateOf(draft.postponeIfIncomplete) }
+    LaunchedEffect(postponeIfIncomplete) { draft.postponeIfIncomplete = postponeIfIncomplete }
     LaunchedEffect(selectedRepeat) {
         if (selectedRepeat != TaskRepeat.NONE) {
             postponeIfIncomplete = false
         }
     }
 
-    var timerMinutes by remember { mutableStateOf(initialTimerMinutes) }
+    var timerMinutes by remember(draft) { mutableStateOf(draft.timerMinutes) }
+    LaunchedEffect(timerMinutes) { draft.timerMinutes = timerMinutes }
     var showCustomDurationPicker by remember { mutableStateOf(false) }
 
     val formattedTaskDate = remember(selectedTaskDate) {
@@ -514,7 +539,11 @@ private fun AddTaskScreenContent(
                     }
                 }
 
-                // 5. Category (UI-only placeholder - no selection/creation/persistence)
+                // 5. Category - tapping the name label itself does nothing (it's a static
+                // display, not a control); only "Choose Category" opens the selector. Creating a
+                // new category is never done inline here - the selector's own "+ Add Category"
+                // hands off to Settings' Custom Category management instead (see
+                // onAddCategoryClick).
                 TaskSectionCard {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -522,15 +551,15 @@ private fun AddTaskScreenContent(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = stringResource(id = R.string.category_label),
+                            text = categoryId?.let { categoryDisplayName(it, customCategories) }
+                                ?: stringResource(id = R.string.category_label),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
                         )
                         AddChipButton(
                             text = stringResource(id = R.string.choose_category_button),
-                            enabled = false,
-                            onClick = {}
+                            onClick = { showCategorySelector = true }
                         )
                     }
                 }
@@ -769,6 +798,7 @@ private fun AddTaskScreenContent(
                             selectedRepeat,
                             selectedRepeatDays.toSet(),
                             tag,
+                            categoryId,
                             postponeIfIncomplete,
                             selectedSuccessCondition,
                             finalSuccessConditionThreshold
@@ -841,6 +871,22 @@ private fun AddTaskScreenContent(
             onConfirm = { millis ->
                 timerMinutes = durationMillisToWholeMinutes(millis)
                 showCustomDurationPicker = false
+            }
+        )
+    }
+
+    if (showCategorySelector) {
+        CategorySelectorDialog(
+            currentCategoryId = categoryId,
+            customCategories = customCategories,
+            onDismiss = { showCategorySelector = false },
+            onConfirm = { chosen ->
+                categoryId = chosen
+                showCategorySelector = false
+            },
+            onAddCategoryClick = {
+                showCategorySelector = false
+                onAddCategoryClick()
             }
         )
     }

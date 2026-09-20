@@ -10,6 +10,7 @@ import com.nj031.onetask.data.journal.ChecklistItem
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.JournalNoteStatus
 import com.nj031.onetask.data.journal.JournalNoteType
+import com.nj031.onetask.data.task.CategoryEntity
 import com.nj031.onetask.data.task.RecurringExclusionEntity
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.SuccessCondition
@@ -62,6 +63,7 @@ data class CloudProfile(
 internal fun tasksPath(uid: String) = "users/$uid/tasks"
 internal fun notesPath(uid: String) = "users/$uid/notes"
 internal fun tagsPath(uid: String) = "users/$uid/tags"
+internal fun categoriesPath(uid: String) = "users/$uid/categories"
 internal fun labelsPath(uid: String) = "users/$uid/labels"
 internal fun accountPath(uid: String) = "users/$uid/account"
 internal fun profilePhotoPath(uid: String) = "profile_photos/$uid.jpg"
@@ -118,6 +120,10 @@ object CloudBackupRepository {
     private fun notesCollection(uid: String) = firestore.collection(notesPath(uid))
 
     private fun tagsCollection(uid: String) = firestore.collection(tagsPath(uid))
+
+    /** Custom Categories only - see [DefaultCategory], which never needs a cloud document of its
+     * own since it can't be created, renamed, or deleted. */
+    private fun categoriesCollection(uid: String) = firestore.collection(categoriesPath(uid))
 
     /** Mirrors [tagsCollection] exactly - the Notes equivalent of Custom Tags (see
      * [com.nj031.onetask.data.journal.NoteLabelEntity]'s own doc comment for why the two are
@@ -206,6 +212,23 @@ object CloudBackupRepository {
     suspend fun deleteTag(name: String) {
         val currentUid = uid ?: return
         runFirestoreWrite { tagsCollection(currentUid).document(name).delete().await() }
+    }
+
+    /** Unlike [pushTag], a category's [CategoryEntity.id] (not its name) is the document id - see
+     * [CategoryEntity]'s own doc comment for why it needs an identity independent of its current
+     * name. */
+    suspend fun pushCategory(category: CategoryEntity) {
+        val currentUid = uid ?: return
+        runFirestoreWrite {
+            categoriesCollection(currentUid).document(category.id).set(
+                mapOf("name" to category.name, "createdAt" to category.createdAt)
+            ).await()
+        }
+    }
+
+    suspend fun deleteCategory(id: String) {
+        val currentUid = uid ?: return
+        runFirestoreWrite { categoriesCollection(currentUid).document(id).delete().await() }
     }
 
     suspend fun pushNote(note: JournalNoteEntity) {
@@ -351,6 +374,17 @@ object CloudBackupRepository {
         return tagsCollection(currentUid).get().await().documents.mapNotNull { it.getString("name") }
     }
 
+    /** The signed-in account's own custom categories, previously backed up from this or any
+     * other device - restores them (including any rename that happened elsewhere) on a fresh
+     * install/reinstall or a first sign-in on a new device. */
+    suspend fun pullCategories(): List<CategoryEntity> {
+        val currentUid = uid ?: return emptyList()
+        return categoriesCollection(currentUid).get().await().documents.mapNotNull { doc ->
+            val name = doc.getString("name") ?: return@mapNotNull null
+            CategoryEntity(id = doc.id, name = name, createdAt = doc.getLong("createdAt") ?: 0L)
+        }
+    }
+
     /** Mirrors [pullTags] exactly. */
     suspend fun pullLabels(): List<String> {
         val currentUid = uid ?: return emptyList()
@@ -435,6 +469,20 @@ object CloudBackupRepository {
         batch.commit().await()
     }
 
+    /** Mirrors [pushAllTags], keyed by [CategoryEntity.id] rather than name - see [pushCategory]. */
+    suspend fun pushAllCategories(categories: List<CategoryEntity>) {
+        val currentUid = uid ?: return
+        if (categories.isEmpty()) return
+        val batch = firestore.batch()
+        categories.forEach { category ->
+            batch.set(
+                categoriesCollection(currentUid).document(category.id),
+                mapOf("name" to category.name, "createdAt" to category.createdAt)
+            )
+        }
+        batch.commit().await()
+    }
+
     /** Mirrors [pushAllTags] exactly - pushes every local-only exclusion up in one batch (used
      * by the sign-in sync's push-local-up step). */
     suspend fun pushAllRecurringExclusions(exclusions: List<RecurringExclusionEntity>) {
@@ -463,6 +511,7 @@ private fun TaskEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "repeatDays" to repeatDays,
     "seriesId" to seriesId,
     "tag" to tag,
+    "categoryId" to categoryId,
     "postponeIfIncomplete" to postponeIfIncomplete,
     "status" to status.name,
     "timerEndAtMillis" to timerEndAtMillis,
@@ -501,6 +550,9 @@ private fun DocumentSnapshot.toTaskEntity(): TaskEntity? {
         repeatDays = getString("repeatDays").orEmpty(),
         seriesId = getString("seriesId"),
         tag = getString("tag"),
+        // Absent from any task document written before Category existed - default to null
+        // ("No Category"), exactly matching TaskEntity's own constructor default.
+        categoryId = getString("categoryId"),
         postponeIfIncomplete = getBoolean("postponeIfIncomplete") ?: true,
         status = getString("status")?.let { runCatching { TaskStatus.valueOf(it) }.getOrNull() } ?: TaskStatus.NOT_STARTED,
         timerEndAtMillis = getLong("timerEndAtMillis"),
