@@ -24,6 +24,7 @@ import com.nj031.onetask.data.settings.GeneralSettingsSnapshot
 import com.nj031.onetask.data.settings.NotesViewMode
 import com.nj031.onetask.data.settings.StartScreen
 import com.nj031.onetask.data.settings.TimeFormat
+import com.nj031.onetask.data.settings.Wallpaper
 import com.nj031.onetask.data.sync.CloudAppearance
 import com.nj031.onetask.data.sync.CloudBackupRepository
 import com.nj031.onetask.data.sync.CloudGeneralSettings
@@ -210,11 +211,17 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     appearanceRepo.applyRemote(
                         displayMode = runCatching { DisplayMode.valueOf(cloudAppearance.displayMode) }.getOrDefault(DisplayMode.SYSTEM),
                         colorTheme = runCatching { ColorTheme.valueOf(cloudAppearance.colorTheme) }.getOrDefault(ColorTheme.BLUE),
+                        wallpaper = runCatching { Wallpaper.valueOf(cloudAppearance.wallpaper) }.getOrDefault(Wallpaper.NONE),
                         updatedAt = cloudAppearance.updatedAt
                     )
                 }
                 SyncDecision.PUSH_LOCAL -> CloudBackupRepository.pushAppearance(
-                    CloudAppearance(localAppearance.displayMode.name, localAppearance.colorTheme.name, localAppearance.updatedAt)
+                    CloudAppearance(
+                        displayMode = localAppearance.displayMode.name,
+                        colorTheme = localAppearance.colorTheme.name,
+                        updatedAt = localAppearance.updatedAt,
+                        wallpaper = localAppearance.wallpaper.name
+                    )
                 )
             }
         } catch (_: Exception) {

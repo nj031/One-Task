@@ -27,6 +27,7 @@ import com.nj031.onetask.data.feedback.FeedbackType
 import com.nj031.onetask.data.journal.JournalNoteType
 import com.nj031.onetask.data.reminder.ReminderManager
 import com.nj031.onetask.data.settings.StartScreen
+import com.nj031.onetask.data.settings.Wallpaper
 import com.nj031.onetask.ui.haptics.LocalHapticFeedbackEnabled
 import com.nj031.onetask.ui.screens.AboutOneTaskScreen
 import com.nj031.onetask.ui.screens.AddTaskScreen
@@ -65,6 +66,7 @@ import com.nj031.onetask.ui.screens.VerifyEmailScreen
 import com.nj031.onetask.service.StandaloneTimerForegroundService
 import com.nj031.onetask.service.TimerForegroundService
 import com.nj031.onetask.ui.screens.WeekStartsOnSettingScreen
+import com.nj031.onetask.ui.theme.WallpaperSettingsTheme
 import com.nj031.onetask.viewmodel.AddTaskDraftViewModel
 import com.nj031.onetask.viewmodel.AppearanceSettingsViewModel
 import com.nj031.onetask.viewmodel.AuthViewModel
@@ -95,7 +97,9 @@ fun OneTaskNavHost(
     reopenFocusRequestId: Long = 0L,
     reopenTaskId: String? = null,
     reopenTaskRequestId: Long = 0L,
-    appearanceSettingsViewModel: AppearanceSettingsViewModel = viewModel()
+    appearanceSettingsViewModel: AppearanceSettingsViewModel = viewModel(),
+    wallpaper: Wallpaper = Wallpaper.NONE,
+    darkTheme: Boolean = false
 ) {
     // A warm reopen via the running Focus Timer notification's "Open" action (see
     // MainActivity.onNewIntent): navigates straight to Focus Mode over whatever screen was
@@ -420,7 +424,9 @@ fun OneTaskNavHost(
                     navController.navigate(Screen.AddTask.createRoute(taskId))
                 },
                 onAddCategoryClick = { navController.navigate(Screen.DefaultTaskSettings.route) },
-                weekStartDay = weekStartDay
+                weekStartDay = weekStartDay,
+                wallpaper = wallpaper,
+                darkTheme = darkTheme
             )
         }
         composable(Screen.TimerPlaceholder.route) {
@@ -430,7 +436,9 @@ fun OneTaskNavHost(
                 onNotificationSettingsClick = { navController.navigate(Screen.NotificationsSettings.route) },
                 onTimerSettingsClick = { navController.navigate(Screen.TimerSettings.route) },
                 onCustomDurationSettingsClick = { navController.navigate(Screen.TimerCustomDurationSettings.route) },
-                onTimerHistoryClick = { navController.navigate(Screen.TimerHistory.route) }
+                onTimerHistoryClick = { navController.navigate(Screen.TimerHistory.route) },
+                wallpaper = wallpaper,
+                darkTheme = darkTheme
             )
         }
         composable(Screen.TimerSettings.route) {
@@ -535,21 +543,25 @@ fun OneTaskNavHost(
                 onArchiveClick = { navController.navigate(Screen.Archive.route) },
                 onRecycleBinClick = { navController.navigate(Screen.RecycleBin.route) },
                 onLabelsClick = { navController.navigate(Screen.Labels.route) },
-                timeFormat = timeFormat
+                timeFormat = timeFormat,
+                wallpaper = wallpaper,
+                darkTheme = darkTheme
             )
         }
         composable(Screen.Profile.route) {
-            ProfileScreen(
-                viewModel = profileViewModel,
-                onBackClick = { navController.popBackStack() },
-                onEditProfileClick = { navController.navigate(Screen.EditProfile.route) },
-                onUpgradeToProClick = { navController.navigate(Screen.UpgradeToPro.route) },
-                onGeneralSettingsClick = { navController.navigate(Screen.GeneralSettings.route) },
-                onDataPrivacyClick = { navController.navigate(Screen.DataPrivacy.route) },
-                onAboutClick = { navController.navigate(Screen.AboutOneTask.route) },
-                onHelpFeedbackClick = { navController.navigate(Screen.HelpFeedback.route) },
-                onLogout = { endSessionAndReturnToAuth() }
-            )
+            WallpaperSettingsTheme(wallpaper = wallpaper, darkTheme = darkTheme) {
+                ProfileScreen(
+                    viewModel = profileViewModel,
+                    onBackClick = { navController.popBackStack() },
+                    onEditProfileClick = { navController.navigate(Screen.EditProfile.route) },
+                    onUpgradeToProClick = { navController.navigate(Screen.UpgradeToPro.route) },
+                    onGeneralSettingsClick = { navController.navigate(Screen.GeneralSettings.route) },
+                    onDataPrivacyClick = { navController.navigate(Screen.DataPrivacy.route) },
+                    onAboutClick = { navController.navigate(Screen.AboutOneTask.route) },
+                    onHelpFeedbackClick = { navController.navigate(Screen.HelpFeedback.route) },
+                    onLogout = { endSessionAndReturnToAuth() }
+                )
+            }
         }
         composable(Screen.EditProfile.route) {
             EditProfileScreen(
@@ -628,13 +640,19 @@ fun OneTaskNavHost(
         composable(Screen.AppearanceSettings.route) {
             val displayMode by appearanceSettingsViewModel.displayMode.collectAsState()
             val colorTheme by appearanceSettingsViewModel.colorTheme.collectAsState()
-            AppearanceSettingsScreen(
-                displayMode = displayMode,
-                colorTheme = colorTheme,
-                onSelectDisplayMode = appearanceSettingsViewModel::setDisplayMode,
-                onSelectColorTheme = appearanceSettingsViewModel::setColorTheme,
-                onBackClick = { navController.popBackStack() }
-            )
+            val currentWallpaper by appearanceSettingsViewModel.wallpaper.collectAsState()
+            WallpaperSettingsTheme(wallpaper = currentWallpaper, darkTheme = darkTheme) {
+                AppearanceSettingsScreen(
+                    displayMode = displayMode,
+                    colorTheme = colorTheme,
+                    wallpaper = currentWallpaper,
+                    darkTheme = darkTheme,
+                    onSelectDisplayMode = appearanceSettingsViewModel::setDisplayMode,
+                    onSelectColorTheme = appearanceSettingsViewModel::setColorTheme,
+                    onSelectWallpaper = appearanceSettingsViewModel::setWallpaper,
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
         }
         composable(Screen.StartScreenSettings.route) {
             val startScreen by generalSettingsViewModel.startScreen.collectAsState()

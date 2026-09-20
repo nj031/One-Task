@@ -70,16 +70,19 @@ import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.JournalNoteType
 import com.nj031.onetask.data.settings.NotesViewMode
 import com.nj031.onetask.data.settings.TimeFormat
+import com.nj031.onetask.data.settings.Wallpaper
 import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.ui.components.OneTaskBottomNav
 import com.nj031.onetask.ui.components.ProfileAvatar
+import com.nj031.onetask.ui.components.WallpaperBackdrop
 import com.nj031.onetask.ui.theme.OneTaskArchiveIcon
 import com.nj031.onetask.ui.theme.OneTaskCardViewIcon
 import com.nj031.onetask.ui.theme.OneTaskLabelIcon
 import com.nj031.onetask.ui.theme.OneTaskListViewIcon
 import com.nj031.onetask.ui.theme.OneTaskRecycleBinIcon
 import com.nj031.onetask.ui.theme.OneTaskSearchIcon
+import com.nj031.onetask.ui.theme.OneTaskWallpapers
 import com.nj031.onetask.viewmodel.JournalViewModel
 import java.time.Instant
 import java.time.ZoneId
@@ -99,7 +102,9 @@ fun NotesScreen(
     onArchiveClick: () -> Unit = {},
     onRecycleBinClick: () -> Unit = {},
     onLabelsClick: () -> Unit = {},
-    timeFormat: TimeFormat = TimeFormat.SYSTEM_DEFAULT
+    timeFormat: TimeFormat = TimeFormat.SYSTEM_DEFAULT,
+    wallpaper: Wallpaper = Wallpaper.NONE,
+    darkTheme: Boolean = false
 ) {
     val notes by viewModel.notes.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -117,14 +122,22 @@ fun NotesScreen(
         actionMenuNote = null
     }
 
+    // Notes is one of only 3 screens the wallpaper IMAGE itself is scoped to (see the Wallpaper
+    // spec's "image scope" rule) - WallpaperBackdrop is a no-op when no wallpaper is selected, so
+    // this Box changes nothing about this screen's existing look/behavior in that case.
+    Box(modifier = Modifier.fillMaxSize()) {
+    WallpaperBackdrop(wallpaper = wallpaper, darkTheme = darkTheme)
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = if (wallpaper == Wallpaper.NONE) MaterialTheme.colorScheme.background else Color.Transparent,
         bottomBar = {
             OneTaskBottomNav(
                 activeTab = BottomNavTab.JOURNAL,
                 onJournalClick = {},
                 onTasksClick = onNavigateToTasks,
-                onTimerClick = onOpenTimerPlaceholder
+                onTimerClick = onOpenTimerPlaceholder,
+                backgroundColor = OneTaskWallpapers.definitionFor(wallpaper)?.let {
+                    if (darkTheme) it.dark.bottomNavigation else it.light.bottomNavigation
+                } ?: MaterialTheme.colorScheme.surface
             )
         }
     ) { innerPadding ->
@@ -242,6 +255,7 @@ fun NotesScreen(
                 }
             }
         }
+    }
     }
 
     if (showAddChoice) {

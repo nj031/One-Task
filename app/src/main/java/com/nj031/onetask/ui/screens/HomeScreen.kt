@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
+import com.nj031.onetask.data.settings.Wallpaper
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskOrderScope
@@ -83,10 +84,12 @@ import com.nj031.onetask.ui.components.OneTaskAddButton
 import com.nj031.onetask.ui.components.OneTaskCalendarDialog
 import com.nj031.onetask.ui.components.OneTaskBottomNav
 import com.nj031.onetask.ui.components.ProfileAvatar
+import com.nj031.onetask.ui.components.WallpaperBackdrop
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.ui.theme.OneTaskCalendarIcon
 import com.nj031.onetask.ui.theme.OneTaskTasksIcon
 import com.nj031.onetask.ui.theme.OneTaskTheme
+import com.nj031.onetask.ui.theme.OneTaskWallpapers
 import com.nj031.onetask.viewmodel.HomeViewModel
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -144,7 +147,9 @@ fun HomeScreen(
     onAddTaskClick: () -> Unit = {},
     onEditTaskClick: (String) -> Unit = {},
     onAddCategoryClick: () -> Unit = {},
-    weekStartDay: DayOfWeek = DayOfWeek.MONDAY
+    weekStartDay: DayOfWeek = DayOfWeek.MONDAY,
+    wallpaper: Wallpaper = Wallpaper.NONE,
+    darkTheme: Boolean = false
 ) {
     // Which task's compact Action Row is currently open, if any - only one at a time, replacing
     // the old large tap-to-open action-sheet popup. Kept as an id (not the TaskEntity) so it
@@ -287,14 +292,24 @@ fun HomeScreen(
         }
     }
 
+    // Task is one of only 3 screens the wallpaper IMAGE itself is scoped to (see the Wallpaper
+    // spec's "image scope" rule) - WallpaperBackdrop is a no-op when no wallpaper is selected, so
+    // this Box changes nothing about this screen's existing look/behavior in that case. Scaffold's
+    // own containerColor is made transparent only while a wallpaper is active, so the image
+    // actually shows through instead of being covered by the screen's ordinary solid background.
+    Box(modifier = Modifier.fillMaxSize()) {
+    WallpaperBackdrop(wallpaper = wallpaper, darkTheme = darkTheme)
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = if (wallpaper == Wallpaper.NONE) MaterialTheme.colorScheme.background else Color.Transparent,
         bottomBar = {
             OneTaskBottomNav(
                 activeTab = BottomNavTab.TASKS,
                 onJournalClick = onNavigateToJournal,
                 onTasksClick = {},
-                onTimerClick = onOpenTimerPlaceholder
+                onTimerClick = onOpenTimerPlaceholder,
+                backgroundColor = OneTaskWallpapers.definitionFor(wallpaper)?.let {
+                    if (darkTheme) it.dark.bottomNavigation else it.light.bottomNavigation
+                } ?: MaterialTheme.colorScheme.surface
             )
         },
         floatingActionButton = {
@@ -410,6 +425,7 @@ fun HomeScreen(
                 }
             }
         }
+    }
     }
 
     if (showCategoryFilterSelector) {

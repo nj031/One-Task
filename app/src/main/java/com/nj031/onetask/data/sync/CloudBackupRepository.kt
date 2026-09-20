@@ -21,9 +21,17 @@ import com.nj031.onetask.data.task.TaskStatus
 import java.io.File
 import kotlinx.coroutines.tasks.await
 
-/** The signed-in account's cloud-backed Appearance settings (Display Mode + Color Theme), plus
- * when they were last changed - see [CloudBackupRepository.pushAppearance]/[pullAppearance]. */
-data class CloudAppearance(val displayMode: String, val colorTheme: String, val updatedAt: Long)
+/** The signed-in account's cloud-backed Appearance settings (Display Mode + Color Theme +
+ * Wallpaper), plus when they were last changed - see
+ * [CloudBackupRepository.pushAppearance]/[pullAppearance]. [wallpaper] defaults to "NONE" so a
+ * document written before the Wallpaper feature existed still parses correctly (see
+ * [pullAppearance]). */
+data class CloudAppearance(
+    val displayMode: String,
+    val colorTheme: String,
+    val updatedAt: Long,
+    val wallpaper: String = "NONE"
+)
 
 /** The signed-in account's cloud-backed General Settings. Deliberately excludes
  * "last cloud backup at" (device/install bookkeeping, not a user preference - see
@@ -254,6 +262,7 @@ object CloudBackupRepository {
                 mapOf(
                     "displayMode" to appearance.displayMode,
                     "colorTheme" to appearance.colorTheme,
+                    "wallpaper" to appearance.wallpaper,
                     "updatedAt" to appearance.updatedAt
                 )
             ).await()
@@ -397,7 +406,10 @@ object CloudBackupRepository {
         if (!doc.exists()) return null
         val displayMode = doc.getString("displayMode") ?: return null
         val colorTheme = doc.getString("colorTheme") ?: return null
-        return CloudAppearance(displayMode, colorTheme, doc.getLong("updatedAt") ?: 0L)
+        // Absent from any appearance document written before the Wallpaper feature existed -
+        // default to "NONE", exactly matching CloudAppearance's own constructor default.
+        val wallpaper = doc.getString("wallpaper") ?: "NONE"
+        return CloudAppearance(displayMode, colorTheme, doc.getLong("updatedAt") ?: 0L, wallpaper)
     }
 
     suspend fun pullGeneralSettings(): CloudGeneralSettings? {

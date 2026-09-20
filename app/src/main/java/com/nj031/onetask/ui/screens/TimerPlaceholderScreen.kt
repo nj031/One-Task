@@ -57,12 +57,14 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
+import com.nj031.onetask.data.settings.Wallpaper
 import com.nj031.onetask.data.timer.TimerMode
 import com.nj031.onetask.data.timer.TimerSessionSnapshot
 import com.nj031.onetask.data.timer.formatTimerDuration
 import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.OneTaskBottomNav
 import com.nj031.onetask.ui.components.OneTaskDurationPickerDialog
+import com.nj031.onetask.ui.components.WallpaperBackdrop
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.ui.theme.OneTaskClockIcon
 import com.nj031.onetask.ui.theme.OneTaskLapFlagIcon
@@ -70,6 +72,7 @@ import com.nj031.onetask.ui.theme.OneTaskPauseIcon
 import com.nj031.onetask.ui.theme.OneTaskPlayIcon
 import com.nj031.onetask.ui.theme.OneTaskStopIcon
 import com.nj031.onetask.ui.theme.OneTaskStopwatchIcon
+import com.nj031.onetask.ui.theme.OneTaskWallpapers
 import com.nj031.onetask.viewmodel.TimerViewModel
 import kotlin.math.cos
 import kotlin.math.sin
@@ -95,7 +98,9 @@ fun TimerPlaceholderScreen(
     onNotificationSettingsClick: () -> Unit = {},
     onTimerSettingsClick: () -> Unit = {},
     onCustomDurationSettingsClick: () -> Unit = {},
-    onTimerHistoryClick: () -> Unit = {}
+    onTimerHistoryClick: () -> Unit = {},
+    wallpaper: Wallpaper = Wallpaper.NONE,
+    darkTheme: Boolean = false
 ) {
     val context = LocalContext.current
     val snapshot by viewModel.snapshot.collectAsState()
@@ -133,14 +138,22 @@ fun TimerPlaceholderScreen(
 
     var showCustomDurationPicker by remember { mutableStateOf(false) }
 
+    // Timer is one of only 3 screens the wallpaper IMAGE itself is scoped to (see the Wallpaper
+    // spec's "image scope" rule) - WallpaperBackdrop is a no-op when no wallpaper is selected, so
+    // this Box changes nothing about this screen's existing look/behavior in that case.
+    Box(modifier = Modifier.fillMaxSize()) {
+    WallpaperBackdrop(wallpaper = wallpaper, darkTheme = darkTheme)
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = if (wallpaper == Wallpaper.NONE) MaterialTheme.colorScheme.background else Color.Transparent,
         bottomBar = {
             OneTaskBottomNav(
                 activeTab = BottomNavTab.TIMER,
                 onJournalClick = onNavigateToJournal,
                 onTasksClick = onNavigateToTasks,
-                onTimerClick = {}
+                onTimerClick = {},
+                backgroundColor = OneTaskWallpapers.definitionFor(wallpaper)?.let {
+                    if (darkTheme) it.dark.bottomNavigation else it.light.bottomNavigation
+                } ?: MaterialTheme.colorScheme.surface
             )
         }
     ) { innerPadding ->
@@ -194,6 +207,7 @@ fun TimerPlaceholderScreen(
                 }
             }
         }
+    }
     }
 
     if (showCustomDurationPicker) {
