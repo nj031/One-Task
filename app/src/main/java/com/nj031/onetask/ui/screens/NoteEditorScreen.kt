@@ -12,14 +12,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -292,7 +297,7 @@ fun NoteEditorScreen(
                         NoteEditorTopBar(
                             onBackClick = { commitOnExit(); onDone() },
                             canModifyNote = existingNote != null,
-                            onAddToCategoryClick = { showLabelDialog = true },
+                            onAddToLabelClick = { showLabelDialog = true },
                             onArchiveClick = ::performArchive,
                             onDeleteClick = ::performDelete
                         )
@@ -362,7 +367,7 @@ fun NoteEditorScreen(
                         NoteEditorTopBar(
                             onBackClick = { commitOnExit(); onDone() },
                             canModifyNote = existingNote != null,
-                            onAddToCategoryClick = { showLabelDialog = true },
+                            onAddToLabelClick = { showLabelDialog = true },
                             onArchiveClick = ::performArchive,
                             onDeleteClick = ::performDelete
                         )
@@ -423,7 +428,7 @@ fun NoteEditorScreen(
 private fun NoteEditorTopBar(
     onBackClick: () -> Unit,
     canModifyNote: Boolean,
-    onAddToCategoryClick: () -> Unit,
+    onAddToLabelClick: () -> Unit,
     onArchiveClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
@@ -464,8 +469,8 @@ private fun NoteEditorTopBar(
                     onClick = { showMenu = false }
                 )
                 DropdownMenuItem(
-                    text = { Text(stringResource(id = R.string.note_menu_add_to_category)) },
-                    onClick = { showMenu = false; onAddToCategoryClick() }
+                    text = { Text(stringResource(id = R.string.note_menu_add_to_label)) },
+                    onClick = { showMenu = false; onAddToLabelClick() }
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(id = R.string.note_menu_pin_note)) },
@@ -528,7 +533,19 @@ private fun NoteFormattingToolbar(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .imePadding(),
+            // The app opts into edge-to-edge (see MainActivity's enableEdgeToEdge()), so the
+            // system's own navigation bar (3-button bar or gesture bar) draws on top of this
+            // screen's content unless a screen accounts for it itself - exactly the inset every
+            // other screen's own OneTaskBottomNav already consumes via
+            // windowInsetsPadding(WindowInsets.navigationBars). This toolbar has no
+            // OneTaskBottomNav of its own (the Note Editor is a full-screen editor, not one of
+            // the three tab screens), so it must consume that same inset directly, or its own
+            // content renders underneath/behind the system bar instead of sitting above it.
+            // union(WindowInsets.ime) keeps the toolbar rising above the keyboard when it's open
+            // (this screen's previous imePadding()-only behavior) while never ALSO adding the
+            // navigation-bar inset on top of that - union is the larger of the two, not their
+            // sum, so there's no double-padding either way.
+            .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 4.dp
     ) {
@@ -687,14 +704,13 @@ private fun FormatGlyphButton(
 }
 
 /**
- * The Note Editor's "Add to Category" picker - see [NoteEditorScreen]'s own doc comment for why
- * this is backed by the app's existing per-note Label mechanism ([JournalNoteEntity.label],
- * already the one existing "assign a single categorization value to a note" primitive) rather
- * than a new schema linking notes to Tasks' own Category system, which notes have never had any
- * relationship to. Styled identically to [com.nj031.onetask.ui.components.CategorySelectorDialog]
- * (same Dialog/Surface/row treatment), reusing this app's existing picker visual language rather
- * than inventing a second one. [onAddLabelClick] hands off to the existing Labels screen (the
- * app's one existing "create a new label" flow - see LabelsScreen), the same way
+ * The Note Editor's "Add to Label" picker, backed by the app's existing per-note Label mechanism
+ * ([JournalNoteEntity.label]) - Notes intentionally have no relationship to Tasks' own Category
+ * system, so this dialog and its wording are entirely Notes/Label-scoped, never "Category".
+ * Styled identically to [com.nj031.onetask.ui.components.CategorySelectorDialog] (same
+ * Dialog/Surface/row treatment), reusing this app's existing picker visual language rather than
+ * inventing a second one. [onAddLabelClick] hands off to the existing Labels screen (the app's
+ * one existing "create a new label" flow - see LabelsScreen), the same way
  * CategorySelectorDialog's own "+ Add Category" hands off instead of creating one inline here.
  */
 @Composable
@@ -719,7 +735,7 @@ private fun NoteLabelSelectorDialog(
                     .padding(horizontal = 20.dp, vertical = 18.dp)
             ) {
                 Text(
-                    text = stringResource(id = R.string.note_menu_add_to_category),
+                    text = stringResource(id = R.string.note_menu_add_to_label),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground,
@@ -727,9 +743,9 @@ private fun NoteLabelSelectorDialog(
                 )
 
                 LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
-                    item(key = "no_category") {
+                    item(key = "no_label") {
                         NoteLabelOptionRow(
-                            text = stringResource(id = R.string.category_no_category),
+                            text = stringResource(id = R.string.note_no_label),
                             selected = pendingLabel == null,
                             onClick = { pendingLabel = null }
                         )
@@ -767,7 +783,7 @@ private fun NoteLabelSelectorDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = stringResource(id = R.string.add_category_button),
+                        text = stringResource(id = R.string.note_add_label_button),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary

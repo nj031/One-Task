@@ -400,7 +400,9 @@
 
     <string name="note_menu_share">Share</string>
     <string name="note_menu_make_a_copy">Make a copy</string>
-    <string name="note_menu_add_to_category">Add to Category</string>
+    <string name="note_menu_add_to_label">Add to Label</string>
+    <string name="note_no_label">No Label</string>
+    <string name="note_add_label_button">+ Add Label</string>
     <string name="note_menu_pin_note">Pin note</string>
     <string name="note_menu_note_info">Note info</string>
     <string name="note_plus_menu_add_image">Add Image</string>
