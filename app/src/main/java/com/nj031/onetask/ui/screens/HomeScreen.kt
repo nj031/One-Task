@@ -73,6 +73,7 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.settings.Wallpaper
+import com.nj031.onetask.data.task.CategoryEntity
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskOrderScope
@@ -80,6 +81,7 @@ import com.nj031.onetask.data.task.TaskPriority
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CategorySelectorDialog
+import com.nj031.onetask.ui.components.categoryDisplayName
 import com.nj031.onetask.ui.components.CompactBottomSheet
 import com.nj031.onetask.ui.components.OneTaskAddButton
 import com.nj031.onetask.ui.components.OneTaskCalendarDialog
@@ -421,7 +423,8 @@ fun HomeScreen(
                                 },
                                 listState = listState,
                                 modifier = if (isDragged) Modifier else Modifier.animateItem(),
-                                wallpaper = wallpaper
+                                wallpaper = wallpaper,
+                                customCategories = customCategories
                             )
                         }
                     }
@@ -718,7 +721,8 @@ private fun HomeTaskListItem(
     onDragEnd: () -> Unit,
     listState: LazyListState,
     modifier: Modifier = Modifier,
-    wallpaper: Wallpaper = Wallpaper.NONE
+    wallpaper: Wallpaper = Wallpaper.NONE,
+    customCategories: List<CategoryEntity> = emptyList()
 ) {
     TaskCardWithActionRow(
         task = task,
@@ -764,7 +768,8 @@ private fun HomeTaskListItem(
         onDragEnd = onDragEnd,
         listState = listState,
         modifier = modifier,
-        wallpaper = wallpaper
+        wallpaper = wallpaper,
+        customCategories = customCategories
     )
 }
 
@@ -795,7 +800,8 @@ private fun TaskCardWithActionRow(
     onDragEnd: () -> Unit,
     listState: LazyListState,
     modifier: Modifier = Modifier,
-    wallpaper: Wallpaper = Wallpaper.NONE
+    wallpaper: Wallpaper = Wallpaper.NONE,
+    customCategories: List<CategoryEntity> = emptyList()
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         if (isSelected) {
@@ -822,7 +828,8 @@ private fun TaskCardWithActionRow(
             onDrag = onDrag,
             onDragEnd = onDragEnd,
             listState = listState,
-            wallpaper = wallpaper
+            wallpaper = wallpaper,
+            customCategories = customCategories
         )
     }
 }
@@ -945,7 +952,8 @@ private fun TaskCard(
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
     listState: LazyListState,
-    wallpaper: Wallpaper = Wallpaper.NONE
+    wallpaper: Wallpaper = Wallpaper.NONE,
+    customCategories: List<CategoryEntity> = emptyList()
 ) {
     var subtasksExpanded by remember(task.id) { mutableStateOf(false) }
     val isCompleted = task.status == TaskStatus.COMPLETED
@@ -1026,6 +1034,15 @@ private fun TaskCard(
                         .weight(1f)
                         .padding(start = 12.dp)
                 )
+                // Only shown when the task actually has a Category assigned - categoryDisplayName
+                // itself would fall back to a "No Category" string for a null id, which is exactly
+                // the case this card must show nothing for instead.
+                task.categoryId?.let { categoryId ->
+                    TagPill(
+                        text = categoryDisplayName(categoryId, customCategories),
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
                 task.tag?.let { tag ->
                     TagPill(text = tag, modifier = Modifier.padding(start = 8.dp))
                 }
