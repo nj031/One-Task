@@ -172,6 +172,16 @@ fun OneTaskNavHost(
     // first call's startActivity()/finish() has actually taken the old Activity off screen.
     var accountTransitionStarted by remember { mutableStateOf(false) }
 
+    // Guards endSessionAndReturnToAuth() itself against a double-tap launching its cleanup
+    // coroutine twice - kept as a SEPARATE flag from accountTransitionStarted (rather than
+    // reusing it) so that setting this one early never pre-empts restartToFreshSession()'s own
+    // guard/call at the end of that coroutine: reusing accountTransitionStarted here used to mark
+    // the restart as "already started" before restartToFreshSession() ever ran, so its own
+    // `if (accountTransitionStarted) return` always fired first and the actual
+    // startActivity()/finish() restart never executed on the logout path, even though
+    // AuthRepository.signOut() had already completed.
+    var logoutStarted by remember { mutableStateOf(false) }
+
     /**
      * Fully restarts the app into a brand-new task/Activity instance - the mechanism every
      * account transition (sign-in success, sign-out) relies on to guarantee every ViewModel this
@@ -239,11 +249,13 @@ fun OneTaskNavHost(
      */
     fun endSessionAndReturnToAuth(alreadySignedOut: Boolean = false) {
         // Set synchronously, before the coroutine below's first suspension point, so a rapid
-        // double-tap can't launch this twice - restartToFreshSession()'s own identical guard
-        // only takes effect once this whole coroutine actually reaches it, which is too late to
-        // stop a second concurrent call from starting its own cancel-and-sign-out pass first.
-        if (accountTransitionStarted) return
-        accountTransitionStarted = true
+        // double-tap can't launch this twice - restartToFreshSession()'s own guard only takes
+        // effect once this whole coroutine actually reaches it, which is too late to stop a
+        // second concurrent call from starting its own cancel-and-sign-out pass first. Uses its
+        // own logoutStarted flag (not accountTransitionStarted) precisely so it doesn't disarm
+        // restartToFreshSession()'s later call - see logoutStarted's own comment above.
+        if (logoutStarted) return
+        logoutStarted = true
         // Cancels every one of the outgoing account's scheduled Task Reminders BEFORE signing
         // out, while AppDatabase.getInstance still resolves to that account's own database (see
         // ReminderManager.cancelAllForCurrentAccount) - otherwise a leftover alarm could still
