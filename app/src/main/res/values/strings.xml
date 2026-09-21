@@ -398,6 +398,23 @@
     <string name="save">Save</string>
     <string name="back">Back</string>
 
+    <string name="note_menu_share">Share</string>
+    <string name="note_menu_make_a_copy">Make a copy</string>
+    <string name="note_menu_add_to_category">Add to Category</string>
+    <string name="note_menu_pin_note">Pin note</string>
+    <string name="note_menu_note_info">Note info</string>
+    <string name="note_plus_menu_add_image">Add Image</string>
+    <string name="note_plus_menu_open_camera">Open Camera</string>
+    <string name="note_editor_plus_button">Add</string>
+    <string name="note_format_bold">Bold</string>
+    <string name="note_format_italic">Italic</string>
+    <string name="note_format_underline">Underline</string>
+    <string name="note_format_text_size">Text size</string>
+    <string name="note_format_size_small">Small</string>
+    <string name="note_format_size_medium">Medium</string>
+    <string name="note_format_size_large">Large</string>
+    <string name="note_format_bulleted_list">Bulleted list</string>
+
     <string name="archive">Archive</string>
     <string name="delete">Delete</string>
 

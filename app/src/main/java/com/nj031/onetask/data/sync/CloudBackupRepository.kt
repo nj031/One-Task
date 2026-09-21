@@ -10,6 +10,8 @@ import com.nj031.onetask.data.journal.ChecklistItem
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.JournalNoteStatus
 import com.nj031.onetask.data.journal.JournalNoteType
+import com.nj031.onetask.data.journal.NoteFormatSpan
+import com.nj031.onetask.data.journal.NoteFormatStyle
 import com.nj031.onetask.data.task.CategoryEntity
 import com.nj031.onetask.data.task.RecurringExclusionEntity
 import com.nj031.onetask.data.task.Subtask
@@ -595,7 +597,10 @@ private fun JournalNoteEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "createdAt" to createdAt,
     "updatedAt" to updatedAt,
     "status" to status.name,
-    "label" to label
+    "label" to label,
+    "contentFormatSpans" to contentFormatSpans.map {
+        mapOf("start" to it.start, "end" to it.end, "style" to it.style.name)
+    }
 )
 
 @Suppress("UNCHECKED_CAST")
@@ -608,6 +613,9 @@ private fun DocumentSnapshot.toJournalNoteEntity(): JournalNoteEntity? {
     // Both fields are absent on any note document written before the Notes redesign - default
     // to a plain text note (TEXT, no checklist items) so those existing notes still load intact.
     val checklistItemsRaw = get("checklistItems") as? List<Map<String, Any?>> ?: emptyList()
+    // Absent from any note document written before the Note Editor's formatting toolbar existed
+    // - defaults to no formatting, exactly matching JournalNoteEntity's own constructor default.
+    val formatSpansRaw = get("contentFormatSpans") as? List<Map<String, Any?>> ?: emptyList()
     return JournalNoteEntity(
         id = id,
         title = title,
@@ -626,6 +634,13 @@ private fun DocumentSnapshot.toJournalNoteEntity(): JournalNoteEntity? {
             ?: JournalNoteStatus.ACTIVE,
         // Absent from any note document written before per-note labels were synced - default to
         // null (no label), exactly matching JournalNoteEntity's own constructor default.
-        label = getString("label")
+        label = getString("label"),
+        contentFormatSpans = formatSpansRaw.mapNotNull { raw ->
+            val start = (raw["start"] as? Long)?.toInt() ?: return@mapNotNull null
+            val end = (raw["end"] as? Long)?.toInt() ?: return@mapNotNull null
+            val style = (raw["style"] as? String)?.let { runCatching { NoteFormatStyle.valueOf(it) }.getOrNull() }
+                ?: return@mapNotNull null
+            NoteFormatSpan(start = start, end = end, style = style)
+        }
     )
 }

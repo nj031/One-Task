@@ -792,7 +792,8 @@ fun OneTaskNavHost(
                 noteId = backStackEntry.arguments?.getString("noteId"),
                 noteType = runCatching { JournalNoteType.valueOf(noteTypeArg ?: "TEXT") }
                     .getOrDefault(JournalNoteType.TEXT),
-                onDone = { navController.popBackStack() }
+                onDone = { navController.popBackStack() },
+                onManageLabelsClick = { navController.navigate(Screen.Labels.route) }
             )
         }
     }

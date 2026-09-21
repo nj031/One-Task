@@ -29,7 +29,9 @@ class JournalRepository(private val dao: JournalNoteDao) {
         title: String,
         content: String,
         noteType: JournalNoteType,
-        checklistItems: List<ChecklistItem>
+        checklistItems: List<ChecklistItem>,
+        label: String? = null,
+        contentFormatSpans: List<NoteFormatSpan> = emptyList()
     ) {
         val now = System.currentTimeMillis()
         val note = JournalNoteEntity(
@@ -41,7 +43,9 @@ class JournalRepository(private val dao: JournalNoteDao) {
             // the entity only for backward compatibility with rows saved before this redesign.
             journalDate = LocalDate.now().toEpochDay(),
             createdAt = now,
-            updatedAt = now
+            updatedAt = now,
+            label = label,
+            contentFormatSpans = contentFormatSpans
         )
         dao.insert(note)
         CloudBackupRepository.pushNote(note)
@@ -51,12 +55,16 @@ class JournalRepository(private val dao: JournalNoteDao) {
         note: JournalNoteEntity,
         title: String,
         content: String,
-        checklistItems: List<ChecklistItem>
+        checklistItems: List<ChecklistItem>,
+        label: String? = note.label,
+        contentFormatSpans: List<NoteFormatSpan> = note.contentFormatSpans
     ) {
         val updated = note.copy(
             title = title,
             content = content,
             checklistItems = checklistItems,
+            label = label,
+            contentFormatSpans = contentFormatSpans,
             updatedAt = System.currentTimeMillis()
         )
         dao.update(updated)

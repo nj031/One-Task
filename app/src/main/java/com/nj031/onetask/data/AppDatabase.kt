@@ -123,6 +123,16 @@ private val MIGRATION_12_13 = object : Migration(12, 13) {
     }
 }
 
+/** Adds the Note Editor's Bold/Italic/Underline/Aa formatting toolbar's own storage column, so
+ * every existing note survives this update: contentFormatSpans defaults to '' (empty list, via
+ * Converters.toFormatSpans - see its own comment), the same "no formatting" state a note saved
+ * before this feature existed should have. */
+private val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE journal_notes ADD COLUMN contentFormatSpans TEXT NOT NULL DEFAULT ''")
+    }
+}
+
 @Database(
     entities = [
         JournalNoteEntity::class,
@@ -132,7 +142,7 @@ private val MIGRATION_12_13 = object : Migration(12, 13) {
         RecurringExclusionEntity::class,
         CategoryEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 @TypeConverters(Converters::class, TaskConverters::class)
@@ -174,7 +184,7 @@ abstract class AppDatabase : RoomDatabase() {
                 instance?.close()
                 val databaseName = "${LEGACY_DATABASE_NAME}_$userId"
                 val database = Room.databaseBuilder(appContext, AppDatabase::class.java, databaseName)
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                     .fallbackToDestructiveMigration()
                     .build()
                 instance = database
