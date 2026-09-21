@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -197,14 +198,16 @@ fun TimerPlaceholderScreen(
                         onStart = viewModel::startTimer,
                         onPause = viewModel::pauseTimer,
                         onResume = viewModel::resumeTimer,
-                        onStop = viewModel::stopTimer
+                        onStop = viewModel::stopTimer,
+                        wallpaper = wallpaper
                     )
                     TimerTab.STOPWATCH -> StopwatchModeContent(
                         snapshot = snapshot,
                         onStart = viewModel::startStopwatch,
                         onPause = viewModel::pauseStopwatch,
                         onResume = viewModel::resumeStopwatch,
-                        onStop = viewModel::stopStopwatch
+                        onStop = viewModel::stopStopwatch,
+                        wallpaper = wallpaper
                     )
                 }
             }
@@ -234,7 +237,26 @@ private fun TimerTopBar(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxWidth()) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            // Only while a wallpaper is active: gives this title/menu row the same translucent-
+            // surface-plus-border treatment as this screen's own pills/segmented control, since
+            // (unlike those) this header previously rendered directly over the wallpaper image
+            // with nothing behind it - reusing the existing Verdant border/surface tokens, not a
+            // new color. Non-wallpaper themes are unaffected.
+            .then(
+                if (wallpaper != Wallpaper.NONE) {
+                    Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                } else {
+                    Modifier
+                }
+            )
+    ) {
         Text(
             text = stringResource(id = R.string.timer_focus_title),
             style = MaterialTheme.typography.headlineSmall,
@@ -363,7 +385,8 @@ private fun TimerModeContent(
     onStart: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
-    onStop: () -> Unit
+    onStop: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val hapticTick = rememberHapticTick()
     val isRunning = snapshot.isTimerRunning
@@ -380,7 +403,7 @@ private fun TimerModeContent(
             .padding(top = 32.dp),
         contentAlignment = Alignment.Center
     ) {
-        Box(modifier = Modifier.size(280.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = timerRingBackingModifier(wallpaper), contentAlignment = Alignment.Center) {
             TimerRing(remainingFraction = remainingFraction, showProgress = isActive)
             TimerCenterLabel(millis = displayMillis)
         }
@@ -399,18 +422,21 @@ private fun TimerModeContent(
         !isActive -> TimerPrimaryButton(
             icon = { OneTaskPlayIcon(tint = Color.White, size = 20.dp) },
             label = stringResource(id = R.string.timer_start_button),
-            onClick = { hapticTick(); onStart() }
+            onClick = { hapticTick(); onStart() },
+            wallpaper = wallpaper
         )
         isRunning -> TimerPrimaryButton(
             icon = { OneTaskPauseIcon(tint = Color.White, size = 20.dp) },
             label = stringResource(id = R.string.pause),
-            onClick = { hapticTick(); onPause() }
+            onClick = { hapticTick(); onPause() },
+            wallpaper = wallpaper
         )
         isPaused -> {
             TimerPrimaryButton(
                 icon = { OneTaskPlayIcon(tint = Color.White, size = 20.dp) },
                 label = stringResource(id = R.string.resume),
-                onClick = { hapticTick(); onResume() }
+                onClick = { hapticTick(); onResume() },
+                wallpaper = wallpaper
             )
             TimerSecondaryStopButton(onClick = { hapticTick(); onStop() })
         }
@@ -425,7 +451,8 @@ private fun StopwatchModeContent(
     onStart: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
-    onStop: () -> Unit
+    onStop: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val hapticTick = rememberHapticTick()
     val isRunning = snapshot.isStopwatchRunning
@@ -439,7 +466,7 @@ private fun StopwatchModeContent(
             .padding(top = 32.dp),
         contentAlignment = Alignment.Center
     ) {
-        Box(modifier = Modifier.size(280.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = timerRingBackingModifier(wallpaper), contentAlignment = Alignment.Center) {
             TimerRing(remainingFraction = 1f, showProgress = false)
             TimerCenterLabel(millis = elapsedMillis)
         }
@@ -450,20 +477,23 @@ private fun StopwatchModeContent(
             icon = { OneTaskPlayIcon(tint = Color.White, size = 20.dp) },
             label = stringResource(id = R.string.timer_start_button),
             onClick = { hapticTick(); onStart() },
-            modifier = Modifier.padding(top = 28.dp)
+            modifier = Modifier.padding(top = 28.dp),
+            wallpaper = wallpaper
         )
         isRunning -> TimerPrimaryButton(
             icon = { OneTaskPauseIcon(tint = Color.White, size = 20.dp) },
             label = stringResource(id = R.string.pause),
             onClick = { hapticTick(); onPause() },
-            modifier = Modifier.padding(top = 28.dp)
+            modifier = Modifier.padding(top = 28.dp),
+            wallpaper = wallpaper
         )
         isPaused -> {
             TimerPrimaryButton(
                 icon = { OneTaskPlayIcon(tint = Color.White, size = 20.dp) },
                 label = stringResource(id = R.string.resume),
                 onClick = { hapticTick(); onResume() },
-                modifier = Modifier.padding(top = 28.dp)
+                modifier = Modifier.padding(top = 28.dp),
+                wallpaper = wallpaper
             )
             TimerSecondaryStopButton(onClick = { hapticTick(); onStop() })
         }
@@ -483,6 +513,26 @@ private fun StopwatchModeContent(
         }
     }
 }
+
+/**
+ * The 280dp ring+countdown-label composition's own modifier - only while a wallpaper is active,
+ * adds the same translucent-surface-plus-border treatment Cards elsewhere already use, since the
+ * countdown text previously rendered directly over the wallpaper image with nothing behind it.
+ * Circular (matching the ring it backs) rather than the cards' rounded-rect, reusing the existing
+ * Verdant border/surface tokens - not a new color, and the ring/label themselves are unchanged.
+ * Non-wallpaper themes get a plain, unmodified 280dp box, exactly as before this existed.
+ */
+@Composable
+private fun timerRingBackingModifier(wallpaper: Wallpaper): Modifier =
+    if (wallpaper != Wallpaper.NONE) {
+        Modifier
+            .size(280.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+    } else {
+        Modifier.size(280.dp)
+    }
 
 /**
  * The countdown/elapsed-time ring: a light full-circle track always shown, plus - only while a
@@ -636,7 +686,8 @@ private fun TimerPrimaryButton(
     icon: @Composable () -> Unit,
     label: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     Button(
         onClick = onClick,
@@ -648,7 +699,16 @@ private fun TimerPrimaryButton(
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = Color.White
-        )
+        ),
+        // Only while a wallpaper is active: gives this CTA a defined edge against whatever
+        // wallpaper pixels happen to sit behind it - the same border token/technique Cards
+        // elsewhere already use - without changing containerColor's own existing opacity.
+        // Non-wallpaper themes are unaffected.
+        border = if (wallpaper != Wallpaper.NONE) {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        } else {
+            null
+        }
     ) {
         icon()
         Text(

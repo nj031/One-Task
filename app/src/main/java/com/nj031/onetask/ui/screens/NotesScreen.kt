@@ -193,7 +193,16 @@ fun NotesScreen(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color.White
-                    )
+                    ),
+                    // Only while a wallpaper is active: gives this CTA a defined edge against
+                    // whatever wallpaper pixels happen to sit behind it - the same border token/
+                    // technique Cards elsewhere already use - without changing containerColor's
+                    // own existing opacity. Non-wallpaper themes are unaffected.
+                    border = if (wallpaper != Wallpaper.NONE) {
+                        BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                    } else {
+                        null
+                    }
                 ) {
                     Icon(imageVector = Icons.Filled.Add, contentDescription = null, tint = Color.White)
                     Text(
@@ -306,7 +315,26 @@ private fun NotesTopBar(
     val profileDescription = stringResource(id = R.string.nav_profile)
     var showMenu by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxWidth()) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            // Only while a wallpaper is active: gives this avatar/title/menu row the same
+            // translucent-surface-plus-border treatment as this screen's own search field, since
+            // (unlike that field) this header previously rendered directly over the wallpaper
+            // image with nothing behind it - reusing the existing Verdant border/surface tokens,
+            // not a new color. Non-wallpaper themes are unaffected.
+            .then(
+                if (wallpaper != Wallpaper.NONE) {
+                    Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                } else {
+                    Modifier
+                }
+            )
+    ) {
         IconButton(
             onClick = onAvatarClick,
             modifier = Modifier

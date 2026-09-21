@@ -323,7 +323,11 @@ fun HomeScreen(
                     fabHeight = with(fabDensity) { coordinates.size.height.toDp() }
                 }
             ) {
-                OneTaskAddButton(onClick = onAddTaskClick, contentDescription = stringResource(id = R.string.add_task))
+                OneTaskAddButton(
+                    onClick = onAddTaskClick,
+                    contentDescription = stringResource(id = R.string.add_task),
+                    wallpaper = wallpaper
+                )
             }
         }
     ) { innerPadding ->
@@ -354,7 +358,8 @@ fun HomeScreen(
                     onAvatarClick = onProfileAvatarClick,
                     onPreviousDay = viewModel::goToPreviousDay,
                     onNextDay = viewModel::goToNextDay,
-                    onCalendarClick = { showDatePicker = true }
+                    onCalendarClick = { showDatePicker = true },
+                    wallpaper = wallpaper
                 )
 
                 TaskFilterStrip(
@@ -489,7 +494,8 @@ private fun TaskScreenHeader(
     onPreviousDay: () -> Unit,
     onNextDay: () -> Unit,
     onCalendarClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val profileDescription = stringResource(id = R.string.nav_profile)
     val calendarDescription = stringResource(id = R.string.calendar)
@@ -505,7 +511,24 @@ private fun TaskScreenHeader(
     }
 
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            // Only while a wallpaper is active: gives this row's avatar/date/nav icons the same
+            // translucent-surface-plus-border treatment as Cards elsewhere on this screen, since
+            // (unlike a Card) this header previously rendered directly over the wallpaper image
+            // with nothing behind it - reusing the existing Verdant border/surface tokens, not a
+            // new color. Non-wallpaper themes are unaffected.
+            .then(
+                if (wallpaper != Wallpaper.NONE) {
+                    Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                } else {
+                    Modifier
+                }
+            ),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
