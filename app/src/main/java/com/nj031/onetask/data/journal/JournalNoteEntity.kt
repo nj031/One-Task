@@ -17,6 +17,22 @@ data class ChecklistItem(
     val checked: Boolean = false
 )
 
+/** The formatting options the Note Editor's Bold/Italic/Underline/Aa controls apply to a TEXT
+ * note's [JournalNoteEntity.content]. BOLD/ITALIC/UNDERLINE are independent per-character styles
+ * that can freely overlap each other and a HEADING_* style; HEADING_MEDIUM and HEADING_LARGE are
+ * mutually exclusive block-size styles - a range covered by neither is simply the note's normal
+ * body text size (the Aa control's "Small" option, so there is no explicit NORMAL style to
+ * store). */
+enum class NoteFormatStyle { BOLD, ITALIC, UNDERLINE, HEADING_MEDIUM, HEADING_LARGE }
+
+/** One inline formatting range over [JournalNoteEntity.content] - [start] inclusive, [end]
+ * exclusive, the same convention [androidx.compose.ui.text.TextRange] uses. */
+data class NoteFormatSpan(
+    val start: Int,
+    val end: Int,
+    val style: NoteFormatStyle
+)
+
 @Entity(tableName = "journal_notes")
 data class JournalNoteEntity(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
@@ -31,7 +47,12 @@ data class JournalNoteEntity(
     // Null means no label assigned. A single nullable field (rather than a list) is what
     // structurally enforces "a note can have at most one label" - there's no representation for
     // more than one.
-    val label: String? = null
+    val label: String? = null,
+    // Bold/Italic/Underline/Aa formatting ranges over [content] - see [NoteFormatSpan]. Only
+    // meaningful for a TEXT note; always empty for a CHECKLIST note (its own per-item text isn't
+    // formattable). Empty for every note saved before the Note Editor's formatting toolbar
+    // existed, which is exactly the correct "no formatting applied" state for them.
+    val contentFormatSpans: List<NoteFormatSpan> = emptyList()
 )
 
 /** The set of labels available to assign to notes - conceptually the Notes equivalent of

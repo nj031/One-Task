@@ -8,6 +8,7 @@ import com.nj031.onetask.data.journal.ChecklistItem
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.JournalNoteType
 import com.nj031.onetask.data.journal.JournalRepository
+import com.nj031.onetask.data.journal.NoteFormatSpan
 import com.nj031.onetask.data.settings.GeneralSettingsRepository
 import com.nj031.onetask.data.settings.NotesViewMode
 import com.nj031.onetask.data.sync.CloudBackupRepository
@@ -97,13 +98,22 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun createNote(title: String, content: String, noteType: JournalNoteType, checklistItems: List<ChecklistItem>) {
+    fun createNote(
+        title: String,
+        content: String,
+        noteType: JournalNoteType,
+        checklistItems: List<ChecklistItem>,
+        label: String? = null,
+        contentFormatSpans: List<NoteFormatSpan> = emptyList()
+    ) {
         viewModelScope.launch {
             repository.createNote(
                 title = title,
                 content = content,
                 noteType = noteType,
-                checklistItems = checklistItems
+                checklistItems = checklistItems,
+                label = label,
+                contentFormatSpans = contentFormatSpans
             )
         }
     }
@@ -111,9 +121,16 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
     fun getNoteById(id: String?): JournalNoteEntity? =
         id?.let { targetId -> activeNotes.value.find { it.id == targetId } }
 
-    fun updateNote(note: JournalNoteEntity, title: String, content: String, checklistItems: List<ChecklistItem>) {
+    fun updateNote(
+        note: JournalNoteEntity,
+        title: String,
+        content: String,
+        checklistItems: List<ChecklistItem>,
+        label: String? = note.label,
+        contentFormatSpans: List<NoteFormatSpan> = note.contentFormatSpans
+    ) {
         viewModelScope.launch {
-            repository.updateNote(note, title, content, checklistItems)
+            repository.updateNote(note, title, content, checklistItems, label, contentFormatSpans)
         }
     }
 

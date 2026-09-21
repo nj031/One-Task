@@ -8,11 +8,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,17 +33,25 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,17 +72,30 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.journal.ChecklistItem
 import com.nj031.onetask.data.journal.JournalNoteType
+import com.nj031.onetask.data.journal.NoteFormatSpan
+import com.nj031.onetask.data.journal.NoteFormatStyle
 import com.nj031.onetask.viewmodel.JournalViewModel
 import kotlinx.coroutines.isActive
 
@@ -84,14 +108,22 @@ import kotlinx.coroutines.isActive
  * background or the screen locking never destroys this composition (Activity.onStop, not
  * onDestroy), so `remember` alone already preserves in-progress edits across both - exactly the
  * "preserve on background/lock, but not across a real process kill" behavior this needs, with no
- * extra plumbing.
+ * extra plumbing. The same is true of navigating to Labels and back (see [onManageLabelsClick]
+ * below) - it's a normal back-stack push, not a recreation, so this composition (and every var
+ * below) survives the round trip unchanged.
+ *
+ * Bold/Italic/Underline/Aa formatting ([formatSpans]) only applies to a TEXT note's [contentValue]
+ * - see [NoteFormatSpan]'s own doc comment. It is deferred-saved exactly like [title]/[contentValue]
+ * themselves, through the same [commitOnExit] path, so it follows this app's one existing Note
+ * persistence mechanism (Room + the per-note Firestore push) rather than a separate one.
  */
 @Composable
 fun NoteEditorScreen(
     viewModel: JournalViewModel = viewModel(),
     noteId: String? = null,
     noteType: JournalNoteType = JournalNoteType.TEXT,
-    onDone: () -> Unit
+    onDone: () -> Unit,
+    onManageLabelsClick: () -> Unit = {}
 ) {
     val existingNote = remember(noteId) { viewModel.getNoteById(noteId) }
     val effectiveNoteType = existingNote?.noteType ?: noteType
@@ -105,6 +137,16 @@ fun NoteEditorScreen(
             }
         )
     }
+    var noteLabel by remember { mutableStateOf(existingNote?.label) }
+    var formatSpans by remember { mutableStateOf(existingNote?.contentFormatSpans ?: emptyList()) }
+    // Armed while the selection is collapsed: the next characters typed inherit whichever of
+    // these styles are armed (see the content TextField's onValueChange below) - the "start
+    // applying from the current cursor/typing position" behavior Bold/Italic/Underline need when
+    // nothing is selected, mirroring an ordinary word processor's own "type in Bold" behavior.
+    var pendingCharacterStyles by remember { mutableStateOf(emptySet<NoteFormatStyle>()) }
+
+    var showLabelDialog by remember { mutableStateOf(false) }
+    val labels by viewModel.labels.collectAsState()
 
     // A note only "has content" worth keeping when the title or the type-specific content is
     // non-blank - an empty checklist item created just by opening Add > Checklist doesn't count
@@ -119,13 +161,22 @@ fun NoteEditorScreen(
         if (hasContent()) {
             val savedItems = checklistItems.filter { it.text.isNotBlank() }
             if (note != null) {
-                viewModel.updateNote(note = note, title = title, content = contentValue.text, checklistItems = savedItems)
+                viewModel.updateNote(
+                    note = note,
+                    title = title,
+                    content = contentValue.text,
+                    checklistItems = savedItems,
+                    label = noteLabel,
+                    contentFormatSpans = formatSpans
+                )
             } else {
                 viewModel.createNote(
                     title = title,
                     content = contentValue.text,
                     noteType = effectiveNoteType,
-                    checklistItems = savedItems
+                    checklistItems = savedItems,
+                    label = noteLabel,
+                    contentFormatSpans = formatSpans
                 )
             }
         } else if (note != null) {
@@ -137,12 +188,67 @@ fun NoteEditorScreen(
         // to undo.
     }
 
+    fun performArchive() {
+        existingNote?.let { viewModel.archiveNote(it) }
+        onDone()
+    }
+
+    fun performDelete() {
+        existingNote?.let { viewModel.trashNote(it) }
+        onDone()
+    }
+
+    val selection = contentValue.selection
+    fun isCharacterStyleActive(style: NoteFormatStyle): Boolean =
+        if (selection.collapsed) style in pendingCharacterStyles else isRangeFullyCovered(formatSpans, style, selection.min, selection.max)
+
+    fun toggleCharacterStyle(style: NoteFormatStyle) {
+        if (!selection.collapsed) {
+            formatSpans = toggleStyleOverRange(formatSpans, style, selection.min, selection.max)
+        } else {
+            pendingCharacterStyles = if (style in pendingCharacterStyles) {
+                pendingCharacterStyles - style
+            } else {
+                pendingCharacterStyles + style
+            }
+        }
+    }
+
+    fun applyHeading(style: NoteFormatStyle?) {
+        val (start, end) = if (!selection.collapsed) {
+            selection.min to selection.max
+        } else {
+            currentLineRange(contentValue.text, selection.start)
+        }
+        formatSpans = setHeadingOverRange(formatSpans, style, start, end)
+    }
+
     BackHandler {
         commitOnExit()
         onDone()
     }
 
-    Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            NoteFormattingToolbar(
+                formattingEnabled = effectiveNoteType == JournalNoteType.TEXT,
+                isBoldActive = isCharacterStyleActive(NoteFormatStyle.BOLD),
+                isItalicActive = isCharacterStyleActive(NoteFormatStyle.ITALIC),
+                isUnderlineActive = isCharacterStyleActive(NoteFormatStyle.UNDERLINE),
+                onBoldClick = { toggleCharacterStyle(NoteFormatStyle.BOLD) },
+                onItalicClick = { toggleCharacterStyle(NoteFormatStyle.ITALIC) },
+                onUnderlineClick = { toggleCharacterStyle(NoteFormatStyle.UNDERLINE) },
+                onSizeSelected = { style -> applyHeading(style) },
+                // Bulleted list / Checklist toolbar buttons and both + menu options are
+                // placeholders only, per this task's own spec - deliberately no-op.
+                onBulletedListClick = {},
+                onChecklistClick = {},
+                onAddImageClick = {},
+                onOpenCameraClick = {}
+            )
+        }
+    ) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -174,6 +280,8 @@ fun NoteEditorScreen(
                         }
                     }
 
+                    val formatTransformation = remember(formatSpans) { noteFormatVisualTransformation(formatSpans) }
+
                     Column(
                         modifier = Modifier
                             .widthIn(max = 640.dp)
@@ -181,7 +289,13 @@ fun NoteEditorScreen(
                             .verticalScroll(contentScrollState)
                             .padding(horizontal = 20.dp, vertical = 12.dp)
                     ) {
-                        NoteEditorTopBar(onBackClick = { commitOnExit(); onDone() })
+                        NoteEditorTopBar(
+                            onBackClick = { commitOnExit(); onDone() },
+                            canModifyNote = existingNote != null,
+                            onAddToCategoryClick = { showLabelDialog = true },
+                            onArchiveClick = ::performArchive,
+                            onDeleteClick = ::performDelete
+                        )
 
                         TextField(
                             value = title,
@@ -206,7 +320,17 @@ fun NoteEditorScreen(
 
                         TextField(
                             value = contentValue,
-                            onValueChange = { contentValue = it },
+                            onValueChange = { newValue ->
+                                val diff = diffText(contentValue.text, newValue.text)
+                                var updatedSpans = shiftSpansForEdit(formatSpans, diff)
+                                if (pendingCharacterStyles.isNotEmpty() && diff.newEnd > diff.oldStart) {
+                                    pendingCharacterStyles.forEach { style ->
+                                        updatedSpans = addCoverage(updatedSpans, style, diff.oldStart, diff.newEnd)
+                                    }
+                                }
+                                formatSpans = updatedSpans
+                                contentValue = newValue
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 4.dp),
@@ -220,6 +344,7 @@ fun NoteEditorScreen(
                             textStyle = MaterialTheme.typography.bodyLarge.copy(
                                 color = MaterialTheme.colorScheme.onBackground
                             ),
+                            visualTransformation = formatTransformation,
                             colors = transparentTextFieldColors()
                         )
                     }
@@ -234,7 +359,13 @@ fun NoteEditorScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp, vertical = 12.dp)
                     ) {
-                        NoteEditorTopBar(onBackClick = { commitOnExit(); onDone() })
+                        NoteEditorTopBar(
+                            onBackClick = { commitOnExit(); onDone() },
+                            canModifyNote = existingNote != null,
+                            onAddToCategoryClick = { showLabelDialog = true },
+                            onArchiveClick = ::performArchive,
+                            onDeleteClick = ::performDelete
+                        )
 
                         TextField(
                             value = title,
@@ -270,25 +401,567 @@ fun NoteEditorScreen(
             }
         }
     }
+
+    if (showLabelDialog) {
+        NoteLabelSelectorDialog(
+            currentLabel = noteLabel,
+            labels = labels,
+            onDismiss = { showLabelDialog = false },
+            onConfirm = { chosen ->
+                noteLabel = chosen
+                showLabelDialog = false
+            },
+            onAddLabelClick = {
+                showLabelDialog = false
+                onManageLabelsClick()
+            }
+        )
+    }
 }
 
 @Composable
-private fun NoteEditorTopBar(onBackClick: () -> Unit) {
-    IconButton(onClick = onBackClick) {
-        Icon(
-            imageVector = Icons.Filled.ArrowBack,
-            contentDescription = stringResource(id = R.string.back),
-            tint = MaterialTheme.colorScheme.primary
+private fun NoteEditorTopBar(
+    onBackClick: () -> Unit,
+    canModifyNote: Boolean,
+    onAddToCategoryClick: () -> Unit,
+    onArchiveClick: () -> Unit,
+    onDeleteClick: () -> Unit
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    val disabledColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        IconButton(onClick = onBackClick, modifier = Modifier.align(Alignment.CenterStart)) {
+            Icon(
+                imageVector = Icons.Filled.ArrowBack,
+                contentDescription = stringResource(id = R.string.back),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+            IconButton(onClick = { showMenu = true }) {
+                Icon(
+                    imageVector = Icons.Filled.MoreVert,
+                    contentDescription = stringResource(id = R.string.notes_more_options),
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+                shape = RoundedCornerShape(16.dp),
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                // Share / Make a copy / Pin note / Note info are placeholders only, per this
+                // task's own spec - visible and tappable, but deliberately no-op.
+                DropdownMenuItem(
+                    text = { Text(stringResource(id = R.string.note_menu_share)) },
+                    onClick = { showMenu = false }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(id = R.string.note_menu_make_a_copy)) },
+                    onClick = { showMenu = false }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(id = R.string.note_menu_add_to_category)) },
+                    onClick = { showMenu = false; onAddToCategoryClick() }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(id = R.string.note_menu_pin_note)) },
+                    onClick = { showMenu = false }
+                )
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = stringResource(id = R.string.archive),
+                            color = if (canModifyNote) MaterialTheme.colorScheme.onBackground else disabledColor
+                        )
+                    },
+                    enabled = canModifyNote,
+                    onClick = { showMenu = false; onArchiveClick() }
+                )
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = stringResource(id = R.string.delete),
+                            color = if (canModifyNote) MaterialTheme.colorScheme.error else disabledColor
+                        )
+                    },
+                    enabled = canModifyNote,
+                    onClick = { showMenu = false; onDeleteClick() }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(id = R.string.note_menu_note_info)) },
+                    onClick = { showMenu = false }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The bottom formatting toolbar: Bold/Italic/Underline/Aa are only functional for a TEXT note's
+ * body ([formattingEnabled]) - a CHECKLIST note has no single content field for them to act on,
+ * so they're shown but disabled rather than hidden, keeping the toolbar's layout identical across
+ * both note types. Bulleted list, Checklist, and both items in the + menu are placeholders only,
+ * per this task's own spec.
+ */
+@Composable
+private fun NoteFormattingToolbar(
+    formattingEnabled: Boolean,
+    isBoldActive: Boolean,
+    isItalicActive: Boolean,
+    isUnderlineActive: Boolean,
+    onBoldClick: () -> Unit,
+    onItalicClick: () -> Unit,
+    onUnderlineClick: () -> Unit,
+    onSizeSelected: (NoteFormatStyle?) -> Unit,
+    onBulletedListClick: () -> Unit,
+    onChecklistClick: () -> Unit,
+    onAddImageClick: () -> Unit,
+    onOpenCameraClick: () -> Unit
+) {
+    var showSizeMenu by remember { mutableStateOf(false) }
+    var showPlusMenu by remember { mutableStateOf(false) }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .imePadding(),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 4.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .widthIn(max = 640.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            FormatGlyphButton(
+                text = "B",
+                bold = true,
+                active = isBoldActive,
+                enabled = formattingEnabled,
+                description = stringResource(id = R.string.note_format_bold),
+                onClick = onBoldClick
+            )
+            FormatGlyphButton(
+                text = "I",
+                italic = true,
+                active = isItalicActive,
+                enabled = formattingEnabled,
+                description = stringResource(id = R.string.note_format_italic),
+                onClick = onItalicClick
+            )
+            FormatGlyphButton(
+                text = "U",
+                underline = true,
+                active = isUnderlineActive,
+                enabled = formattingEnabled,
+                description = stringResource(id = R.string.note_format_underline),
+                onClick = onUnderlineClick
+            )
+
+            Box {
+                FormatGlyphButton(
+                    text = "Aa",
+                    active = false,
+                    enabled = formattingEnabled,
+                    description = stringResource(id = R.string.note_format_text_size),
+                    onClick = { showSizeMenu = true }
+                )
+                DropdownMenu(
+                    expanded = showSizeMenu,
+                    onDismissRequest = { showSizeMenu = false },
+                    shape = RoundedCornerShape(16.dp),
+                    containerColor = MaterialTheme.colorScheme.surface
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(id = R.string.note_format_size_small)) },
+                        onClick = { showSizeMenu = false; onSizeSelected(null) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(id = R.string.note_format_size_medium)) },
+                        onClick = { showSizeMenu = false; onSizeSelected(NoteFormatStyle.HEADING_MEDIUM) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(id = R.string.note_format_size_large)) },
+                        onClick = { showSizeMenu = false; onSizeSelected(NoteFormatStyle.HEADING_LARGE) }
+                    )
+                }
+            }
+
+            FormatGlyphButton(
+                text = "☰",
+                active = false,
+                enabled = true,
+                description = stringResource(id = R.string.note_format_bulleted_list),
+                onClick = onBulletedListClick
+            )
+            FormatGlyphButton(
+                text = "☑",
+                active = false,
+                enabled = true,
+                description = stringResource(id = R.string.note_type_checklist),
+                onClick = onChecklistClick
+            )
+
+            Box {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary)
+                        .clickable { showPlusMenu = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(id = R.string.note_editor_plus_button),
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                DropdownMenu(
+                    expanded = showPlusMenu,
+                    onDismissRequest = { showPlusMenu = false },
+                    shape = RoundedCornerShape(16.dp),
+                    containerColor = MaterialTheme.colorScheme.surface
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(id = R.string.note_plus_menu_add_image)) },
+                        onClick = { showPlusMenu = false; onAddImageClick() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(id = R.string.note_plus_menu_open_camera)) },
+                        onClick = { showPlusMenu = false; onOpenCameraClick() }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** One glyph-style toolbar button - the letter/symbol itself IS the icon (matching the Note
+ * Editor's target design), styled bold/italic/underlined to also serve as its own preview of what
+ * it does. [active] highlights it (an armed pending style, or a fully-covered selection - see
+ * [NoteEditorScreen]'s own isCharacterStyleActive) with the same secondaryContainer/primary
+ * treatment [SegmentedTab] in the Timer screen already uses for its own selected state. */
+@Composable
+private fun FormatGlyphButton(
+    text: String,
+    active: Boolean,
+    enabled: Boolean,
+    description: String,
+    bold: Boolean = false,
+    italic: Boolean = false,
+    underline: Boolean = false,
+    onClick: () -> Unit
+) {
+    val contentColor = when {
+        !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+        active -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onBackground
+    }
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(if (active) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = if (bold || active) FontWeight.Bold else FontWeight.Normal,
+            fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
+            textDecoration = if (underline) TextDecoration.Underline else TextDecoration.None,
+            color = contentColor
         )
     }
 }
 
 /**
- * The checklist content area: a reorderable (long-press and drag), auto-scrolling list of items,
- * each a circular checkbox plus its (wrapping, multiline-capable) text, and a trailing "Add item"
- * row. Pressing Enter on an item creates a new one directly below it and focuses it; Enter on an
- * already-empty item is a no-op, so it can never be used to pile up blank rows.
+ * The Note Editor's "Add to Category" picker - see [NoteEditorScreen]'s own doc comment for why
+ * this is backed by the app's existing per-note Label mechanism ([JournalNoteEntity.label],
+ * already the one existing "assign a single categorization value to a note" primitive) rather
+ * than a new schema linking notes to Tasks' own Category system, which notes have never had any
+ * relationship to. Styled identically to [com.nj031.onetask.ui.components.CategorySelectorDialog]
+ * (same Dialog/Surface/row treatment), reusing this app's existing picker visual language rather
+ * than inventing a second one. [onAddLabelClick] hands off to the existing Labels screen (the
+ * app's one existing "create a new label" flow - see LabelsScreen), the same way
+ * CategorySelectorDialog's own "+ Add Category" hands off instead of creating one inline here.
  */
+@Composable
+private fun NoteLabelSelectorDialog(
+    currentLabel: String?,
+    labels: List<String>,
+    onDismiss: () -> Unit,
+    onConfirm: (String?) -> Unit,
+    onAddLabelClick: () -> Unit
+) {
+    var pendingLabel by remember(currentLabel) { mutableStateOf(currentLabel) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 18.dp)
+            ) {
+                Text(
+                    text = stringResource(id = R.string.note_menu_add_to_category),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
+                    item(key = "no_category") {
+                        NoteLabelOptionRow(
+                            text = stringResource(id = R.string.category_no_category),
+                            selected = pendingLabel == null,
+                            onClick = { pendingLabel = null }
+                        )
+                    }
+                    items(labels, key = { it }) { labelName ->
+                        NoteLabelOptionRow(
+                            text = labelName,
+                            selected = pendingLabel == labelName,
+                            onClick = { pendingLabel = labelName }
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = { onConfirm(pendingLabel) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.category_selector_choose_button),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                TextButton(
+                    onClick = onAddLabelClick,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.add_category_button),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoteLabelOptionRow(text: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.weight(1f)
+        )
+        if (selected) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        } else {
+            Box(modifier = Modifier.height(1.dp))
+        }
+    }
+}
+
+// ============================================================================
+// Formatting-span engine backing Bold/Italic/Underline/Aa - see NoteFormatSpan's own doc comment
+// for the data model these operate on. Each function here is a small, self-contained, pure
+// transform over a List<NoteFormatSpan>; none of them touch Compose state directly, so they're
+// exercised the same way regardless of which control (toolbar tap vs. live typing) drives them.
+// ============================================================================
+
+private val HEADING_MEDIUM_FONT_SIZE = 20.sp
+private val HEADING_LARGE_FONT_SIZE = 24.sp
+
+/** Builds the [VisualTransformation] that actually renders [spans] as styled text inside the
+ * content TextField while it keeps editing plain text underneath - [OffsetMapping.Identity] is
+ * exactly correct here since this only ever restyles existing characters, never adds or removes
+ * any for display. */
+private fun noteFormatVisualTransformation(spans: List<NoteFormatSpan>): VisualTransformation =
+    VisualTransformation { text ->
+        if (spans.isEmpty()) return@VisualTransformation TransformedText(text, OffsetMapping.Identity)
+        val builder = AnnotatedString.Builder(text)
+        spans.forEach { span ->
+            val start = span.start.coerceIn(0, text.length)
+            val end = span.end.coerceIn(start, text.length)
+            if (start >= end) return@forEach
+            val spanStyle = when (span.style) {
+                NoteFormatStyle.BOLD -> SpanStyle(fontWeight = FontWeight.Bold)
+                NoteFormatStyle.ITALIC -> SpanStyle(fontStyle = FontStyle.Italic)
+                NoteFormatStyle.UNDERLINE -> SpanStyle(textDecoration = TextDecoration.Underline)
+                NoteFormatStyle.HEADING_MEDIUM -> SpanStyle(fontSize = HEADING_MEDIUM_FONT_SIZE, fontWeight = FontWeight.Bold)
+                NoteFormatStyle.HEADING_LARGE -> SpanStyle(fontSize = HEADING_LARGE_FONT_SIZE, fontWeight = FontWeight.Bold)
+            }
+            builder.addStyle(spanStyle, start, end)
+        }
+        TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
+    }
+
+/** The single contiguous edit region between [old] and [new] text - the common prefix/suffix
+ * diff every real TextField edit (typing, pasting, deleting, autocorrect) produces. [oldStart] is
+ * where the edit begins (in both old- and new-text coordinates, since nothing before it moved),
+ * [oldEnd] is where it ends in the OLD text, and [newEnd] is where it ends in the NEW text. */
+private data class TextEditDiff(val oldStart: Int, val oldEnd: Int, val newEnd: Int) {
+    val delta: Int get() = (newEnd - oldStart) - (oldEnd - oldStart)
+}
+
+private fun diffText(old: String, new: String): TextEditDiff {
+    if (old == new) return TextEditDiff(old.length, old.length, new.length)
+    val maxPrefix = minOf(old.length, new.length)
+    var prefix = 0
+    while (prefix < maxPrefix && old[prefix] == new[prefix]) prefix++
+    val maxSuffix = maxPrefix - prefix
+    var suffix = 0
+    while (suffix < maxSuffix && old[old.length - 1 - suffix] == new[new.length - 1 - suffix]) suffix++
+    return TextEditDiff(oldStart = prefix, oldEnd = old.length - suffix, newEnd = new.length - suffix)
+}
+
+/** Maps a single offset from old-text to new-text coordinates across [diff]: unchanged before the
+ * edit, shifted by [TextEditDiff.delta] after it, and collapsed to [TextEditDiff.oldStart] when it
+ * fell strictly inside the replaced region (it has no exact analogue in the new text). */
+private fun mapOffsetAcrossEdit(offset: Int, diff: TextEditDiff): Int = when {
+    offset <= diff.oldStart -> offset
+    offset >= diff.oldEnd -> offset + diff.delta
+    else -> diff.oldStart
+}
+
+/** Re-maps every span across a text edit - shifting spans after the edit, extending a span that
+ * fully contained the edit (so typing inside a bold word keeps it bold), and dropping any span
+ * that collapses to nothing (fully inside a deletion). Called on every keystroke, before this
+ * edit's own newly-typed characters (if any) pick up [pendingCharacterStyles] - see
+ * [NoteEditorScreen]'s content TextField onValueChange. */
+private fun shiftSpansForEdit(spans: List<NoteFormatSpan>, diff: TextEditDiff): List<NoteFormatSpan> =
+    spans.mapNotNull { span ->
+        val newStart = mapOffsetAcrossEdit(span.start, diff)
+        val newEnd = mapOffsetAcrossEdit(span.end, diff)
+        if (newEnd <= newStart) null else span.copy(start = newStart, end = newEnd)
+    }
+
+/** Whether every character in [start, end) already has [style] applied, i.e. whether tapping
+ * that style's toolbar button over this exact range should remove it rather than add it. */
+private fun isRangeFullyCovered(spans: List<NoteFormatSpan>, style: NoteFormatStyle, start: Int, end: Int): Boolean {
+    if (start >= end) return false
+    var cursor = start
+    for (span in spans.filter { it.style == style }.sortedBy { it.start }) {
+        if (span.end <= cursor) continue
+        if (span.start > cursor) return false
+        cursor = maxOf(cursor, span.end)
+        if (cursor >= end) return true
+    }
+    return cursor >= end
+}
+
+/** Adds [style] coverage over [start, end), merging with any same-style spans that already
+ * overlap or touch that range into one normalized span, so applying a style twice over
+ * overlapping selections never leaves behind redundant/fragmented spans. */
+private fun addCoverage(spans: List<NoteFormatSpan>, style: NoteFormatStyle, start: Int, end: Int): List<NoteFormatSpan> {
+    if (start >= end) return spans
+    val others = spans.filterNot { it.style == style }
+    var newStart = start
+    var newEnd = end
+    val untouched = mutableListOf<NoteFormatSpan>()
+    spans.filter { it.style == style }.forEach { span ->
+        if (span.end < newStart || span.start > newEnd) {
+            untouched += span
+        } else {
+            newStart = minOf(newStart, span.start)
+            newEnd = maxOf(newEnd, span.end)
+        }
+    }
+    return others + untouched + NoteFormatSpan(newStart, newEnd, style)
+}
+
+/** Removes [style] coverage over [start, end) - splitting any same-style span that only partially
+ * overlaps the removed range so the portion outside it keeps the style, and dropping any span (or
+ * the part of one) that falls entirely inside the removed range. */
+private fun removeCoverage(spans: List<NoteFormatSpan>, style: NoteFormatStyle, start: Int, end: Int): List<NoteFormatSpan> {
+    if (start >= end) return spans
+    val others = spans.filterNot { it.style == style }
+    val result = mutableListOf<NoteFormatSpan>()
+    spans.filter { it.style == style }.forEach { span ->
+        when {
+            span.end <= start || span.start >= end -> result += span
+            else -> {
+                if (span.start < start) result += span.copy(end = start)
+                if (span.end > end) result += span.copy(start = end)
+            }
+        }
+    }
+    return others + result
+}
+
+/** Bold/Italic/Underline's toolbar behavior: remove [style] over [start, end) if the whole range
+ * already has it, otherwise add it - ordinary toggle semantics for a selection. */
+private fun toggleStyleOverRange(spans: List<NoteFormatSpan>, style: NoteFormatStyle, start: Int, end: Int): List<NoteFormatSpan> =
+    if (isRangeFullyCovered(spans, style, start, end)) removeCoverage(spans, style, start, end) else addCoverage(spans, style, start, end)
+
+/** The Aa control's behavior: HEADING_MEDIUM and HEADING_LARGE are mutually exclusive, so
+ * choosing one first clears the other over [start, end); [style] null (the "Small" / Normal
+ * option) just clears both, since there's no explicit NORMAL style to add. */
+private fun setHeadingOverRange(spans: List<NoteFormatSpan>, style: NoteFormatStyle?, start: Int, end: Int): List<NoteFormatSpan> {
+    var result = removeCoverage(spans, NoteFormatStyle.HEADING_MEDIUM, start, end)
+    result = removeCoverage(result, NoteFormatStyle.HEADING_LARGE, start, end)
+    return if (style != null) addCoverage(result, style, start, end) else result
+}
+
+/** The line containing [cursor] - start (inclusive) and end (exclusive) of the run of text
+ * between the nearest newlines on either side (or the text's own start/end). Used by the Aa
+ * control's "current line" behavior when nothing is selected - see this task's own spec. */
+private fun currentLineRange(text: String, cursor: Int): Pair<Int, Int> {
+    val pos = cursor.coerceIn(0, text.length)
+    var lineStart = pos
+    while (lineStart > 0 && text[lineStart - 1] != '\n') lineStart--
+    var lineEnd = pos
+    while (lineEnd < text.length && text[lineEnd] != '\n') lineEnd++
+    return lineStart to lineEnd
+}
+
 @Composable
 private fun ChecklistEditor(
     items: List<ChecklistItem>,
