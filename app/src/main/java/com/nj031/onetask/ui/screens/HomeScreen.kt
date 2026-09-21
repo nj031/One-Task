@@ -1,6 +1,7 @@
 package com.nj031.onetask.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -309,7 +310,8 @@ fun HomeScreen(
                 onTimerClick = onOpenTimerPlaceholder,
                 backgroundColor = OneTaskWallpapers.definitionFor(wallpaper)?.let {
                     if (darkTheme) it.dark.bottomNavigation else it.light.bottomNavigation
-                } ?: MaterialTheme.colorScheme.surface
+                } ?: MaterialTheme.colorScheme.surface,
+                elevated = wallpaper != Wallpaper.NONE
             )
         },
         floatingActionButton = {
@@ -418,7 +420,8 @@ fun HomeScreen(
                                     viewModel.reorderTasks(TaskOrderScope.ALL, finalOrder)
                                 },
                                 listState = listState,
-                                modifier = if (isDragged) Modifier else Modifier.animateItem()
+                                modifier = if (isDragged) Modifier else Modifier.animateItem(),
+                                wallpaper = wallpaper
                             )
                         }
                     }
@@ -714,7 +717,8 @@ private fun HomeTaskListItem(
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
     listState: LazyListState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     TaskCardWithActionRow(
         task = task,
@@ -759,7 +763,8 @@ private fun HomeTaskListItem(
         onDrag = onDrag,
         onDragEnd = onDragEnd,
         listState = listState,
-        modifier = modifier
+        modifier = modifier,
+        wallpaper = wallpaper
     )
 }
 
@@ -789,7 +794,8 @@ private fun TaskCardWithActionRow(
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
     listState: LazyListState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         if (isSelected) {
@@ -801,7 +807,8 @@ private fun TaskCardWithActionRow(
                 onUndo = onUndo,
                 onEdit = onEdit,
                 onDelete = onDelete,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 8.dp),
+                wallpaper = wallpaper
             )
         }
         TaskCard(
@@ -814,7 +821,8 @@ private fun TaskCardWithActionRow(
             onDragStart = onDragStart,
             onDrag = onDrag,
             onDragEnd = onDragEnd,
-            listState = listState
+            listState = listState,
+            wallpaper = wallpaper
         )
     }
 }
@@ -842,7 +850,8 @@ private fun TaskActionRow(
     onUndo: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val isCompleted = task.status == TaskStatus.COMPLETED
     val hasTimer = task.timerMinutes != null
@@ -872,7 +881,16 @@ private fun TaskActionRow(
         Surface(
             shape = RoundedCornerShape(14.dp),
             color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 1.dp
+            shadowElevation = 1.dp,
+            // Same translucent Card surface Timer's own pills/segmented control already pair
+            // with a MaterialTheme.colorScheme.outline border for definition against the
+            // wallpaper backdrop - only while a wallpaper is actually active, so non-wallpaper
+            // themes (whose Card-like surfaces are already opaque) are unaffected.
+            border = if (wallpaper != Wallpaper.NONE) {
+                BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            } else {
+                null
+            }
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
@@ -926,7 +944,8 @@ private fun TaskCard(
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
-    listState: LazyListState
+    listState: LazyListState,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     var subtasksExpanded by remember(task.id) { mutableStateOf(false) }
     val isCompleted = task.status == TaskStatus.COMPLETED
@@ -980,7 +999,16 @@ private fun TaskCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         // Only a very slight elevation bump communicates "this card is now draggable" - no
         // scale, rotation, or size change.
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isDragged) 4.dp else 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isDragged) 4.dp else 1.dp),
+        // Same translucent Card surface Timer's own pills/segmented control already pair with a
+        // MaterialTheme.colorScheme.outline border for definition against the wallpaper backdrop
+        // - only while a wallpaper is actually active, so non-wallpaper themes (whose Card
+        // containerColor is already opaque) are unaffected.
+        border = if (wallpaper != Wallpaper.NONE) {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        } else {
+            null
+        }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

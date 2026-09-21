@@ -1,6 +1,7 @@
 package com.nj031.onetask.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -137,7 +138,8 @@ fun NotesScreen(
                 onTimerClick = onOpenTimerPlaceholder,
                 backgroundColor = OneTaskWallpapers.definitionFor(wallpaper)?.let {
                     if (darkTheme) it.dark.bottomNavigation else it.light.bottomNavigation
-                } ?: MaterialTheme.colorScheme.surface
+                } ?: MaterialTheme.colorScheme.surface,
+                elevated = wallpaper != Wallpaper.NONE
             )
         }
     ) { innerPadding ->
@@ -158,7 +160,8 @@ fun NotesScreen(
                     onAvatarClick = onProfileAvatarClick,
                     onArchiveClick = onArchiveClick,
                     onRecycleBinClick = onRecycleBinClick,
-                    onLabelsClick = onLabelsClick
+                    onLabelsClick = onLabelsClick,
+                    wallpaper = wallpaper
                 )
 
                 Row(
@@ -230,7 +233,8 @@ fun NotesScreen(
                                     NoteListRow(
                                         note = note,
                                         onClick = { onNoteClick(note.id) },
-                                        onLongClick = { actionMenuNote = note }
+                                        onLongClick = { actionMenuNote = note },
+                                        wallpaper = wallpaper
                                     )
                                 }
                             }
@@ -246,7 +250,8 @@ fun NotesScreen(
                                     NoteCard(
                                         note = note,
                                         onClick = { onNoteClick(note.id) },
-                                        onLongClick = { actionMenuNote = note }
+                                        onLongClick = { actionMenuNote = note },
+                                        wallpaper = wallpaper
                                     )
                                 }
                             }
@@ -295,7 +300,8 @@ private fun NotesTopBar(
     onAvatarClick: () -> Unit,
     onArchiveClick: () -> Unit,
     onRecycleBinClick: () -> Unit,
-    onLabelsClick: () -> Unit
+    onLabelsClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val profileDescription = stringResource(id = R.string.nav_profile)
     var showMenu by remember { mutableStateOf(false) }
@@ -330,7 +336,15 @@ private fun NotesTopBar(
                 expanded = showMenu,
                 onDismissRequest = { showMenu = false },
                 shape = RoundedCornerShape(16.dp),
-                containerColor = MaterialTheme.colorScheme.surface
+                containerColor = MaterialTheme.colorScheme.surface,
+                // Same translucent-surface-plus-border treatment as the Notes search field (see
+                // NotesSearchField) and Timer's own pills - only while a wallpaper is actually
+                // active, so non-wallpaper themes are unaffected.
+                modifier = if (wallpaper != Wallpaper.NONE) {
+                    Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+                } else {
+                    Modifier
+                }
             ) {
                 DropdownMenuItem(
                     text = {
@@ -456,7 +470,8 @@ private fun NotesSearchField(query: String, onQueryChange: (String) -> Unit, mod
 private fun NoteListRow(
     note: JournalNoteEntity,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     Card(
         modifier = Modifier
@@ -464,7 +479,15 @@ private fun NoteListRow(
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        // Same translucent Card surface Timer's own pills/segmented control already pair with a
+        // MaterialTheme.colorScheme.outline border for definition against the wallpaper backdrop
+        // - only while a wallpaper is actually active, so non-wallpaper themes are unaffected.
+        border = if (wallpaper != Wallpaper.NONE) {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        } else {
+            null
+        }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             if (note.title.isNotBlank()) {
@@ -507,7 +530,8 @@ private fun NoteListRow(
 private fun NoteCard(
     note: JournalNoteEntity,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     Card(
         modifier = Modifier
@@ -515,7 +539,15 @@ private fun NoteCard(
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        // Same translucent Card surface Timer's own pills/segmented control already pair with a
+        // MaterialTheme.colorScheme.outline border for definition against the wallpaper backdrop
+        // - only while a wallpaper is actually active, so non-wallpaper themes are unaffected.
+        border = if (wallpaper != Wallpaper.NONE) {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        } else {
+            null
+        }
     ) {
         Column(
             modifier = Modifier
