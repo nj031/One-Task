@@ -153,7 +153,8 @@ fun TimerPlaceholderScreen(
                 onTimerClick = {},
                 backgroundColor = OneTaskWallpapers.definitionFor(wallpaper)?.let {
                     if (darkTheme) it.dark.bottomNavigation else it.light.bottomNavigation
-                } ?: MaterialTheme.colorScheme.surface
+                } ?: MaterialTheme.colorScheme.surface,
+                elevated = wallpaper != Wallpaper.NONE
             )
         }
     ) { innerPadding ->
@@ -174,7 +175,8 @@ fun TimerPlaceholderScreen(
                     onNotificationSettingsClick = onNotificationSettingsClick,
                     onTimerSettingsClick = onTimerSettingsClick,
                     onCustomDurationSettingsClick = onCustomDurationSettingsClick,
-                    onTimerHistoryClick = onTimerHistoryClick
+                    onTimerHistoryClick = onTimerHistoryClick,
+                    wallpaper = wallpaper
                 )
 
                 TimerStopwatchSegmentedControl(
@@ -227,7 +229,8 @@ private fun TimerTopBar(
     onNotificationSettingsClick: () -> Unit,
     onTimerSettingsClick: () -> Unit,
     onCustomDurationSettingsClick: () -> Unit,
-    onTimerHistoryClick: () -> Unit
+    onTimerHistoryClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -252,7 +255,15 @@ private fun TimerTopBar(
                 expanded = showMenu,
                 onDismissRequest = { showMenu = false },
                 shape = RoundedCornerShape(16.dp),
-                containerColor = MaterialTheme.colorScheme.surface
+                containerColor = MaterialTheme.colorScheme.surface,
+                // Same translucent-surface-plus-border treatment as this screen's own pills/
+                // segmented control (see TimerStopwatchSegmentedControl/TimerPresetPill) - only
+                // while a wallpaper is actually active, so non-wallpaper themes are unaffected.
+                modifier = if (wallpaper != Wallpaper.NONE) {
+                    Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+                } else {
+                    Modifier
+                }
             ) {
                 DropdownMenuItem(
                     text = { Text(text = stringResource(id = R.string.timer_menu_notification_settings)) },

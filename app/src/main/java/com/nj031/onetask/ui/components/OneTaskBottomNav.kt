@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -55,7 +56,14 @@ fun OneTaskBottomNav(
     // a wallpaper-active screen (see WallpaperBackdrop) ever passes its own distinct translucent
     // Bottom Navigation color instead (see the Wallpaper spec's own exact opacity values, kept
     // separate from every other card-like surface's own translucency).
-    backgroundColor: Color = MaterialTheme.colorScheme.surface
+    backgroundColor: Color = MaterialTheme.colorScheme.surface,
+    // True only when a wallpaper is active behind this bar (see the three screens' own
+    // OneTaskBottomNav call sites). Adds a real drop shadow so the bar reads as its own
+    // separated surface above the busy wallpaper image, using the same elevation technique
+    // every Card in this app already relies on for separation from its background - not
+    // another translucency/opacity value. False (no shadow, unchanged look) whenever no
+    // wallpaper is active, exactly as before this param existed.
+    elevated: Boolean = false
 ) {
     val journalLabel = stringResource(id = R.string.nav_journal)
     val tasksLabel = stringResource(id = R.string.nav_tasks)
@@ -68,6 +76,7 @@ fun OneTaskBottomNav(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (elevated) Modifier.shadow(elevation = 8.dp) else Modifier)
             .background(backgroundColor)
     ) {
         Box(
