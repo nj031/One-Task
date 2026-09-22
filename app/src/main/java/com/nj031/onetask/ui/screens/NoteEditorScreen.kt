@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
@@ -42,6 +43,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
@@ -84,6 +86,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -197,6 +200,28 @@ fun NoteEditorScreen(
         blocks = blocks.map { if (it.id == id) transform(it) else it }
     }
 
+    // Removes a block outright (never leaving zero blocks - a lone empty TEXT block takes its
+    // place if it was the only one) and moves focus to whatever is now the previous block, for the
+    // two "this edit emptied the block out" paths below - backspace at an already-empty block's
+    // start, and a single edit (backspace, select-all-delete, etc.) that empties a BULLET/
+    // CHECKLIST block's content in one go. Distinct from deleteBlock, which is the explicit "x"
+    // tap on a checklist item and deliberately does not move focus (the keyboard may not even be
+    // open when that's tapped).
+    fun removeBlockAndRetarget(blockId: String) {
+        val index = blocks.indexOfFirst { it.id == blockId }
+        if (index < 0) return
+        val remaining = blocks.toMutableList().apply { removeAt(index) }
+        blocks = remaining.ifEmpty { listOf(EditableBlock(type = NoteBlockType.TEXT)) }
+        focusTargetId = remaining.getOrNull((index - 1).coerceAtLeast(0))?.id
+    }
+
+    // The checklist item "x" control (see EditableBlockRow) - removes only that item/block, never
+    // the whole note, never a neighboring item, and never leaves an empty item behind, since the
+    // block itself (checked state included) is simply dropped from the list.
+    fun deleteBlock(blockId: String) {
+        blocks = blocks.filterNot { it.id == blockId }.ifEmpty { listOf(EditableBlock(type = NoteBlockType.TEXT)) }
+    }
+
     // A note only "has content" worth keeping when the title or at least one block is non-blank -
     // an empty block created just by opening the editor doesn't count on its own, matching how an
     // untouched note (title blank, one empty TEXT block) never saves.
@@ -305,6 +330,18 @@ fun NoteEditorScreen(
     }
 
     fun onBlockValueChange(block: EditableBlock, newValue: TextFieldValue) {
+        // A single edit (holding backspace, select-all + delete, etc.) that empties a BULLET/
+        // CHECKLIST item's content out completely: the item/block disappears immediately rather
+        // than lingering as an empty row waiting for one more backspace press at its (now) start -
+        // a list item is a semantic block here, not just a visual marker, so emptying its content
+        // removes the block itself. Guarded on block.value.text.isNotEmpty() so this never fires
+        // for a brand-new, already-empty item's very first keystroke.
+        if ((block.type == NoteBlockType.BULLET || block.type == NoteBlockType.CHECKLIST) &&
+            newValue.text.isEmpty() && block.value.text.isNotEmpty()
+        ) {
+            removeBlockAndRetarget(block.id)
+            return
+        }
         val diff = diffText(block.value.text, newValue.text)
         var updatedSpans = shiftSpansForEdit(block.formatSpans, diff)
         if (pendingCharacterStyles.isNotEmpty() && diff.newEnd > diff.oldStart) {
@@ -340,13 +377,9 @@ fun NoteEditorScreen(
     // Best-effort: Android soft keyboards don't always deliver a KeyEvent for backspace at an
     // empty field the way a hardware key does - see EditableBlockRow's own onKeyEvent comment.
     fun handleBlockBackspaceAtStart(blockId: String) {
-        val index = blocks.indexOfFirst { it.id == blockId }
-        if (index < 0) return
-        val block = blocks[index]
+        val block = blocks.find { it.id == blockId } ?: return
         if (block.value.text.isEmpty()) {
-            val remaining = blocks.toMutableList().apply { removeAt(index) }
-            blocks = remaining.ifEmpty { listOf(EditableBlock(id = UUID.randomUUID().toString(), type = NoteBlockType.TEXT)) }
-            focusTargetId = remaining.getOrNull((index - 1).coerceAtLeast(0))?.id
+            removeBlockAndRetarget(blockId)
         } else {
             updateBlock(block.id) { it.copy(type = NoteBlockType.TEXT, checked = false) }
         }
@@ -636,6 +669,7 @@ fun NoteEditorScreen(
                         onCheckedChange = { id, checked -> updateBlock(id) { it.copy(checked = checked) } },
                         onEnterPressed = ::handleBlockEnterPressed,
                         onBackspaceAtStart = ::handleBlockBackspaceAtStart,
+                        onDeleteBlock = ::deleteBlock,
                         onImageTap = { id -> focusedImageBlockId = id },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1484,15 +1518,40 @@ private fun NoteBlocksList(
     onCheckedChange: (String, Boolean) -> Unit,
     onEnterPressed: (String) -> Unit,
     onBackspaceAtStart: (String) -> Unit,
+    onDeleteBlock: (String) -> Unit,
     onImageTap: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Keeping the focused/newly-created block visible above the keyboard is handled per-row, by
-    // each row's own BasicTextField calling BringIntoViewRequester.bringIntoView() on focus gain
-    // (see EditableBlockRow) - the standard Compose primitive for exactly this, which correctly
-    // reacts to the IME's actual settled inset rather than a hand-rolled, timing-sensitive
-    // viewportEndOffset calculation racing the keyboard's own open animation.
-    LazyColumn(modifier = modifier) {
+    val listState = rememberLazyListState()
+
+    // A newly-created block (from Enter, or from converting a line to Bullet/Checklist) is
+    // inserted right after the block the user was just editing. Unlike a plain Column, LazyColumn
+    // only composes items that are within (or immediately next to) its current viewport - so if
+    // that previous block was already at/near the viewport's bottom edge (exactly the "current
+    // item visible just above the keyboard" situation this is meant to fix), the brand-new item
+    // can end up not composed at all yet. EditableBlockRow's own LaunchedEffect(requestFocus) then
+    // has nothing to attach focus to, and BringIntoViewRequester.bringIntoView() - which only runs
+    // once a field is actually focused - never fires. This is the confirmed mechanism (from
+    // LazyColumn's own lazy composition model) behind a newly-created item appearing to vanish
+    // below the keyboard. Nudging the list to bring the new item's index into the composed range
+    // first lets the existing focus + bringIntoView chain in EditableBlockRow take over for the
+    // final, precise positioning - this only runs when the previous block was actually near the
+    // bottom edge, so an Enter pressed in the middle of a long, already-scrolled note (where the
+    // next line is already comfortably on-screen) never triggers an unrelated jump.
+    LaunchedEffect(focusTargetId) {
+        val targetId = focusTargetId ?: return@LaunchedEffect
+        val targetIndex = blocks.indexOfFirst { it.id == targetId }
+        if (targetIndex <= 0) return@LaunchedEffect
+        val previousBlockId = blocks[targetIndex - 1].id
+        val info = listState.layoutInfo
+        val previousItem = info.visibleItemsInfo.find { it.key == previousBlockId }
+        val previousNearBottomEdge = previousItem == null || (previousItem.offset + previousItem.size) >= info.viewportEndOffset
+        if (previousNearBottomEdge) {
+            listState.animateScrollToItem(targetIndex)
+        }
+    }
+
+    LazyColumn(state = listState, modifier = modifier) {
         items(blocks, key = { it.id }) { block ->
             EditableBlockRow(
                 block = block,
@@ -1503,6 +1562,7 @@ private fun NoteBlocksList(
                 onCheckedChange = { checked -> onCheckedChange(block.id, checked) },
                 onEnterPressed = { onEnterPressed(block.id) },
                 onBackspaceAtStart = { onBackspaceAtStart(block.id) },
+                onDeleteClick = { onDeleteBlock(block.id) },
                 onImageTap = { onImageTap(block.id) }
             )
         }
@@ -1520,6 +1580,7 @@ private fun EditableBlockRow(
     onCheckedChange: (Boolean) -> Unit,
     onEnterPressed: () -> Unit,
     onBackspaceAtStart: () -> Unit,
+    onDeleteClick: () -> Unit,
     onImageTap: () -> Unit
 ) {
     when (block.type) {
@@ -1543,6 +1604,7 @@ private fun EditableBlockRow(
             val focusRequester = remember(block.id) { FocusRequester() }
             val bringIntoViewRequester = remember(block.id) { BringIntoViewRequester() }
             val coroutineScope = rememberCoroutineScope()
+            var isFocused by remember(block.id) { mutableStateOf(false) }
             LaunchedEffect(requestFocus) {
                 if (requestFocus) {
                     focusRequester.requestFocus()
@@ -1559,8 +1621,26 @@ private fun EditableBlockRow(
                     .focusRequester(focusRequester)
                     .bringIntoViewRequester(bringIntoViewRequester)
                     .onFocusChanged {
+                        isFocused = it.isFocused
                         onFocusChanged(it.isFocused)
                         if (it.isFocused) {
+                            coroutineScope.launch { bringIntoViewRequester.bringIntoView() }
+                        }
+                    }
+                    // Re-validates visibility whenever this field's own layout position/size
+                    // changes while it's focused - not just once, at the moment focus is gained.
+                    // A single bringIntoView() call on focus gain can run before the IME has
+                    // actually finished its (asynchronous) show/hide animation, computing against
+                    // a viewport that hasn't settled to its final size yet; as the surrounding
+                    // Scaffold/LazyColumn keep reflowing while the keyboard animates, this field's
+                    // global position keeps changing too, and each change re-triggers the exact
+                    // same bringIntoView() call so it's checked again against the CURRENT layout.
+                    // bringIntoView() is a no-op once the field is already fully visible, so this
+                    // never causes a jump while the user is just typing normally (text wrapping to
+                    // a new line is the other legitimate case this same trigger covers - the field
+                    // grows, and the new line should stay visible above the keyboard too).
+                    .onGloballyPositioned {
+                        if (isFocused) {
                             coroutineScope.launch { bringIntoViewRequester.bringIntoView() }
                         }
                     },
@@ -1586,6 +1666,7 @@ private fun EditableBlockRow(
             val focusRequester = remember(block.id) { FocusRequester() }
             val bringIntoViewRequester = remember(block.id) { BringIntoViewRequester() }
             val coroutineScope = rememberCoroutineScope()
+            var isFocused by remember(block.id) { mutableStateOf(false) }
             LaunchedEffect(requestFocus) {
                 if (requestFocus) {
                     focusRequester.requestFocus()
@@ -1634,8 +1715,18 @@ private fun EditableBlockRow(
                         .focusRequester(focusRequester)
                         .bringIntoViewRequester(bringIntoViewRequester)
                         .onFocusChanged {
+                            isFocused = it.isFocused
                             onFocusChanged(it.isFocused)
                             if (it.isFocused) {
+                                coroutineScope.launch { bringIntoViewRequester.bringIntoView() }
+                            }
+                        }
+                        // Re-validates visibility whenever this row's own layout position/size
+                        // changes while focused (IME animation settling, or text wrapping to a
+                        // new line) rather than only once at focus-gain time - see the TEXT
+                        // branch's own onGloballyPositioned comment above for why.
+                        .onGloballyPositioned {
+                            if (isFocused) {
                                 coroutineScope.launch { bringIntoViewRequester.bringIntoView() }
                             }
                         }
@@ -1682,6 +1773,21 @@ private fun EditableBlockRow(
                         }
                     }
                 )
+
+                // Checklist items get an explicit delete control (bullets deliberately do not -
+                // bullets are removed via backspace only, per spec); tapping it removes only this
+                // item/block, never the whole note or a neighboring item, and its checked state
+                // disappears along with it since the entire block is dropped from the list.
+                if (block.type == NoteBlockType.CHECKLIST) {
+                    IconButton(onClick = onDeleteClick, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(id = R.string.delete),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
             }
         }
     }
