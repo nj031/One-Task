@@ -104,7 +104,8 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         noteType: JournalNoteType,
         checklistItems: List<ChecklistItem>,
         label: String? = null,
-        contentFormatSpans: List<NoteFormatSpan> = emptyList()
+        contentFormatSpans: List<NoteFormatSpan> = emptyList(),
+        pinned: Boolean = false
     ) {
         viewModelScope.launch {
             repository.createNote(
@@ -113,7 +114,8 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                 noteType = noteType,
                 checklistItems = checklistItems,
                 label = label,
-                contentFormatSpans = contentFormatSpans
+                contentFormatSpans = contentFormatSpans,
+                pinned = pinned
             )
         }
     }
@@ -127,10 +129,20 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         content: String,
         checklistItems: List<ChecklistItem>,
         label: String? = note.label,
-        contentFormatSpans: List<NoteFormatSpan> = note.contentFormatSpans
+        contentFormatSpans: List<NoteFormatSpan> = note.contentFormatSpans,
+        pinned: Boolean = note.pinned
     ) {
         viewModelScope.launch {
-            repository.updateNote(note, title, content, checklistItems, label, contentFormatSpans)
+            repository.updateNote(note, title, content, checklistItems, label, contentFormatSpans, pinned)
+        }
+    }
+
+    /** Immediate write (not deferred through the Note Editor's own commitOnExit save) - see
+     * [JournalRepository.setPinned]'s own doc comment for why Pin/Unpin needs this rather than
+     * the label/formatting fields' deferred-save pattern. */
+    fun setPinned(note: JournalNoteEntity, pinned: Boolean) {
+        viewModelScope.launch {
+            repository.setPinned(note, pinned)
         }
     }
 

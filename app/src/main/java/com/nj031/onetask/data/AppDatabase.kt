@@ -133,6 +133,15 @@ private val MIGRATION_13_14 = object : Migration(13, 14) {
     }
 }
 
+/** Adds the Notes list's "Pinned Notes" section's own storage column, so every existing note
+ * survives this update: pinned defaults to 0 (false), the same "not pinned" state a note saved
+ * before this feature existed should have. */
+private val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE journal_notes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 @Database(
     entities = [
         JournalNoteEntity::class,
@@ -142,7 +151,7 @@ private val MIGRATION_13_14 = object : Migration(13, 14) {
         RecurringExclusionEntity::class,
         CategoryEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 @TypeConverters(Converters::class, TaskConverters::class)
@@ -184,7 +193,7 @@ abstract class AppDatabase : RoomDatabase() {
                 instance?.close()
                 val databaseName = "${LEGACY_DATABASE_NAME}_$userId"
                 val database = Room.databaseBuilder(appContext, AppDatabase::class.java, databaseName)
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                     .fallbackToDestructiveMigration()
                     .build()
                 instance = database

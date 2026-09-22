@@ -1,5 +1,6 @@
 package com.nj031.onetask.ui.screens
 
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -75,6 +76,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -89,6 +91,7 @@ import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -97,11 +100,16 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.journal.ChecklistItem
+import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.JournalNoteType
 import com.nj031.onetask.data.journal.NoteFormatSpan
 import com.nj031.onetask.data.journal.NoteFormatStyle
 import com.nj031.onetask.viewmodel.JournalViewModel
 import kotlinx.coroutines.isActive
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * The single editor for both Text and Checklist notes - the note's [JournalNoteType] is fixed
@@ -142,6 +150,7 @@ fun NoteEditorScreen(
         )
     }
     var noteLabel by remember { mutableStateOf(existingNote?.label) }
+    var isPinned by remember { mutableStateOf(existingNote?.pinned ?: false) }
     var formatSpans by remember { mutableStateOf(existingNote?.contentFormatSpans ?: emptyList()) }
     // Armed while the selection is collapsed: the next characters typed inherit whichever of
     // these styles are armed (see the content TextField's onValueChange below) - the "start
@@ -150,7 +159,9 @@ fun NoteEditorScreen(
     var pendingCharacterStyles by remember { mutableStateOf(emptySet<NoteFormatStyle>()) }
 
     var showLabelDialog by remember { mutableStateOf(false) }
+    var showNoteInfoDialog by remember { mutableStateOf(false) }
     val labels by viewModel.labels.collectAsState()
+    val context = LocalContext.current
 
     // A note only "has content" worth keeping when the title or the type-specific content is
     // non-blank - an empty checklist item created just by opening Add > Checklist doesn't count
@@ -171,7 +182,11 @@ fun NoteEditorScreen(
                     content = contentValue.text,
                     checklistItems = savedItems,
                     label = noteLabel,
-                    contentFormatSpans = formatSpans
+                    contentFormatSpans = formatSpans,
+                    // Re-asserts whatever togglePin() already wrote immediately (see its own
+                    // comment) rather than reverting it - note (the composition-time snapshot)
+                    // never itself observes a pin toggle that happened after this screen opened.
+                    pinned = isPinned
                 )
             } else {
                 viewModel.createNote(
@@ -180,7 +195,8 @@ fun NoteEditorScreen(
                     noteType = effectiveNoteType,
                     checklistItems = savedItems,
                     label = noteLabel,
-                    contentFormatSpans = formatSpans
+                    contentFormatSpans = formatSpans,
+                    pinned = isPinned
                 )
             }
         } else if (note != null) {
@@ -200,6 +216,32 @@ fun NoteEditorScreen(
     fun performDelete() {
         existingNote?.let { viewModel.trashNote(it) }
         onDone()
+    }
+
+    // Immediate (not deferred-through-commitOnExit) write - see
+    // JournalRepository.setPinned's own doc comment for why Pin/Unpin needs this rather than the
+    // label/formatting fields' deferred-save pattern. isPinned is also threaded into
+    // commitOnExit's own updateNote(...) call above so a later deferred save can't revert this.
+    fun togglePin() {
+        val note = existingNote ?: return
+        isPinned = !isPinned
+        viewModel.setPinned(note, isPinned)
+    }
+
+    fun performShare() {
+        val body = when (effectiveNoteType) {
+            JournalNoteType.TEXT -> contentValue.text
+            JournalNoteType.CHECKLIST -> checklistItems
+                .filter { it.text.isNotBlank() }
+                .joinToString(separator = "\n") { "${if (it.checked) "☑" else "☐"} ${it.text}" }
+        }
+        val shareText = if (title.isNotBlank()) "$title\n\n$body" else body
+        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, title)
+            putExtra(Intent.EXTRA_TEXT, shareText)
+        }
+        context.startActivity(Intent.createChooser(sendIntent, null))
     }
 
     val selection = contentValue.selection
@@ -298,9 +340,13 @@ fun NoteEditorScreen(
                         NoteEditorTopBar(
                             onBackClick = { commitOnExit(); onDone() },
                             canModifyNote = existingNote != null,
+                            isPinned = isPinned,
+                            onShareClick = ::performShare,
                             onAddToLabelClick = { showLabelDialog = true },
+                            onPinToggleClick = ::togglePin,
                             onArchiveClick = ::performArchive,
-                            onDeleteClick = ::performDelete
+                            onDeleteClick = ::performDelete,
+                            onNoteInfoClick = { showNoteInfoDialog = true }
                         )
 
                         TextField(
@@ -368,9 +414,13 @@ fun NoteEditorScreen(
                         NoteEditorTopBar(
                             onBackClick = { commitOnExit(); onDone() },
                             canModifyNote = existingNote != null,
+                            isPinned = isPinned,
+                            onShareClick = ::performShare,
                             onAddToLabelClick = { showLabelDialog = true },
+                            onPinToggleClick = ::togglePin,
                             onArchiveClick = ::performArchive,
-                            onDeleteClick = ::performDelete
+                            onDeleteClick = ::performDelete,
+                            onNoteInfoClick = { showNoteInfoDialog = true }
                         )
 
                         TextField(
@@ -423,15 +473,28 @@ fun NoteEditorScreen(
             }
         )
     }
+
+    if (showNoteInfoDialog && existingNote != null) {
+        NoteInfoDialog(
+            note = existingNote,
+            title = title,
+            noteLabel = noteLabel,
+            onDismiss = { showNoteInfoDialog = false }
+        )
+    }
 }
 
 @Composable
 private fun NoteEditorTopBar(
     onBackClick: () -> Unit,
     canModifyNote: Boolean,
+    isPinned: Boolean,
+    onShareClick: () -> Unit,
     onAddToLabelClick: () -> Unit,
+    onPinToggleClick: () -> Unit,
     onArchiveClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    onNoteInfoClick: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val disabledColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
@@ -459,23 +522,25 @@ private fun NoteEditorTopBar(
                 shape = RoundedCornerShape(16.dp),
                 containerColor = MaterialTheme.colorScheme.surface
             ) {
-                // Share / Make a copy / Pin note / Note info are placeholders only, per this
-                // task's own spec - visible and tappable, but deliberately no-op.
                 DropdownMenuItem(
                     text = { Text(stringResource(id = R.string.note_menu_share)) },
-                    onClick = { showMenu = false }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(id = R.string.note_menu_make_a_copy)) },
-                    onClick = { showMenu = false }
+                    onClick = { showMenu = false; onShareClick() }
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(id = R.string.note_menu_add_to_label)) },
                     onClick = { showMenu = false; onAddToLabelClick() }
                 )
                 DropdownMenuItem(
-                    text = { Text(stringResource(id = R.string.note_menu_pin_note)) },
-                    onClick = { showMenu = false }
+                    text = {
+                        Text(
+                            text = stringResource(
+                                id = if (isPinned) R.string.note_menu_unpin_note else R.string.note_menu_pin_note
+                            ),
+                            color = if (canModifyNote) MaterialTheme.colorScheme.onBackground else disabledColor
+                        )
+                    },
+                    enabled = canModifyNote,
+                    onClick = { showMenu = false; onPinToggleClick() }
                 )
                 DropdownMenuItem(
                     text = {
@@ -499,7 +564,7 @@ private fun NoteEditorTopBar(
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(id = R.string.note_menu_note_info)) },
-                    onClick = { showMenu = false }
+                    onClick = { showMenu = false; onNoteInfoClick() }
                 )
             }
         }
@@ -530,6 +595,9 @@ private fun NoteFormattingToolbar(
 ) {
     var showSizeMenu by remember { mutableStateOf(false) }
     var showPlusMenu by remember { mutableStateOf(false) }
+    val smallSizeDescription = stringResource(id = R.string.note_format_size_small)
+    val mediumSizeDescription = stringResource(id = R.string.note_format_size_medium)
+    val largeSizeDescription = stringResource(id = R.string.note_format_size_large)
 
     Surface(
         modifier = Modifier
@@ -598,15 +666,39 @@ private fun NoteFormattingToolbar(
                     containerColor = MaterialTheme.colorScheme.surface
                 ) {
                     DropdownMenuItem(
-                        text = { Text(stringResource(id = R.string.note_format_size_small)) },
+                        text = {
+                            Text(
+                                text = "A",
+                                fontSize = 16.sp,
+                                modifier = Modifier.semantics {
+                                    contentDescription = smallSizeDescription
+                                }
+                            )
+                        },
                         onClick = { showSizeMenu = false; onSizeSelected(null) }
                     )
                     DropdownMenuItem(
-                        text = { Text(stringResource(id = R.string.note_format_size_medium)) },
+                        text = {
+                            Text(
+                                text = "A",
+                                fontSize = 22.sp,
+                                modifier = Modifier.semantics {
+                                    contentDescription = mediumSizeDescription
+                                }
+                            )
+                        },
                         onClick = { showSizeMenu = false; onSizeSelected(NoteFormatStyle.HEADING_MEDIUM) }
                     )
                     DropdownMenuItem(
-                        text = { Text(stringResource(id = R.string.note_format_size_large)) },
+                        text = {
+                            Text(
+                                text = "A",
+                                fontSize = 28.sp,
+                                modifier = Modifier.semantics {
+                                    contentDescription = largeSizeDescription
+                                }
+                            )
+                        },
                         onClick = { showSizeMenu = false; onSizeSelected(NoteFormatStyle.HEADING_LARGE) }
                     )
                 }
@@ -823,6 +915,110 @@ private fun NoteLabelOptionRow(text: String, selected: Boolean, onClick: () -> U
         } else {
             Box(modifier = Modifier.height(1.dp))
         }
+    }
+}
+
+private val noteInfoTimestampFormatter: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", Locale.getDefault())
+
+private fun Long.toNoteInfoTimestampText(): String =
+    Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault()).format(noteInfoTimestampFormatter)
+
+/** Read-only "Note info" dialog - every value shown comes straight from [note] (or, for
+ * title/label, the editor's own live in-progress state) rather than being recomputed, so it can
+ * never show anything other than real existing data. Deliberately has no word/character count. */
+@Composable
+private fun NoteInfoDialog(
+    note: JournalNoteEntity,
+    title: String,
+    noteLabel: String?,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 18.dp)
+            ) {
+                Text(
+                    text = stringResource(id = R.string.note_info_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                NoteInfoRow(
+                    label = stringResource(id = R.string.note_info_name_label),
+                    value = title.ifBlank { stringResource(id = R.string.note_title_placeholder) }
+                )
+                NoteInfoRow(
+                    label = stringResource(id = R.string.note_info_type_label),
+                    value = stringResource(
+                        id = when (note.noteType) {
+                            JournalNoteType.TEXT -> R.string.note_type_text
+                            JournalNoteType.CHECKLIST -> R.string.note_type_checklist
+                        }
+                    )
+                )
+                NoteInfoRow(
+                    label = stringResource(id = R.string.note_info_created_label),
+                    value = note.createdAt.toNoteInfoTimestampText()
+                )
+                NoteInfoRow(
+                    label = stringResource(id = R.string.note_info_modified_label),
+                    value = note.updatedAt.toNoteInfoTimestampText()
+                )
+                NoteInfoRow(
+                    label = stringResource(id = R.string.note_info_labels_label),
+                    value = noteLabel ?: stringResource(id = R.string.note_no_label)
+                )
+
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.close),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoteInfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(end = 16.dp)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 

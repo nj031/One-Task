@@ -16,19 +16,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.items as gridItems
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -41,7 +39,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -64,7 +61,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.journal.JournalNoteEntity
@@ -110,15 +106,8 @@ fun NotesScreen(
     val notes by viewModel.notes.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
-    var showAddChoice by remember { mutableStateOf(false) }
     var actionMenuNote by remember { mutableStateOf<JournalNoteEntity?>(null) }
 
-    // System back priority: add-choice dialog > long-press action menu > (default) return to
-    // the previous screen. Only one of these is ever open at a time in practice, so
-    // registration order among them doesn't matter.
-    BackHandler(enabled = showAddChoice) {
-        showAddChoice = false
-    }
     BackHandler(enabled = actionMenuNote != null) {
         actionMenuNote = null
     }
@@ -184,7 +173,7 @@ fun NotesScreen(
                 }
 
                 Button(
-                    onClick = { showAddChoice = true },
+                    onClick = { onAddNoteClick(JournalNoteType.TEXT) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 16.dp)
@@ -213,15 +202,14 @@ fun NotesScreen(
                     )
                 }
 
-                Text(
-                    text = stringResource(id = R.string.notes_list_heading),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.padding(top = 24.dp, bottom = 12.dp)
-                )
-
                 if (notes.isEmpty()) {
+                    Text(
+                        text = stringResource(id = R.string.notes_list_heading),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(top = 24.dp, bottom = 12.dp)
+                    )
                     Text(
                         text = stringResource(id = R.string.no_notes_yet),
                         style = MaterialTheme.typography.bodyLarge,
@@ -232,19 +220,52 @@ fun NotesScreen(
                             .padding(top = 24.dp)
                     )
                 } else {
+                    // notes is already sorted most-recently-edited first (see
+                    // JournalViewModel.notes); partitioning it (rather than re-sorting) keeps
+                    // that same relative order within each section, so "latest modified" ordering
+                    // applies identically to the Pinned Notes section and the rest.
+                    val pinnedNotes = notes.filter { it.pinned }
+                    val unpinnedNotes = notes.filterNot { it.pinned }
                     when (viewMode) {
                         NotesViewMode.LIST -> {
                             LazyColumn(
                                 modifier = Modifier.fillMaxWidth().weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                items(notes, key = { it.id }) { note ->
-                                    NoteListRow(
-                                        note = note,
-                                        onClick = { onNoteClick(note.id) },
-                                        onLongClick = { actionMenuNote = note },
-                                        wallpaper = wallpaper
-                                    )
+                                if (pinnedNotes.isNotEmpty()) {
+                                    item(key = "pinned_heading") {
+                                        NotesSectionHeading(
+                                            text = stringResource(id = R.string.notes_pinned_heading),
+                                            modifier = Modifier.padding(top = 24.dp, bottom = 12.dp)
+                                        )
+                                    }
+                                    items(pinnedNotes, key = { "pinned_${it.id}" }) { note ->
+                                        NoteListRow(
+                                            note = note,
+                                            onClick = { onNoteClick(note.id) },
+                                            onLongClick = { actionMenuNote = note },
+                                            wallpaper = wallpaper
+                                        )
+                                    }
+                                }
+                                if (unpinnedNotes.isNotEmpty()) {
+                                    item(key = "notes_heading") {
+                                        NotesSectionHeading(
+                                            text = stringResource(id = R.string.notes_list_heading),
+                                            modifier = Modifier.padding(
+                                                top = if (pinnedNotes.isNotEmpty()) 20.dp else 24.dp,
+                                                bottom = 12.dp
+                                            )
+                                        )
+                                    }
+                                    items(unpinnedNotes, key = { it.id }) { note ->
+                                        NoteListRow(
+                                            note = note,
+                                            onClick = { onNoteClick(note.id) },
+                                            onLongClick = { actionMenuNote = note },
+                                            wallpaper = wallpaper
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -255,13 +276,40 @@ fun NotesScreen(
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                gridItems(notes, key = { it.id }) { note ->
-                                    NoteCard(
-                                        note = note,
-                                        onClick = { onNoteClick(note.id) },
-                                        onLongClick = { actionMenuNote = note },
-                                        wallpaper = wallpaper
-                                    )
+                                if (pinnedNotes.isNotEmpty()) {
+                                    item(key = "pinned_heading", span = { GridItemSpan(maxLineSpan) }) {
+                                        NotesSectionHeading(
+                                            text = stringResource(id = R.string.notes_pinned_heading),
+                                            modifier = Modifier.padding(top = 24.dp, bottom = 12.dp)
+                                        )
+                                    }
+                                    gridItems(pinnedNotes, key = { "pinned_${it.id}" }) { note ->
+                                        NoteCard(
+                                            note = note,
+                                            onClick = { onNoteClick(note.id) },
+                                            onLongClick = { actionMenuNote = note },
+                                            wallpaper = wallpaper
+                                        )
+                                    }
+                                }
+                                if (unpinnedNotes.isNotEmpty()) {
+                                    item(key = "notes_heading", span = { GridItemSpan(maxLineSpan) }) {
+                                        NotesSectionHeading(
+                                            text = stringResource(id = R.string.notes_list_heading),
+                                            modifier = Modifier.padding(
+                                                top = if (pinnedNotes.isNotEmpty()) 20.dp else 24.dp,
+                                                bottom = 12.dp
+                                            )
+                                        )
+                                    }
+                                    gridItems(unpinnedNotes, key = { it.id }) { note ->
+                                        NoteCard(
+                                            note = note,
+                                            onClick = { onNoteClick(note.id) },
+                                            onLongClick = { actionMenuNote = note },
+                                            wallpaper = wallpaper
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -270,20 +318,6 @@ fun NotesScreen(
             }
         }
     }
-    }
-
-    if (showAddChoice) {
-        AddNoteChoiceDialog(
-            onTextClick = {
-                showAddChoice = false
-                onAddNoteClick(JournalNoteType.TEXT)
-            },
-            onChecklistClick = {
-                showAddChoice = false
-                onAddNoteClick(JournalNoteType.CHECKLIST)
-            },
-            onDismiss = { showAddChoice = false }
-        )
     }
 
     actionMenuNote?.let { note ->
@@ -665,86 +699,17 @@ private fun NoteActionSheetItem(text: String, onClick: () -> Unit) {
     )
 }
 
-/** The Add button's centered choice modal - deliberately just two plain rows, matching the
- * "clean centered modal, similar to the app's existing centered calendar modal experience"
- * spec (the same [Dialog] + [Surface] shape the Tasks homepage's calendar dialogs use). */
+/** One "Pinned Notes"/"Notes" section heading inside the notes list - same style the list's own
+ * single heading already used, now reusable since there can be up to two of them. */
 @Composable
-private fun AddNoteChoiceDialog(
-    onTextClick: () -> Unit,
-    onChecklistClick: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 6.dp
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.notes_add_choice_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .clickable(onClick = onDismiss),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = stringResource(id = R.string.close),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-
-                AddNoteChoiceOption(
-                    label = stringResource(id = R.string.note_type_text),
-                    onClick = onTextClick,
-                    modifier = Modifier.padding(top = 20.dp)
-                )
-                AddNoteChoiceOption(
-                    label = stringResource(id = R.string.note_type_checklist),
-                    onClick = onChecklistClick,
-                    modifier = Modifier.padding(top = 12.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AddNoteChoiceOption(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
+private fun NotesSectionHeading(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onBackground,
         modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-    }
+    )
 }
 
 private const val NOTE_PREVIEW_MAX_LENGTH = 60
