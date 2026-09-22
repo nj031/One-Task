@@ -48,6 +48,7 @@ sealed class Screen(val route: String) {
     data object GeneralSettings : Screen("general_settings")
     data object AppearanceSettings : Screen("appearance_settings")
     data object StartScreenSettings : Screen("start_screen_settings")
+    data object CategoriesSettings : Screen("categories_settings")
     data object DefaultTaskSettings : Screen("default_task_settings")
     data object NotificationsSettings : Screen("notifications_settings")
     data object WeekStartsOnSettings : Screen("week_starts_on_settings")

@@ -557,15 +557,31 @@ private fun NoteListRow(
         }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            if (note.title.isNotBlank()) {
-                Text(
-                    text = note.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+            // The title/label header row is only present when there's something to show in it -
+            // an untitled, unlabeled note keeps the old layout (preview text starts right at the
+            // top of the card) exactly as it was.
+            if (note.title.isNotBlank() || note.label != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    if (note.title.isNotBlank()) {
+                        Text(
+                            text = note.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                    note.label?.let { label ->
+                        NoteLabelPill(text = label, modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
             }
 
@@ -622,15 +638,28 @@ private fun NoteCard(
                 .padding(14.dp)
                 .height(120.dp)
         ) {
-            if (note.title.isNotBlank()) {
-                Text(
-                    text = note.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+            if (note.title.isNotBlank() || note.label != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    if (note.title.isNotBlank()) {
+                        Text(
+                            text = note.title,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                    note.label?.let { label ->
+                        NoteLabelPill(text = label, modifier = Modifier.padding(start = 4.dp))
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
             }
 
@@ -650,6 +679,28 @@ private fun NoteCard(
                 modifier = Modifier.padding(top = 6.dp)
             )
         }
+    }
+}
+
+/** Shows a note's assigned Label (if any) at the top-right of its card, in both list and grid
+ * view - same small outlined-pill treatment Task cards already use for a Task's Category (see
+ * HomeScreen's own TagPill), not a new visual role. Nothing is rendered for a note with no Label
+ * assigned (see both call sites' own note.label?.let). */
+@Composable
+private fun NoteLabelPill(text: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(50))
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

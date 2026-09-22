@@ -229,6 +229,7 @@
     <string name="general_settings_title">General</string>
     <string name="general_appearance">Appearance</string>
     <string name="general_start_screen">Start Screen</string>
+    <string name="general_categories">Categories</string>
     <string name="general_default_task_settings">Default Task Settings</string>
     <string name="general_notifications">Notifications</string>
     <string name="general_week_starts_on">Week Starts On</string>
@@ -267,13 +268,15 @@
     <string name="default_task_settings_description">These defaults only apply to new tasks - changing them never affects tasks you\'ve already created.</string>
     <string name="default_timer_section">Default Timer</string>
     <string name="default_tag_section">Default Tag</string>
-    <string name="default_category_section">Default Category</string>
-    <string name="custom_categories_section">Custom Categories</string>
+    <string name="default_pending_task_section">Default Pending Task</string>
+
+    <string name="categories_screen_title">Categories</string>
+    <string name="default_category_section">Default</string>
+    <string name="custom_categories_section">Custom</string>
     <string name="add_custom_category_button">Add Custom Category</string>
     <string name="custom_category_name_hint">Category name</string>
     <string name="rename_custom_category_title">Rename Category</string>
     <string name="delete_custom_category_confirm_message">Delete %1$s? Tasks using this category will become No Category.</string>
-    <string name="default_pending_task_section">Default Pending Task</string>
 
     <string name="notifications_settings_title">Notifications</string>
     <string name="notifications_focus_session_title">Focus Session Notifications</string>
