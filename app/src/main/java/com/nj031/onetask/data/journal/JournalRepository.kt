@@ -2,6 +2,7 @@ package com.nj031.onetask.data.journal
 
 import com.nj031.onetask.data.sync.CloudBackupRepository
 import java.time.LocalDate
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 
 class JournalRepository(private val dao: JournalNoteDao) {
@@ -25,6 +26,13 @@ class JournalRepository(private val dao: JournalNoteDao) {
         CloudBackupRepository.pushLabel(name)
     }
 
+    /** Returns the persisted entity (rather than being fire-and-forget) so a caller that needs
+     * the real row immediately - see the Note Editor's own eager-create-on-first-content flow -
+     * can start acting on it (Pin/Archive/Delete, etc.) without waiting for a separate read.
+     * [id] defaults to a fresh id like [JournalNoteEntity] itself does, but a caller that already
+     * generated one up front (again, the Note Editor's eager-create flow) can pass it through so
+     * a duplicate fallback create - if one ever races this one - lands on the same row via
+     * [JournalNoteDao.insert]'s own REPLACE conflict strategy instead of creating a second note. */
     suspend fun createNote(
         title: String,
         content: String,
@@ -32,10 +40,12 @@ class JournalRepository(private val dao: JournalNoteDao) {
         checklistItems: List<ChecklistItem>,
         label: String? = null,
         contentFormatSpans: List<NoteFormatSpan> = emptyList(),
-        pinned: Boolean = false
-    ) {
+        pinned: Boolean = false,
+        id: String = UUID.randomUUID().toString()
+    ): JournalNoteEntity {
         val now = System.currentTimeMillis()
         val note = JournalNoteEntity(
+            id = id,
             title = title,
             content = content,
             noteType = noteType,
@@ -51,6 +61,7 @@ class JournalRepository(private val dao: JournalNoteDao) {
         )
         dao.insert(note)
         CloudBackupRepository.pushNote(note)
+        return note
     }
 
     suspend fun updateNote(

@@ -86,6 +86,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
@@ -110,6 +111,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.UUID
 
 /**
  * The single editor for both Text and Checklist notes - the note's [JournalNoteType] is fixed
@@ -139,6 +141,17 @@ fun NoteEditorScreen(
 ) {
     val existingNote = remember(noteId) { viewModel.getNoteById(noteId) }
     val effectiveNoteType = existingNote?.noteType ?: noteType
+    // The id a brand-new note will be created under - generated once, up front, so the eager
+    // create below (see the hasContentNow LaunchedEffect) and commitOnExit's own fallback create
+    // always target the exact same row via JournalNoteDao.insert's REPLACE conflict strategy,
+    // even if both somehow ever fired (they can't produce two notes for one editing session).
+    val pendingNoteId = remember(noteId) { noteId ?: UUID.randomUUID().toString() }
+    // The note's real, currently-persisted DB row - null for a brand-new note until it first gets
+    // real content (see the hasContentNow LaunchedEffect below). Distinct from [existingNote],
+    // which is captured once at composition entry and never updates: Pin/Archive/Delete and Note
+    // Info must react the moment a new note becomes real, without needing the editor to be closed
+    // and reopened (which is what used to create a fresh, non-null existingNote instead).
+    var persistedNote by remember(noteId) { mutableStateOf(existingNote) }
 
     var title by remember { mutableStateOf(existingNote?.title.orEmpty()) }
     var contentValue by remember { mutableStateOf(TextFieldValue(existingNote?.content.orEmpty())) }
@@ -172,7 +185,7 @@ fun NoteEditorScreen(
     }
 
     fun commitOnExit() {
-        val note = existingNote
+        val note = persistedNote
         if (hasContent()) {
             val savedItems = checklistItems.filter { it.text.isNotBlank() }
             if (note != null) {
@@ -189,6 +202,13 @@ fun NoteEditorScreen(
                     pinned = isPinned
                 )
             } else {
+                // Fallback only - the hasContentNow LaunchedEffect below already eagerly creates
+                // the note the moment it gets real content, so persistedNote is normally non-null
+                // well before the user can reach this exit path. This exists purely to cover a
+                // narrow race (exiting in the same instant content first appears, before that
+                // effect's own create call has completed) - it targets the exact same
+                // pendingNoteId, so JournalNoteDao.insert's REPLACE conflict strategy collapses
+                // the two into one row rather than creating a duplicate note either way.
                 viewModel.createNote(
                     title = title,
                     content = contentValue.text,
@@ -196,12 +216,15 @@ fun NoteEditorScreen(
                     checklistItems = savedItems,
                     label = noteLabel,
                     contentFormatSpans = formatSpans,
-                    pinned = isPinned
+                    pinned = isPinned,
+                    id = pendingNoteId
                 )
             }
         } else if (note != null) {
-            // Every field was cleared out on an existing note - it shouldn't linger as an empty
-            // note, so it's discarded outright rather than saved with nothing in it.
+            // Every field was cleared back out - including on a note the hasContentNow
+            // LaunchedEffect already eagerly created earlier in this same session - so it
+            // shouldn't linger as an empty note; it's discarded outright rather than saved with
+            // nothing in it.
             viewModel.deleteEmptyNote(note)
         }
         // A brand-new note that was never given any content simply was never created - nothing
@@ -209,12 +232,12 @@ fun NoteEditorScreen(
     }
 
     fun performArchive() {
-        existingNote?.let { viewModel.archiveNote(it) }
+        persistedNote?.let { viewModel.archiveNote(it) }
         onDone()
     }
 
     fun performDelete() {
-        existingNote?.let { viewModel.trashNote(it) }
+        persistedNote?.let { viewModel.trashNote(it) }
         onDone()
     }
 
@@ -223,7 +246,7 @@ fun NoteEditorScreen(
     // label/formatting fields' deferred-save pattern. isPinned is also threaded into
     // commitOnExit's own updateNote(...) call above so a later deferred save can't revert this.
     fun togglePin() {
-        val note = existingNote ?: return
+        val note = persistedNote ?: return
         isPinned = !isPinned
         viewModel.setPinned(note, isPinned)
     }
@@ -261,12 +284,46 @@ fun NoteEditorScreen(
     }
 
     fun applyHeading(style: NoteFormatStyle?) {
-        val (start, end) = if (!selection.collapsed) {
-            selection.min to selection.max
+        if (!selection.collapsed) {
+            formatSpans = setHeadingOverRange(formatSpans, style, selection.min, selection.max)
         } else {
-            currentLineRange(contentValue.text, selection.start)
+            // No selection: mirrors Bold/Italic/Underline's own pendingCharacterStyles behavior
+            // above - arms the chosen size for the NEXT characters typed at the cursor rather
+            // than retroactively resizing whatever's already on the current line (previously this
+            // branch, when the cursor sat on an empty line - which is exactly the Note Editor's
+            // own starting state on a new note - always formatted a zero-length range and so
+            // never had any visible effect, and even when it hit non-empty text, newly typed text
+            // right after it silently reverted to the normal body size instead of continuing it).
+            // HEADING_MEDIUM/HEADING_LARGE are mutually exclusive (see setHeadingOverRange's own
+            // comment), so choosing one always clears the other from the pending set first.
+            pendingCharacterStyles = pendingCharacterStyles - NoteFormatStyle.HEADING_MEDIUM - NoteFormatStyle.HEADING_LARGE
+            if (style != null) {
+                pendingCharacterStyles = pendingCharacterStyles + style
+            }
         }
-        formatSpans = setHeadingOverRange(formatSpans, style, start, end)
+    }
+
+    // Eagerly persists a brand-new note the moment it first gets real content, instead of only
+    // on exit (commitOnExit's own create path) - Pin/Archive/Delete and Note Info all need a real
+    // DB row (persistedNote) to act on, and previously had none until the editor was closed and
+    // reopened. Keyed on the boolean itself (not on title/contentValue/checklistItems), so it
+    // fires exactly once per editing session, on the false->true edge - keying on the raw content
+    // would restart (and so never let complete) this coroutine on every keystroke typed before
+    // the previous attempt's local Room insert finished.
+    val hasContentNow = hasContent()
+    LaunchedEffect(hasContentNow) {
+        if (hasContentNow && persistedNote == null) {
+            persistedNote = viewModel.createNoteAwait(
+                title = title,
+                content = contentValue.text,
+                noteType = effectiveNoteType,
+                checklistItems = checklistItems.filter { it.text.isNotBlank() },
+                label = noteLabel,
+                contentFormatSpans = formatSpans,
+                pinned = isPinned,
+                id = pendingNoteId
+            )
+        }
     }
 
     BackHandler {
@@ -339,7 +396,7 @@ fun NoteEditorScreen(
                     ) {
                         NoteEditorTopBar(
                             onBackClick = { commitOnExit(); onDone() },
-                            canModifyNote = existingNote != null,
+                            canModifyNote = persistedNote != null,
                             isPinned = isPinned,
                             onShareClick = ::performShare,
                             onAddToLabelClick = { showLabelDialog = true },
@@ -367,6 +424,7 @@ fun NoteEditorScreen(
                                 color = MaterialTheme.colorScheme.onBackground
                             ),
                             singleLine = true,
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                             colors = transparentTextFieldColors()
                         )
 
@@ -397,6 +455,7 @@ fun NoteEditorScreen(
                                 color = MaterialTheme.colorScheme.onBackground
                             ),
                             visualTransformation = formatTransformation,
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                             colors = transparentTextFieldColors()
                         )
                     }
@@ -413,7 +472,7 @@ fun NoteEditorScreen(
                     ) {
                         NoteEditorTopBar(
                             onBackClick = { commitOnExit(); onDone() },
-                            canModifyNote = existingNote != null,
+                            canModifyNote = persistedNote != null,
                             isPinned = isPinned,
                             onShareClick = ::performShare,
                             onAddToLabelClick = { showLabelDialog = true },
@@ -441,6 +500,7 @@ fun NoteEditorScreen(
                                 color = MaterialTheme.colorScheme.onBackground
                             ),
                             singleLine = true,
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                             colors = transparentTextFieldColors()
                         )
 
@@ -474,9 +534,10 @@ fun NoteEditorScreen(
         )
     }
 
-    if (showNoteInfoDialog && existingNote != null) {
+    val noteInfoTarget = persistedNote
+    if (showNoteInfoDialog && noteInfoTarget != null) {
         NoteInfoDialog(
-            note = existingNote,
+            note = noteInfoTarget,
             title = title,
             noteLabel = noteLabel,
             onDismiss = { showNoteInfoDialog = false }
@@ -1163,18 +1224,6 @@ private fun setHeadingOverRange(spans: List<NoteFormatSpan>, style: NoteFormatSt
     return if (style != null) addCoverage(result, style, start, end) else result
 }
 
-/** The line containing [cursor] - start (inclusive) and end (exclusive) of the run of text
- * between the nearest newlines on either side (or the text's own start/end). Used by the Aa
- * control's "current line" behavior when nothing is selected - see this task's own spec. */
-private fun currentLineRange(text: String, cursor: Int): Pair<Int, Int> {
-    val pos = cursor.coerceIn(0, text.length)
-    var lineStart = pos
-    while (lineStart > 0 && text[lineStart - 1] != '\n') lineStart--
-    var lineEnd = pos
-    while (lineEnd < text.length && text[lineEnd] != '\n') lineEnd++
-    return lineStart to lineEnd
-}
-
 @Composable
 private fun ChecklistEditor(
     items: List<ChecklistItem>,
@@ -1459,6 +1508,7 @@ private fun ChecklistItemRow(
                 singleLine = false,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Text,
+                    capitalization = KeyboardCapitalization.Sentences,
                     imeAction = ImeAction.Next
                 ),
                 keyboardActions = KeyboardActions(onNext = { onEnterPressed() }),
