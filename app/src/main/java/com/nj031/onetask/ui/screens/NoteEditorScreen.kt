@@ -1696,25 +1696,20 @@ private fun EditableBlockRow(
 @Composable
 private fun ImageFocusOverlay(imagePath: String, onBack: () -> Unit, onDelete: () -> Unit) {
     val bitmap = remember(imagePath) { BitmapFactory.decodeFile(imagePath)?.asImageBitmap() }
-    Box(
+    // Top bar is its own opaque region above the image (not overlaid on top of it): previously
+    // Back/Delete sat directly on top of the full-bleed image with no background of their own, so
+    // a light/white area of the photo right under the icons could make a white icon unreadable.
+    // Placing them on the screen's normal themed background instead - the same one every other
+    // top bar in this app uses - keeps their contrast independent of whatever the photo contains,
+    // and correct in both light and dark mode automatically.
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap,
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .align(Alignment.Center)
-            )
-        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.TopCenter)
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(horizontal = 4.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween
@@ -1723,14 +1718,34 @@ private fun ImageFocusOverlay(imagePath: String, onBack: () -> Unit, onDelete: (
                 Icon(
                     imageVector = Icons.Filled.ArrowBack,
                     contentDescription = stringResource(id = R.string.back),
-                    tint = Color.White
+                    tint = MaterialTheme.colorScheme.onBackground
                 )
             }
             IconButton(onClick = onDelete) {
                 Icon(
                     imageVector = Icons.Filled.Delete,
                     contentDescription = stringResource(id = R.string.delete),
-                    tint = Color.White
+                    // The app's existing destructive/error color role (same one Notes list's own
+                    // Delete uses) rather than a new color introduced just for this button - it's
+                    // defined for readable contrast against the theme background in both light
+                    // and dark mode.
+                    tint = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .background(Color.Black),
+            contentAlignment = Alignment.Center
+        ) {
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
                 )
             }
         }
