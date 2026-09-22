@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -1508,6 +1509,7 @@ private fun NoteBlocksList(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun EditableBlockRow(
     block: EditableBlock,
