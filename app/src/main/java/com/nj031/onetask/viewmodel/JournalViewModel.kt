@@ -13,6 +13,7 @@ import com.nj031.onetask.data.settings.GeneralSettingsRepository
 import com.nj031.onetask.data.settings.NotesViewMode
 import com.nj031.onetask.data.sync.CloudBackupRepository
 import com.nj031.onetask.data.sync.CloudGeneralSettings
+import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -105,7 +106,8 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         checklistItems: List<ChecklistItem>,
         label: String? = null,
         contentFormatSpans: List<NoteFormatSpan> = emptyList(),
-        pinned: Boolean = false
+        pinned: Boolean = false,
+        id: String = UUID.randomUUID().toString()
     ) {
         viewModelScope.launch {
             repository.createNote(
@@ -115,10 +117,35 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                 checklistItems = checklistItems,
                 label = label,
                 contentFormatSpans = contentFormatSpans,
-                pinned = pinned
+                pinned = pinned,
+                id = id
             )
         }
     }
+
+    /** Suspend variant of [createNote] that returns the persisted entity instead of firing and
+     * forgetting - the Note Editor uses this to eagerly persist a brand-new note the moment it
+     * gets real content, so Pin/Archive/Delete (which need a real DB row to act on) become
+     * available immediately instead of only after the note is closed and reopened. */
+    suspend fun createNoteAwait(
+        title: String,
+        content: String,
+        noteType: JournalNoteType,
+        checklistItems: List<ChecklistItem>,
+        label: String? = null,
+        contentFormatSpans: List<NoteFormatSpan> = emptyList(),
+        pinned: Boolean = false,
+        id: String = UUID.randomUUID().toString()
+    ): JournalNoteEntity = repository.createNote(
+        title = title,
+        content = content,
+        noteType = noteType,
+        checklistItems = checklistItems,
+        label = label,
+        contentFormatSpans = contentFormatSpans,
+        pinned = pinned,
+        id = id
+    )
 
     fun getNoteById(id: String?): JournalNoteEntity? =
         id?.let { targetId -> activeNotes.value.find { it.id == targetId } }
