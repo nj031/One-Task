@@ -322,6 +322,11 @@ fun NotesScreen(
 
     actionMenuNote?.let { note ->
         NoteActionSheet(
+            isPinned = note.pinned,
+            onPinToggleClick = {
+                viewModel.setPinned(note, !note.pinned)
+                actionMenuNote = null
+            },
             onArchiveClick = {
                 viewModel.archiveNote(note)
                 actionMenuNote = null
@@ -651,6 +656,8 @@ private fun NoteCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun NoteActionSheet(
+    isPinned: Boolean,
+    onPinToggleClick: () -> Unit,
     onArchiveClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onDismiss: () -> Unit
@@ -670,6 +677,10 @@ private fun NoteActionSheet(
         containerColor = MaterialTheme.colorScheme.surface
     ) {
         Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            NoteActionSheetItem(
+                text = stringResource(id = if (isPinned) R.string.note_menu_unpin_note else R.string.note_menu_pin_note),
+                onClick = { dismissThen(onPinToggleClick) }
+            )
             NoteActionSheetItem(
                 text = stringResource(id = R.string.archive),
                 onClick = { dismissThen(onArchiveClick) }

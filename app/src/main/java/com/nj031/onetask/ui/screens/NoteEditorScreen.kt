@@ -7,11 +7,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,16 +31,17 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
@@ -62,8 +63,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -80,6 +81,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -120,6 +122,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.launch
 
 /**
  * The single mixed-content editor for every note - a note is an ordered list of [NoteBlock]s
@@ -156,9 +159,10 @@ fun NoteEditorScreen(
     val pendingNoteId = remember(noteId) { noteId ?: UUID.randomUUID().toString() }
     // The note's real, currently-persisted DB row - null for a brand-new note until it first gets
     // real content (see the hasContentNow LaunchedEffect below). Distinct from [existingNote],
-    // which is captured once at composition entry and never updates: Pin/Archive/Delete and Note
-    // Info must react the moment a new note becomes real, without needing the editor to be closed
-    // and reopened (which is what used to create a fresh, non-null existingNote instead).
+    // which is captured once at composition entry and never updates: Note Info must react the
+    // moment a new note becomes real, without needing the editor to be closed and reopened
+    // (which is what used to create a fresh, non-null existingNote instead) - and commitOnExit
+    // needs it to know whether to create or update.
     var persistedNote by remember(noteId) { mutableStateOf(existingNote) }
 
     var title by remember { mutableStateOf(existingNote?.title.orEmpty()) }
@@ -212,9 +216,11 @@ fun NoteEditorScreen(
                     checklistItems = persistedBlocks.toLegacyChecklistItems(),
                     label = noteLabel,
                     contentFormatSpans = emptyList(),
-                    // Re-asserts whatever togglePin() already wrote immediately (see its own
-                    // comment) rather than reverting it - note (the composition-time snapshot)
-                    // never itself observes a pin toggle that happened after this screen opened.
+                    // Pin/Unpin now lives only in the Notes list's own action menu (see
+                    // NotesScreen's NoteActionSheet), which writes it immediately, independent of
+                    // this deferred save - re-asserting the note's own current isPinned here
+                    // (rather than some other value) just carries that state through unchanged,
+                    // since this screen has no way to change it itself.
                     pinned = isPinned,
                     blocks = persistedBlocks
                 )
@@ -247,26 +253,6 @@ fun NoteEditorScreen(
         }
         // A brand-new note that was never given any content simply was never created - nothing
         // to undo.
-    }
-
-    fun performArchive() {
-        persistedNote?.let { viewModel.archiveNote(it) }
-        onDone()
-    }
-
-    fun performDelete() {
-        persistedNote?.let { viewModel.trashNote(it) }
-        onDone()
-    }
-
-    // Immediate (not deferred-through-commitOnExit) write - see
-    // JournalRepository.setPinned's own doc comment for why Pin/Unpin needs this rather than the
-    // label/formatting fields' deferred-save pattern. isPinned is also threaded into
-    // commitOnExit's own updateNote(...) call above so a later deferred save can't revert this.
-    fun togglePin() {
-        val note = persistedNote ?: return
-        isPinned = !isPinned
-        viewModel.setPinned(note, isPinned)
     }
 
     fun performShare() {
@@ -445,9 +431,7 @@ fun NoteEditorScreen(
         val block = targetBlock
         if (block == null) {
             blocks = blocks + imageBlock
-            return
-        }
-        if (block.type == NoteBlockType.TEXT) {
+        } else if (block.type == NoteBlockType.TEXT) {
             val text = block.value.text
             val cursor = block.value.selection.start.coerceIn(0, text.length)
             val before = text.substring(0, cursor)
@@ -479,6 +463,12 @@ fun NoteEditorScreen(
             val index = blocks.indexOfFirst { it.id == block.id }
             blocks = blocks.toMutableList().apply { add(index + 1, imageBlock) }
         }
+        // Guarantees there is always a valid editable text position after an image that ends up
+        // at the end of the document (spec requirement) - none of the three branches above add a
+        // trailing TEXT block when there's no leftover text to preserve (e.g. the cursor was at
+        // the very end, or blocks was empty, or the target block wasn't TEXT), which previously
+        // could leave an IMAGE as the note's last block with nothing to tap/type into below it.
+        blocks = blocks.ensureEditableTrailingPosition()
     }
 
     fun deleteImageBlock(blockId: String) {
@@ -554,9 +544,17 @@ fun NoteEditorScreen(
         }
     }
 
-    BackHandler {
+    // Two mutually-exclusive handlers (never both enabled at once) rather than one relying on
+    // registration-order priority: while the image-focused overlay is open, back must only
+    // dismiss IT (returning to this same editor, note unchanged) - previously there was no
+    // handler for that state at all, so a system back press fell through to this one and closed
+    // the whole editor instead.
+    BackHandler(enabled = focusedImageBlockId == null) {
         commitOnExit()
         onDone()
+    }
+    BackHandler(enabled = focusedImageBlockId != null) {
+        focusedImageBlockId = null
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -602,13 +600,8 @@ fun NoteEditorScreen(
                 ) {
                     NoteEditorTopBar(
                         onBackClick = { commitOnExit(); onDone() },
-                        canModifyNote = persistedNote != null,
-                        isPinned = isPinned,
                         onShareClick = ::performShare,
                         onAddToLabelClick = { showLabelDialog = true },
-                        onPinToggleClick = ::togglePin,
-                        onArchiveClick = ::performArchive,
-                        onDeleteClick = ::performDelete,
                         onNoteInfoClick = { showNoteInfoDialog = true }
                     )
 
@@ -643,10 +636,6 @@ fun NoteEditorScreen(
                         onCheckedChange = { id, checked -> updateBlock(id) { it.copy(checked = checked) } },
                         onEnterPressed = ::handleBlockEnterPressed,
                         onBackspaceAtStart = ::handleBlockBackspaceAtStart,
-                        onDeleteBlock = { id ->
-                            val remaining = blocks.filterNot { it.id == id }
-                            blocks = remaining.ifEmpty { listOf(EditableBlock(id = UUID.randomUUID().toString(), type = NoteBlockType.TEXT)) }
-                        },
                         onImageTap = { id -> focusedImageBlockId = id },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -698,17 +687,11 @@ fun NoteEditorScreen(
 @Composable
 private fun NoteEditorTopBar(
     onBackClick: () -> Unit,
-    canModifyNote: Boolean,
-    isPinned: Boolean,
     onShareClick: () -> Unit,
     onAddToLabelClick: () -> Unit,
-    onPinToggleClick: () -> Unit,
-    onArchiveClick: () -> Unit,
-    onDeleteClick: () -> Unit,
     onNoteInfoClick: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    val disabledColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
 
     Box(modifier = Modifier.fillMaxWidth()) {
         IconButton(onClick = onBackClick, modifier = Modifier.align(Alignment.CenterStart)) {
@@ -740,38 +723,6 @@ private fun NoteEditorTopBar(
                 DropdownMenuItem(
                     text = { Text(stringResource(id = R.string.note_menu_add_to_label)) },
                     onClick = { showMenu = false; onAddToLabelClick() }
-                )
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = stringResource(
-                                id = if (isPinned) R.string.note_menu_unpin_note else R.string.note_menu_pin_note
-                            ),
-                            color = if (canModifyNote) MaterialTheme.colorScheme.onBackground else disabledColor
-                        )
-                    },
-                    enabled = canModifyNote,
-                    onClick = { showMenu = false; onPinToggleClick() }
-                )
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = stringResource(id = R.string.archive),
-                            color = if (canModifyNote) MaterialTheme.colorScheme.onBackground else disabledColor
-                        )
-                    },
-                    enabled = canModifyNote,
-                    onClick = { showMenu = false; onArchiveClick() }
-                )
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = stringResource(id = R.string.delete),
-                            color = if (canModifyNote) MaterialTheme.colorScheme.error else disabledColor
-                        )
-                    },
-                    enabled = canModifyNote,
-                    onClick = { showMenu = false; onDeleteClick() }
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(id = R.string.note_menu_note_info)) },
@@ -1304,7 +1255,14 @@ private fun initialBlocksFor(note: JournalNoteEntity?): List<EditableBlock> = wh
     note == null -> listOf(EditableBlock(type = NoteBlockType.TEXT))
     note.blocks.isNotEmpty() -> note.blocks.map { it.toEditable() }
     else -> legacyBlocksFor(note)
-}
+}.ensureEditableTrailingPosition()
+
+/** Appends an empty TEXT block whenever [this] ends in an IMAGE block, so there is always a
+ * valid editable text position after an image that's at the end of the document - applied both
+ * when a note is first loaded (fixing a note saved before this guarantee existed) and every time
+ * [NoteEditorScreen]'s own insertImageBlock adds a new image. */
+private fun List<EditableBlock>.ensureEditableTrailingPosition(): List<EditableBlock> =
+    if (lastOrNull()?.type == NoteBlockType.IMAGE) this + EditableBlock(type = NoteBlockType.TEXT) else this
 
 /** Flattens the note's blocks into one plain-text preview/search string - purely a backward-
  * compatibility bridge so the Notes list's existing card preview and search (JournalViewModel's
@@ -1526,50 +1484,32 @@ private fun NoteBlocksList(
     onCheckedChange: (String, Boolean) -> Unit,
     onEnterPressed: (String) -> Unit,
     onBackspaceAtStart: (String) -> Unit,
-    onDeleteBlock: (String) -> Unit,
     onImageTap: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var focusedBlockId by remember { mutableStateOf<String?>(null) }
-    val listState = rememberLazyListState()
-
-    // Keeps the focused block visible above the keyboard, the same "typing auto-scroll" backstop
-    // this screen's own checklist editor already used: wait a couple of frames for the new layout
-    // to settle, then scroll only the minimum necessary amount.
-    LaunchedEffect(focusedBlockId, blocks) {
-        val targetId = focusedBlockId ?: return@LaunchedEffect
-        withFrameNanos { }
-        withFrameNanos { }
-        val info = listState.layoutInfo
-        val item = info.visibleItemsInfo.find { it.key == targetId } ?: return@LaunchedEffect
-        val overflow = (item.offset + item.size) - info.viewportEndOffset
-        if (overflow > 0) {
-            val maxScroll = (item.offset - info.viewportStartOffset).coerceAtLeast(0)
-            val scrollAmount = overflow.coerceAtMost(maxScroll).toFloat()
-            if (scrollAmount > 0f) {
-                listState.animateScrollBy(scrollAmount)
-            }
-        }
-    }
-
-    LazyColumn(state = listState, modifier = modifier) {
+    // Keeping the focused/newly-created block visible above the keyboard is handled per-row, by
+    // each row's own BasicTextField calling BringIntoViewRequester.bringIntoView() on focus gain
+    // (see EditableBlockRow) - the standard Compose primitive for exactly this, which correctly
+    // reacts to the IME's actual settled inset rather than a hand-rolled, timing-sensitive
+    // viewportEndOffset calculation racing the keyboard's own open animation.
+    LazyColumn(modifier = modifier) {
         items(blocks, key = { it.id }) { block ->
             EditableBlockRow(
                 block = block,
                 requestFocus = focusTargetId == block.id,
                 onFocusHandled = onFocusTargetHandled,
-                onFocusChanged = { focused -> if (focused) { focusedBlockId = block.id; onFocusChanged(block.id) } },
+                onFocusChanged = { focused -> if (focused) onFocusChanged(block.id) },
                 onValueChange = { newValue -> onBlockValueChange(block, newValue) },
                 onCheckedChange = { checked -> onCheckedChange(block.id, checked) },
                 onEnterPressed = { onEnterPressed(block.id) },
                 onBackspaceAtStart = { onBackspaceAtStart(block.id) },
-                onDeleteClick = { onDeleteBlock(block.id) },
                 onImageTap = { onImageTap(block.id) }
             )
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun EditableBlockRow(
     block: EditableBlock,
@@ -1580,7 +1520,6 @@ private fun EditableBlockRow(
     onCheckedChange: (Boolean) -> Unit,
     onEnterPressed: () -> Unit,
     onBackspaceAtStart: () -> Unit,
-    onDeleteClick: () -> Unit,
     onImageTap: () -> Unit
 ) {
     when (block.type) {
@@ -1602,6 +1541,8 @@ private fun EditableBlockRow(
         }
         NoteBlockType.TEXT -> {
             val focusRequester = remember(block.id) { FocusRequester() }
+            val bringIntoViewRequester = remember(block.id) { BringIntoViewRequester() }
+            val coroutineScope = rememberCoroutineScope()
             LaunchedEffect(requestFocus) {
                 if (requestFocus) {
                     focusRequester.requestFocus()
@@ -1609,29 +1550,42 @@ private fun EditableBlockRow(
                 }
             }
             val formatTransformation = remember(block.formatSpans) { noteFormatVisualTransformation(block.formatSpans) }
-            TextField(
+            BasicTextField(
                 value = block.value,
                 onValueChange = onValueChange,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 4.dp)
                     .focusRequester(focusRequester)
-                    .onFocusChanged { onFocusChanged(it.isFocused) },
-                placeholder = {
-                    Text(
-                        text = stringResource(id = R.string.note_content_placeholder),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                },
+                    .bringIntoViewRequester(bringIntoViewRequester)
+                    .onFocusChanged {
+                        onFocusChanged(it.isFocused)
+                        if (it.isFocused) {
+                            coroutineScope.launch { bringIntoViewRequester.bringIntoView() }
+                        }
+                    },
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground),
                 visualTransformation = formatTransformation,
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                colors = transparentTextFieldColors()
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (block.value.text.isEmpty()) {
+                            Text(
+                                text = stringResource(id = R.string.note_content_placeholder),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        innerTextField()
+                    }
+                }
             )
         }
         NoteBlockType.BULLET, NoteBlockType.CHECKLIST -> {
             val focusRequester = remember(block.id) { FocusRequester() }
+            val bringIntoViewRequester = remember(block.id) { BringIntoViewRequester() }
+            val coroutineScope = rememberCoroutineScope()
             LaunchedEffect(requestFocus) {
                 if (requestFocus) {
                     focusRequester.requestFocus()
@@ -1647,26 +1601,29 @@ private fun EditableBlockRow(
                 mutableStateOf(block.value.selection.collapsed && block.value.selection.start == 0)
             }
 
+            // verticalAlignment = CenterVertically (not Top) so the bullet glyph/checkbox sit on
+            // the SAME line as the first line of text - BasicTextField (unlike the Material3
+            // TextField this used to be) has no built-in minimum height or internal content
+            // padding, so there's no leftover chrome pushing the marker and the text apart or
+            // inflating each row's height.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.Top
+                    .padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 if (block.type == NoteBlockType.CHECKLIST) {
-                    Box(modifier = Modifier.padding(top = 10.dp)) {
-                        ChecklistCheckbox(checked = block.checked, onToggle = { onCheckedChange(!block.checked) })
-                    }
+                    ChecklistCheckbox(checked = block.checked, onToggle = { onCheckedChange(!block.checked) })
                 } else {
                     Text(
                         text = "•",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.padding(top = 8.dp, end = 12.dp)
+                        modifier = Modifier.padding(end = 12.dp)
                     )
                 }
 
-                TextField(
+                BasicTextField(
                     value = block.value,
                     onValueChange = { newValue ->
                         atLineStart = newValue.selection.collapsed && newValue.selection.start == 0
@@ -1675,7 +1632,13 @@ private fun EditableBlockRow(
                     modifier = Modifier
                         .weight(1f)
                         .focusRequester(focusRequester)
-                        .onFocusChanged { onFocusChanged(it.isFocused) }
+                        .bringIntoViewRequester(bringIntoViewRequester)
+                        .onFocusChanged {
+                            onFocusChanged(it.isFocused)
+                            if (it.isFocused) {
+                                coroutineScope.launch { bringIntoViewRequester.bringIntoView() }
+                            }
+                        }
                         // Best-effort backspace-at-start handling: Android soft keyboards don't
                         // always deliver a KeyEvent for a backspace that has nothing to delete
                         // forward of the cursor (an IME may instead call deleteSurroundingText
@@ -1692,38 +1655,33 @@ private fun EditableBlockRow(
                                 false
                             }
                         },
-                    placeholder = {
-                        Text(
-                            text = stringResource(id = R.string.checklist_item_placeholder),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground),
                     visualTransformation = formatTransformation,
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     // singleLine is intentionally false so long text wraps onto further lines
                     // instead of scrolling off-screen; Enter is still never typed as a literal
                     // newline into the text because imeAction is Next below, not Default -
                     // Compose routes Enter to onNext instead of inserting "\n" whenever a
                     // non-default imeAction is set, even in multiline fields.
-                    singleLine = false,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Text,
                         capitalization = KeyboardCapitalization.Sentences,
                         imeAction = ImeAction.Next
                     ),
                     keyboardActions = KeyboardActions(onNext = { onEnterPressed() }),
-                    colors = transparentTextFieldColors()
+                    decorationBox = { innerTextField ->
+                        Box {
+                            if (block.value.text.isEmpty()) {
+                                Text(
+                                    text = stringResource(id = R.string.checklist_item_placeholder),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
                 )
-
-                IconButton(onClick = onDeleteClick, modifier = Modifier.padding(top = 4.dp)) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = stringResource(id = R.string.delete),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
             }
         }
     }
