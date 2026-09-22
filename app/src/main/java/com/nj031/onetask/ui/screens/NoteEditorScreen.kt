@@ -93,6 +93,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -1551,6 +1552,12 @@ private fun NoteBlocksList(
         }
     }
 
+    // "Write your notes..." (see EditableBlockRow's TEXT branch) is only appropriate for the
+    // genuine "whole note is blank" starting state - a single empty TEXT block. Any other empty
+    // TEXT block (the line left behind by exiting an empty Bullet/Checklist item, or the trailing
+    // line below an image) exists alongside other real content, so it isn't "this note is empty,
+    // write something" - it's just an ordinary blank line.
+    val isOnlyBlock = blocks.size == 1
     LazyColumn(state = listState, modifier = modifier) {
         items(blocks, key = { it.id }) { block ->
             EditableBlockRow(
@@ -1563,7 +1570,8 @@ private fun NoteBlocksList(
                 onEnterPressed = { onEnterPressed(block.id) },
                 onBackspaceAtStart = { onBackspaceAtStart(block.id) },
                 onDeleteClick = { onDeleteBlock(block.id) },
-                onImageTap = { onImageTap(block.id) }
+                onImageTap = { onImageTap(block.id) },
+                showEmptyTextPlaceholder = isOnlyBlock
             )
         }
     }
@@ -1581,7 +1589,8 @@ private fun EditableBlockRow(
     onEnterPressed: () -> Unit,
     onBackspaceAtStart: () -> Unit,
     onDeleteClick: () -> Unit,
-    onImageTap: () -> Unit
+    onImageTap: () -> Unit,
+    showEmptyTextPlaceholder: Boolean
 ) {
     when (block.type) {
         NoteBlockType.IMAGE -> {
@@ -1605,11 +1614,28 @@ private fun EditableBlockRow(
             val bringIntoViewRequester = remember(block.id) { BringIntoViewRequester() }
             val coroutineScope = rememberCoroutineScope()
             var isFocused by remember(block.id) { mutableStateOf(false) }
+            var textLayoutResult by remember(block.id) { mutableStateOf<TextLayoutResult?>(null) }
             LaunchedEffect(requestFocus) {
                 if (requestFocus) {
                     focusRequester.requestFocus()
                     onFocusHandled()
                 }
+            }
+            // Requests only the cursor's own line into view, not the field's entire bounding box
+            // (bringIntoViewRequester.bringIntoView() with no rect - what every call site here
+            // used before - asks to show the WHOLE component). That's the confirmed root cause of
+            // auto-scroll silently stopping partway through continuous typing: once a field's own
+            // height (it's an unbounded-height, wrap-content BasicTextField - text simply keeps
+            // growing as more lines are typed/wrapped) exceeds the visible area above the
+            // keyboard/toolbar, "bring the whole field into view" can no longer be satisfied at
+            // all, so it settles on showing the TOP of the field instead of the cursor's current
+            // (much lower) line - which reads as "it worked initially, then stopped," with the
+            // cursor stuck below the keyboard from then on. Asking for just the cursor's own rect
+            // has no such ceiling: it stays satisfiable no matter how tall the field grows.
+            fun bringCursorIntoView() {
+                val layout = textLayoutResult ?: return
+                val cursorOffset = block.value.selection.end.coerceIn(0, layout.layoutInput.text.length)
+                coroutineScope.launch { bringIntoViewRequester.bringIntoView(layout.getCursorRect(cursorOffset)) }
             }
             val formatTransformation = remember(block.formatSpans) { noteFormatVisualTransformation(block.formatSpans) }
             BasicTextField(
@@ -1623,9 +1649,7 @@ private fun EditableBlockRow(
                     .onFocusChanged {
                         isFocused = it.isFocused
                         onFocusChanged(it.isFocused)
-                        if (it.isFocused) {
-                            coroutineScope.launch { bringIntoViewRequester.bringIntoView() }
-                        }
+                        if (it.isFocused) bringCursorIntoView()
                     }
                     // Re-validates visibility whenever this field's own layout position/size
                     // changes while it's focused - not just once, at the moment focus is gained.
@@ -1633,24 +1657,27 @@ private fun EditableBlockRow(
                     // actually finished its (asynchronous) show/hide animation, computing against
                     // a viewport that hasn't settled to its final size yet; as the surrounding
                     // Scaffold/LazyColumn keep reflowing while the keyboard animates, this field's
-                    // global position keeps changing too, and each change re-triggers the exact
-                    // same bringIntoView() call so it's checked again against the CURRENT layout.
-                    // bringIntoView() is a no-op once the field is already fully visible, so this
-                    // never causes a jump while the user is just typing normally (text wrapping to
-                    // a new line is the other legitimate case this same trigger covers - the field
-                    // grows, and the new line should stay visible above the keyboard too).
+                    // global position keeps changing too, and each change re-checks the cursor
+                    // against the CURRENT layout. A no-op once the cursor is already visible, so
+                    // this never causes a jump while the user is just typing normally.
                     .onGloballyPositioned {
-                        if (isFocused) {
-                            coroutineScope.launch { bringIntoViewRequester.bringIntoView() }
-                        }
+                        if (isFocused) bringCursorIntoView()
                     },
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground),
                 visualTransformation = formatTransformation,
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                onTextLayout = { layout ->
+                    textLayoutResult = layout
+                    // The trigger that actually matters for "keep scrolling as I keep typing": a
+                    // new line (from wrapping or a literal Enter) changes the text layout, which
+                    // is exactly when the cursor's own rect moves to a new position that may now
+                    // be outside the visible area.
+                    if (isFocused) bringCursorIntoView()
+                },
                 decorationBox = { innerTextField ->
                     Box {
-                        if (block.value.text.isEmpty()) {
+                        if (block.value.text.isEmpty() && showEmptyTextPlaceholder) {
                             Text(
                                 text = stringResource(id = R.string.note_content_placeholder),
                                 style = MaterialTheme.typography.bodyLarge,
@@ -1667,11 +1694,20 @@ private fun EditableBlockRow(
             val bringIntoViewRequester = remember(block.id) { BringIntoViewRequester() }
             val coroutineScope = rememberCoroutineScope()
             var isFocused by remember(block.id) { mutableStateOf(false) }
+            var textLayoutResult by remember(block.id) { mutableStateOf<TextLayoutResult?>(null) }
             LaunchedEffect(requestFocus) {
                 if (requestFocus) {
                     focusRequester.requestFocus()
                     onFocusHandled()
                 }
+            }
+            // See the TEXT branch's own comment on this same helper - identical shared-cause fix
+            // for the auto-scroll cutoff, applied here too since a long, wrapped bullet/checklist
+            // item can just as easily grow taller than the visible viewport.
+            fun bringCursorIntoView() {
+                val layout = textLayoutResult ?: return
+                val cursorOffset = block.value.selection.end.coerceIn(0, layout.layoutInput.text.length)
+                coroutineScope.launch { bringIntoViewRequester.bringIntoView(layout.getCursorRect(cursorOffset)) }
             }
             val formatTransformation = remember(block.formatSpans) { noteFormatVisualTransformation(block.formatSpans) }
             // Seeded from the block's own actual initial cursor position (not hardcoded true) -
@@ -1717,18 +1753,14 @@ private fun EditableBlockRow(
                         .onFocusChanged {
                             isFocused = it.isFocused
                             onFocusChanged(it.isFocused)
-                            if (it.isFocused) {
-                                coroutineScope.launch { bringIntoViewRequester.bringIntoView() }
-                            }
+                            if (it.isFocused) bringCursorIntoView()
                         }
                         // Re-validates visibility whenever this row's own layout position/size
                         // changes while focused (IME animation settling, or text wrapping to a
                         // new line) rather than only once at focus-gain time - see the TEXT
                         // branch's own onGloballyPositioned comment above for why.
                         .onGloballyPositioned {
-                            if (isFocused) {
-                                coroutineScope.launch { bringIntoViewRequester.bringIntoView() }
-                            }
+                            if (isFocused) bringCursorIntoView()
                         }
                         // Best-effort backspace-at-start handling: Android soft keyboards don't
                         // always deliver a KeyEvent for a backspace that has nothing to delete
@@ -1760,6 +1792,10 @@ private fun EditableBlockRow(
                         imeAction = ImeAction.Next
                     ),
                     keyboardActions = KeyboardActions(onNext = { onEnterPressed() }),
+                    onTextLayout = { layout ->
+                        textLayoutResult = layout
+                        if (isFocused) bringCursorIntoView()
+                    },
                     decorationBox = { innerTextField ->
                         Box {
                             if (block.value.text.isEmpty()) {
