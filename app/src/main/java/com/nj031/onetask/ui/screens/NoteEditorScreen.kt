@@ -1712,7 +1712,7 @@ private fun EditableBlockRow(
                         capitalization = KeyboardCapitalization.Sentences,
                         imeAction = ImeAction.Next
                     ),
-                    keyboardActions = KeyboardActions(onNext = onEnterPressed),
+                    keyboardActions = KeyboardActions(onNext = { onEnterPressed() }),
                     colors = transparentTextFieldColors()
                 )
 
