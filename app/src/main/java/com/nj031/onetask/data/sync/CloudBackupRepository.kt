@@ -10,6 +10,8 @@ import com.nj031.onetask.data.journal.ChecklistItem
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.JournalNoteStatus
 import com.nj031.onetask.data.journal.JournalNoteType
+import com.nj031.onetask.data.journal.NoteBlock
+import com.nj031.onetask.data.journal.NoteBlockType
 import com.nj031.onetask.data.journal.NoteFormatSpan
 import com.nj031.onetask.data.journal.NoteFormatStyle
 import com.nj031.onetask.data.task.CategoryEntity
@@ -77,6 +79,11 @@ internal fun categoriesPath(uid: String) = "users/$uid/categories"
 internal fun labelsPath(uid: String) = "users/$uid/labels"
 internal fun accountPath(uid: String) = "users/$uid/account"
 internal fun profilePhotoPath(uid: String) = "profile_photos/$uid.jpg"
+
+/** Deterministic, UID- and note-scoped Storage path for one note's (at most one, for now - see
+ * [NoteBlockType.IMAGE]'s own doc comment) image - no separate "image URL" needs to be stored
+ * anywhere (in Firestore or otherwise), mirroring [profilePhotoPath]'s own convention exactly. */
+internal fun noteImagePath(uid: String, noteId: String) = "note_images/$uid/$noteId.jpg"
 
 /** See [RecurringExclusionEntity] - one document per (series, date) pair the user explicitly
  * deleted an occurrence on, so the deletion survives sign-out/sign-in and reinstall too, not just
@@ -152,6 +159,8 @@ object CloudBackupRepository {
      * always derivable from the uid alone, the same convention
      * [com.nj031.onetask.data.profile.ProfilePhotoStorage] already uses for the local file. */
     private fun profilePhotoRef(uid: String) = storage.reference.child(profilePhotoPath(uid))
+
+    private fun noteImageRef(uid: String, noteId: String) = storage.reference.child(noteImagePath(uid, noteId))
 
     /** Runs a single Firestore write/delete, awaiting its actual server confirmation rather than
      * firing it and immediately returning (the fix for the root cause described in this object's
@@ -244,11 +253,63 @@ object CloudBackupRepository {
     suspend fun pushNote(note: JournalNoteEntity) {
         val currentUid = uid ?: return
         runFirestoreWrite { notesCollection(currentUid).document(note.id).set(note.toFirestoreMap()).await() }
+        // Keeps the note's own image in Storage in sync with its current blocks - uploads the
+        // local file backing its one IMAGE block, if it has one, or removes any previously
+        // uploaded image otherwise (e.g. the user just deleted it), the same "local file is source
+        // of truth, Storage mirrors it" relationship uploadProfilePhoto/deleteProfilePhoto already
+        // have with the local profile photo file.
+        val imagePath = note.blocks.firstOrNull { it.type == NoteBlockType.IMAGE }?.imagePath
+        if (imagePath != null && File(imagePath).exists()) {
+            uploadNoteImage(note.id, File(imagePath))
+        } else {
+            deleteNoteImage(note.id)
+        }
     }
 
     suspend fun deleteNote(noteId: String) {
         val currentUid = uid ?: return
         runFirestoreWrite { notesCollection(currentUid).document(noteId).delete().await() }
+        deleteNoteImage(noteId)
+    }
+
+    /** Mirrors [uploadProfilePhoto] exactly, scoped to one note's own deterministic Storage path
+     * (see [noteImagePath]) instead of the account-wide profile photo path. */
+    suspend fun uploadNoteImage(noteId: String, localFile: File) {
+        val currentUid = uid ?: return
+        try {
+            noteImageRef(currentUid, noteId).putFile(Uri.fromFile(localFile)).await()
+        } catch (_: Exception) {
+            // Same reasoning as uploadProfilePhoto - the local file remains the source of truth
+            // for the current session either way.
+        }
+    }
+
+    /** Mirrors [deleteProfilePhoto] exactly. A missing remote object (this note never had an
+     * image, or its image was already removed) is not an error. */
+    suspend fun deleteNoteImage(noteId: String) {
+        val currentUid = uid ?: return
+        try {
+            noteImageRef(currentUid, noteId).delete().await()
+        } catch (e: StorageException) {
+            if (e.errorCode != StorageException.ERROR_OBJECT_NOT_FOUND) throw e
+        } catch (_: Exception) {
+            // Same reasoning as deleteProfilePhoto.
+        }
+    }
+
+    /** Mirrors [downloadProfilePhoto] exactly - used by the Note Editor to restore a note's image
+     * to a device that doesn't have it locally yet (a fresh install, or a note edited on another
+     * device), returning true only if an image actually existed remotely and was written. A 404
+     * (this note has no image) is the expected, common case, not an error - and [destinationFile]
+     * is never touched/cleared on any failure. */
+    suspend fun downloadNoteImage(noteId: String, destinationFile: File): Boolean {
+        val currentUid = uid ?: return false
+        return try {
+            noteImageRef(currentUid, noteId).getFile(destinationFile).await()
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     /** Mirrors [pushTag] exactly. */
@@ -601,7 +662,23 @@ private fun JournalNoteEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "contentFormatSpans" to contentFormatSpans.map {
         mapOf("start" to it.start, "end" to it.end, "style" to it.style.name)
     },
-    "pinned" to pinned
+    "pinned" to pinned,
+    // imagePath is a local-device file path, deliberately never written here - an IMAGE block's
+    // actual bytes live in Firebase Storage instead, at a path deterministic from this note's own
+    // id (see noteImageRef's own doc comment), the same convention the account's profile photo
+    // already uses. A pulled-down IMAGE block's imagePath is always null until the Note Editor
+    // downloads it back down to this device - see NoteEditorScreen's own image-restore effect.
+    "blocks" to blocks.map { block ->
+        mapOf(
+            "id" to block.id,
+            "type" to block.type.name,
+            "text" to block.text,
+            "checked" to block.checked,
+            "formatSpans" to block.formatSpans.map {
+                mapOf("start" to it.start, "end" to it.end, "style" to it.style.name)
+            }
+        )
+    }
 )
 
 @Suppress("UNCHECKED_CAST")
@@ -617,6 +694,11 @@ private fun DocumentSnapshot.toJournalNoteEntity(): JournalNoteEntity? {
     // Absent from any note document written before the Note Editor's formatting toolbar existed
     // - defaults to no formatting, exactly matching JournalNoteEntity's own constructor default.
     val formatSpansRaw = get("contentFormatSpans") as? List<Map<String, Any?>> ?: emptyList()
+    // Absent from any note document written before the mixed-content Note Editor existed -
+    // defaults to no blocks, exactly matching JournalNoteEntity's own constructor default (the
+    // Note Editor synthesizes an equivalent block list from content/checklistItems for such a
+    // note the first time it's opened after this update).
+    val blocksRaw = get("blocks") as? List<Map<String, Any?>> ?: emptyList()
     return JournalNoteEntity(
         id = id,
         title = title,
@@ -645,6 +727,28 @@ private fun DocumentSnapshot.toJournalNoteEntity(): JournalNoteEntity? {
         },
         // Absent from any note document written before pinning existed - default to false (not
         // pinned), exactly matching JournalNoteEntity's own constructor default.
-        pinned = getBoolean("pinned") ?: false
+        pinned = getBoolean("pinned") ?: false,
+        blocks = blocksRaw.mapNotNull { raw ->
+            val blockId = raw["id"] as? String ?: return@mapNotNull null
+            val type = (raw["type"] as? String)?.let { runCatching { NoteBlockType.valueOf(it) }.getOrNull() }
+                ?: return@mapNotNull null
+            val blockSpansRaw = raw["formatSpans"] as? List<Map<String, Any?>> ?: emptyList()
+            NoteBlock(
+                id = blockId,
+                type = type,
+                text = raw["text"] as? String ?: "",
+                checked = raw["checked"] as? Boolean ?: false,
+                formatSpans = blockSpansRaw.mapNotNull { spanRaw ->
+                    val start = (spanRaw["start"] as? Long)?.toInt() ?: return@mapNotNull null
+                    val end = (spanRaw["end"] as? Long)?.toInt() ?: return@mapNotNull null
+                    val style = (spanRaw["style"] as? String)?.let { runCatching { NoteFormatStyle.valueOf(it) }.getOrNull() }
+                        ?: return@mapNotNull null
+                    NoteFormatSpan(start = start, end = end, style = style)
+                },
+                // Never restored from Firestore directly - see this function's own doc comment
+                // on "blocks".
+                imagePath = null
+            )
+        }
     )
 }

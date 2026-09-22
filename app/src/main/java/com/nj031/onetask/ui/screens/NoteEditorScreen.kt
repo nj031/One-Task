@@ -1,14 +1,17 @@
 package com.nj031.onetask.ui.screens
 
 import android.content.Intent
+import android.graphics.BitmapFactory
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,24 +25,23 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -68,14 +70,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -97,16 +103,18 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.journal.ChecklistItem
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.JournalNoteType
+import com.nj031.onetask.data.journal.NoteBlock
+import com.nj031.onetask.data.journal.NoteBlockType
 import com.nj031.onetask.data.journal.NoteFormatSpan
 import com.nj031.onetask.data.journal.NoteFormatStyle
+import com.nj031.onetask.data.journal.NoteImageStorage
+import com.nj031.onetask.data.sync.CloudBackupRepository
 import com.nj031.onetask.viewmodel.JournalViewModel
-import kotlinx.coroutines.isActive
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -114,9 +122,11 @@ import java.util.Locale
 import java.util.UUID
 
 /**
- * The single editor for both Text and Checklist notes - the note's [JournalNoteType] is fixed
- * at creation (via [noteType] for a brand-new note, or the existing note's own saved type when
- * reopened) and never changes; only the content area below the title differs by type.
+ * The single mixed-content editor for every note - a note is an ordered list of [NoteBlock]s
+ * ([EditableBlock] while being edited here), so normal text, bullet items, checklist items, and
+ * (up to one, for now) an image can coexist in any order within one note. See [NoteBlock]'s own
+ * doc comment for the persisted data model, and [legacyBlocksFor] for how a note saved before this
+ * editor existed is read.
  *
  * State here deliberately uses plain `remember`, not `rememberSaveable`: the app going to the
  * background or the screen locking never destroys this composition (Activity.onStop, not
@@ -125,11 +135,6 @@ import java.util.UUID
  * extra plumbing. The same is true of navigating to Labels and back (see [onManageLabelsClick]
  * below) - it's a normal back-stack push, not a recreation, so this composition (and every var
  * below) survives the round trip unchanged.
- *
- * Bold/Italic/Underline/Aa formatting ([formatSpans]) only applies to a TEXT note's [contentValue]
- * - see [NoteFormatSpan]'s own doc comment. It is deferred-saved exactly like [title]/[contentValue]
- * themselves, through the same [commitOnExit] path, so it follows this app's one existing Note
- * persistence mechanism (Room + the per-note Firestore push) rather than a separate one.
  */
 @Composable
 fun NoteEditorScreen(
@@ -144,7 +149,10 @@ fun NoteEditorScreen(
     // The id a brand-new note will be created under - generated once, up front, so the eager
     // create below (see the hasContentNow LaunchedEffect) and commitOnExit's own fallback create
     // always target the exact same row via JournalNoteDao.insert's REPLACE conflict strategy,
-    // even if both somehow ever fired (they can't produce two notes for one editing session).
+    // even if both somehow ever fired (they can't produce two notes for one editing session). It
+    // also doubles as the deterministic key NoteImageStorage/CloudBackupRepository's own note-
+    // image Storage path use, so an image can be saved before the note itself is confirmed
+    // persisted.
     val pendingNoteId = remember(noteId) { noteId ?: UUID.randomUUID().toString() }
     // The note's real, currently-persisted DB row - null for a brand-new note until it first gets
     // real content (see the hasContentNow LaunchedEffect below). Distinct from [existingNote],
@@ -154,52 +162,61 @@ fun NoteEditorScreen(
     var persistedNote by remember(noteId) { mutableStateOf(existingNote) }
 
     var title by remember { mutableStateOf(existingNote?.title.orEmpty()) }
-    var contentValue by remember { mutableStateOf(TextFieldValue(existingNote?.content.orEmpty())) }
-    var checklistItems by remember {
-        mutableStateOf(
-            (existingNote?.checklistItems ?: emptyList()).ifEmpty {
-                if (effectiveNoteType == JournalNoteType.CHECKLIST) listOf(ChecklistItem(text = "")) else emptyList()
-            }
-        )
-    }
+    var blocks by remember { mutableStateOf(initialBlocksFor(existingNote)) }
     var noteLabel by remember { mutableStateOf(existingNote?.label) }
     var isPinned by remember { mutableStateOf(existingNote?.pinned ?: false) }
-    var formatSpans by remember { mutableStateOf(existingNote?.contentFormatSpans ?: emptyList()) }
-    // Armed while the selection is collapsed: the next characters typed inherit whichever of
-    // these styles are armed (see the content TextField's onValueChange below) - the "start
-    // applying from the current cursor/typing position" behavior Bold/Italic/Underline need when
+    // Armed while the focused block's selection is collapsed: the next characters typed inherit
+    // whichever of these styles are armed (see onBlockValueChange below) - the "start applying
+    // from the current cursor/typing position" behavior Bold/Italic/Underline/Aa need when
     // nothing is selected, mirroring an ordinary word processor's own "type in Bold" behavior.
     var pendingCharacterStyles by remember { mutableStateOf(emptySet<NoteFormatStyle>()) }
+    // Which block currently owns keyboard focus - never cleared on blur (only ever set on focus
+    // gain), so it stays "sticky" to the last focused block through a transient toolbar tap,
+    // mirroring the same pattern this screen's own checklist rows already used before this
+    // rewrite. Used both for routing B/I/U/Aa/Bullet/Checklist toolbar actions and as the
+    // insertion point for Add Image/Open Camera.
+    var focusedBlockId by remember { mutableStateOf<String?>(null) }
+    // Non-null while a newly-inserted block (from pressing Enter, or converting a line to
+    // Bullet/Checklist) should claim keyboard focus on its next composition - mirrors this
+    // screen's own pre-existing checklist "requestFocus" pattern.
+    var focusTargetId by remember { mutableStateOf<String?>(null) }
+    // Non-null while the tapped image is shown full-screen (see ImageFocusOverlay) - see this
+    // task's own spec for the required Back/Delete behavior.
+    var focusedImageBlockId by remember { mutableStateOf<String?>(null) }
 
     var showLabelDialog by remember { mutableStateOf(false) }
     var showNoteInfoDialog by remember { mutableStateOf(false) }
     val labels by viewModel.labels.collectAsState()
     val context = LocalContext.current
 
-    // A note only "has content" worth keeping when the title or the type-specific content is
-    // non-blank - an empty checklist item created just by opening Add > Checklist doesn't count
-    // on its own, matching how an untouched Text note (title blank, content blank) never saves.
-    fun hasContent(): Boolean = when (effectiveNoteType) {
-        JournalNoteType.TEXT -> title.isNotBlank() || contentValue.text.isNotBlank()
-        JournalNoteType.CHECKLIST -> title.isNotBlank() || checklistItems.any { it.text.isNotBlank() }
+    fun updateBlock(id: String, transform: (EditableBlock) -> EditableBlock) {
+        blocks = blocks.map { if (it.id == id) transform(it) else it }
+    }
+
+    // A note only "has content" worth keeping when the title or at least one block is non-blank -
+    // an empty block created just by opening the editor doesn't count on its own, matching how an
+    // untouched note (title blank, one empty TEXT block) never saves.
+    fun hasContent(): Boolean = title.isNotBlank() || blocks.any { block ->
+        if (block.type == NoteBlockType.IMAGE) true else block.value.text.isNotBlank()
     }
 
     fun commitOnExit() {
         val note = persistedNote
         if (hasContent()) {
-            val savedItems = checklistItems.filter { it.text.isNotBlank() }
+            val persistedBlocks = blocks.map { it.toPersisted() }
             if (note != null) {
                 viewModel.updateNote(
                     note = note,
                     title = title,
-                    content = contentValue.text,
-                    checklistItems = savedItems,
+                    content = persistedBlocks.toLegacyContent(),
+                    checklistItems = persistedBlocks.toLegacyChecklistItems(),
                     label = noteLabel,
-                    contentFormatSpans = formatSpans,
+                    contentFormatSpans = emptyList(),
                     // Re-asserts whatever togglePin() already wrote immediately (see its own
                     // comment) rather than reverting it - note (the composition-time snapshot)
                     // never itself observes a pin toggle that happened after this screen opened.
-                    pinned = isPinned
+                    pinned = isPinned,
+                    blocks = persistedBlocks
                 )
             } else {
                 // Fallback only - the hasContentNow LaunchedEffect below already eagerly creates
@@ -211,13 +228,14 @@ fun NoteEditorScreen(
                 // the two into one row rather than creating a duplicate note either way.
                 viewModel.createNote(
                     title = title,
-                    content = contentValue.text,
+                    content = persistedBlocks.toLegacyContent(),
                     noteType = effectiveNoteType,
-                    checklistItems = savedItems,
+                    checklistItems = persistedBlocks.toLegacyChecklistItems(),
                     label = noteLabel,
-                    contentFormatSpans = formatSpans,
+                    contentFormatSpans = emptyList(),
                     pinned = isPinned,
-                    id = pendingNoteId
+                    id = pendingNoteId,
+                    blocks = persistedBlocks
                 )
             }
         } else if (note != null) {
@@ -252,12 +270,7 @@ fun NoteEditorScreen(
     }
 
     fun performShare() {
-        val body = when (effectiveNoteType) {
-            JournalNoteType.TEXT -> contentValue.text
-            JournalNoteType.CHECKLIST -> checklistItems
-                .filter { it.text.isNotBlank() }
-                .joinToString(separator = "\n") { "${if (it.checked) "☑" else "☐"} ${it.text}" }
-        }
+        val body = blocks.map { it.toPersisted() }.toLegacyContent()
         val shareText = if (title.isNotBlank()) "$title\n\n$body" else body
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
@@ -267,35 +280,37 @@ fun NoteEditorScreen(
         context.startActivity(Intent.createChooser(sendIntent, null))
     }
 
-    val selection = contentValue.selection
-    fun isCharacterStyleActive(style: NoteFormatStyle): Boolean =
-        if (selection.collapsed) style in pendingCharacterStyles else isRangeFullyCovered(formatSpans, style, selection.min, selection.max)
+    // The block B/I/U/Aa/Bullet/Checklist/Add Image/Open Camera act on: the focused one, or (if
+    // nothing is currently focused - e.g. right after opening the note) the last block, a
+    // reasonable "continue where you left off" default.
+    val targetBlock: EditableBlock? = blocks.find { it.id == focusedBlockId } ?: blocks.lastOrNull()
+    val formattingEnabled = targetBlock != null && targetBlock.type != NoteBlockType.IMAGE
+
+    fun isCharacterStyleActive(style: NoteFormatStyle): Boolean {
+        val block = targetBlock ?: return false
+        val sel = block.value.selection
+        return if (sel.collapsed) style in pendingCharacterStyles else isRangeFullyCovered(block.formatSpans, style, sel.min, sel.max)
+    }
 
     fun toggleCharacterStyle(style: NoteFormatStyle) {
-        if (!selection.collapsed) {
-            formatSpans = toggleStyleOverRange(formatSpans, style, selection.min, selection.max)
+        val block = targetBlock ?: return
+        val sel = block.value.selection
+        if (!sel.collapsed) {
+            updateBlock(block.id) { it.copy(formatSpans = toggleStyleOverRange(it.formatSpans, style, sel.min, sel.max)) }
         } else {
-            pendingCharacterStyles = if (style in pendingCharacterStyles) {
-                pendingCharacterStyles - style
-            } else {
-                pendingCharacterStyles + style
-            }
+            pendingCharacterStyles = if (style in pendingCharacterStyles) pendingCharacterStyles - style else pendingCharacterStyles + style
         }
     }
 
     fun applyHeading(style: NoteFormatStyle?) {
-        if (!selection.collapsed) {
-            formatSpans = setHeadingOverRange(formatSpans, style, selection.min, selection.max)
+        val block = targetBlock ?: return
+        val sel = block.value.selection
+        if (!sel.collapsed) {
+            updateBlock(block.id) { it.copy(formatSpans = setHeadingOverRange(it.formatSpans, style, sel.min, sel.max)) }
         } else {
             // No selection: mirrors Bold/Italic/Underline's own pendingCharacterStyles behavior
             // above - arms the chosen size for the NEXT characters typed at the cursor rather
-            // than retroactively resizing whatever's already on the current line (previously this
-            // branch, when the cursor sat on an empty line - which is exactly the Note Editor's
-            // own starting state on a new note - always formatted a zero-length range and so
-            // never had any visible effect, and even when it hit non-empty text, newly typed text
-            // right after it silently reverted to the normal body size instead of continuing it).
-            // HEADING_MEDIUM/HEADING_LARGE are mutually exclusive (see setHeadingOverRange's own
-            // comment), so choosing one always clears the other from the pending set first.
+            // than retroactively resizing whatever's already on the current line.
             pendingCharacterStyles = pendingCharacterStyles - NoteFormatStyle.HEADING_MEDIUM - NoteFormatStyle.HEADING_LARGE
             if (style != null) {
                 pendingCharacterStyles = pendingCharacterStyles + style
@@ -303,26 +318,239 @@ fun NoteEditorScreen(
         }
     }
 
+    fun onBlockValueChange(block: EditableBlock, newValue: TextFieldValue) {
+        val diff = diffText(block.value.text, newValue.text)
+        var updatedSpans = shiftSpansForEdit(block.formatSpans, diff)
+        if (pendingCharacterStyles.isNotEmpty() && diff.newEnd > diff.oldStart) {
+            pendingCharacterStyles.forEach { style ->
+                updatedSpans = addCoverage(updatedSpans, style, diff.oldStart, diff.newEnd)
+            }
+        }
+        updateBlock(block.id) { it.copy(value = newValue, formatSpans = updatedSpans) }
+    }
+
+    // Enter inside a BULLET/CHECKLIST block (routed here via imeAction=Next, never as a literal
+    // "\n" - see EditableBlockRow's own comment): a non-empty item gets a new, same-type empty
+    // item right after it (focus follows); an empty item instead exits back to normal text, in
+    // place, rather than piling up empty items indefinitely.
+    fun handleBlockEnterPressed(blockId: String) {
+        val index = blocks.indexOfFirst { it.id == blockId }
+        if (index < 0) return
+        val block = blocks[index]
+        if (block.value.text.isBlank()) {
+            blocks = blocks.mapIndexed { i, b -> if (i == index) b.copy(type = NoteBlockType.TEXT, checked = false) else b }
+        } else {
+            val newBlock = EditableBlock(id = UUID.randomUUID().toString(), type = block.type)
+            blocks = blocks.toMutableList().apply { add(index + 1, newBlock) }
+            focusTargetId = newBlock.id
+        }
+    }
+
+    // Backspace at the very start of an already-empty BULLET/CHECKLIST block: removes it outright
+    // (never leaving the note with zero blocks - a lone empty TEXT block takes its place if it
+    // was the only one). Backspace at the very start of a non-empty BULLET/CHECKLIST block:
+    // converts it back to a plain TEXT block in place, keeping its text and cursor position,
+    // rather than merging text across blocks (safer/simpler, and still natural editor behavior).
+    // Best-effort: Android soft keyboards don't always deliver a KeyEvent for backspace at an
+    // empty field the way a hardware key does - see EditableBlockRow's own onKeyEvent comment.
+    fun handleBlockBackspaceAtStart(blockId: String) {
+        val index = blocks.indexOfFirst { it.id == blockId }
+        if (index < 0) return
+        val block = blocks[index]
+        if (block.value.text.isEmpty()) {
+            val remaining = blocks.toMutableList().apply { removeAt(index) }
+            blocks = remaining.ifEmpty { listOf(EditableBlock(id = UUID.randomUUID().toString(), type = NoteBlockType.TEXT)) }
+            focusTargetId = remaining.getOrNull((index - 1).coerceAtLeast(0))?.id
+        } else {
+            updateBlock(block.id) { it.copy(type = NoteBlockType.TEXT, checked = false) }
+        }
+    }
+
+    // Bullet/Checklist toolbar buttons: on a TEXT block, splits the selected line(s) (or just the
+    // current line/cursor position if nothing is selected - see linesTouchedBy) out into their
+    // own new block(s) of [targetType], carrying over whichever formatting spans overlapped each
+    // extracted line. On an already-BULLET/CHECKLIST block, converts it in place to the other
+    // type, or back to TEXT if it's already [targetType] (a toggle). No-ops on an IMAGE block.
+    fun convertFocusedLinesToType(targetType: NoteBlockType) {
+        val block = targetBlock ?: return
+        when {
+            block.type == targetType -> {
+                if (block.type != NoteBlockType.TEXT) {
+                    updateBlock(block.id) { it.copy(type = NoteBlockType.TEXT, checked = false) }
+                }
+            }
+            block.type == NoteBlockType.BULLET || block.type == NoteBlockType.CHECKLIST -> {
+                updateBlock(block.id) { it.copy(type = targetType, checked = false) }
+            }
+            block.type == NoteBlockType.TEXT -> {
+                val text = block.value.text
+                val sel = block.value.selection
+                val lineRanges = linesTouchedBy(text, sel.start, sel.end)
+                if (lineRanges.isEmpty()) return
+                val rangeStart = lineRanges.first().first
+                val rangeEndExclusive = (lineRanges.last().let { if (it.isEmpty()) it.first else it.last + 1 }).coerceIn(rangeStart, text.length)
+                val beforeText = text.substring(0, rangeStart)
+                val afterText = text.substring(rangeEndExclusive)
+
+                val newBlocks = mutableListOf<EditableBlock>()
+                if (beforeText.isNotEmpty()) {
+                    newBlocks += EditableBlock(
+                        id = UUID.randomUUID().toString(),
+                        type = NoteBlockType.TEXT,
+                        value = TextFieldValue(beforeText),
+                        formatSpans = rebaseSpans(block.formatSpans, 0, rangeStart)
+                    )
+                }
+                lineRanges.forEach { range ->
+                    val lineText = if (range.isEmpty()) "" else text.substring(range.first, range.last + 1)
+                    val spanEnd = if (range.isEmpty()) range.first else range.last + 1
+                    newBlocks += EditableBlock(
+                        id = UUID.randomUUID().toString(),
+                        type = targetType,
+                        value = TextFieldValue(lineText, selection = TextRange(lineText.length)),
+                        formatSpans = rebaseSpans(block.formatSpans, range.first, spanEnd)
+                    )
+                }
+                if (afterText.isNotEmpty()) {
+                    newBlocks += EditableBlock(
+                        id = UUID.randomUUID().toString(),
+                        type = NoteBlockType.TEXT,
+                        value = TextFieldValue(afterText),
+                        formatSpans = rebaseSpans(block.formatSpans, rangeEndExclusive, text.length)
+                    )
+                }
+                if (newBlocks.isEmpty()) {
+                    newBlocks += EditableBlock(id = UUID.randomUUID().toString(), type = targetType)
+                }
+
+                val index = blocks.indexOfFirst { it.id == block.id }
+                blocks = blocks.toMutableList().apply {
+                    removeAt(index)
+                    addAll(index, newBlocks)
+                }
+                focusTargetId = newBlocks.lastOrNull { it.type == targetType }?.id
+            }
+            // IMAGE - no-op.
+        }
+    }
+
+    val hasImage = blocks.any { it.type == NoteBlockType.IMAGE }
+
+    // Inserts a new IMAGE block at the current position: splitting the focused TEXT block at its
+    // cursor (so text before/after the cursor stays as its own TEXT block on either side of the
+    // image, per this task's own spec), or immediately after the focused block if it isn't TEXT,
+    // or at the very end if nothing is focused.
+    fun insertImageBlock(imagePath: String) {
+        val imageBlock = EditableBlock(id = UUID.randomUUID().toString(), type = NoteBlockType.IMAGE, imagePath = imagePath)
+        val block = targetBlock
+        if (block == null) {
+            blocks = blocks + imageBlock
+            return
+        }
+        if (block.type == NoteBlockType.TEXT) {
+            val text = block.value.text
+            val cursor = block.value.selection.start.coerceIn(0, text.length)
+            val before = text.substring(0, cursor)
+            val after = text.substring(cursor)
+            val newBlocks = mutableListOf<EditableBlock>()
+            if (before.isNotEmpty()) {
+                newBlocks += EditableBlock(
+                    id = UUID.randomUUID().toString(),
+                    type = NoteBlockType.TEXT,
+                    value = TextFieldValue(before),
+                    formatSpans = rebaseSpans(block.formatSpans, 0, cursor)
+                )
+            }
+            newBlocks += imageBlock
+            if (after.isNotEmpty()) {
+                newBlocks += EditableBlock(
+                    id = UUID.randomUUID().toString(),
+                    type = NoteBlockType.TEXT,
+                    value = TextFieldValue(after),
+                    formatSpans = rebaseSpans(block.formatSpans, cursor, text.length)
+                )
+            }
+            val index = blocks.indexOfFirst { it.id == block.id }
+            blocks = blocks.toMutableList().apply {
+                removeAt(index)
+                addAll(index, newBlocks)
+            }
+        } else {
+            val index = blocks.indexOfFirst { it.id == block.id }
+            blocks = blocks.toMutableList().apply { add(index + 1, imageBlock) }
+        }
+    }
+
+    fun deleteImageBlock(blockId: String) {
+        blocks = blocks.filterNot { it.id == blockId }
+        focusedImageBlockId = null
+        NoteImageStorage.delete(context, pendingNoteId)
+    }
+
+    val addImageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) {
+            val savedPath = NoteImageStorage.saveFrom(context, pendingNoteId, uri)
+            if (savedPath != null) insertImageBlock(savedPath)
+        }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        // The captured photo (on success) is already at NoteImageStorage.fileFor(pendingNoteId) -
+        // the exact Uri passed to launch() below points straight at that final local file, so
+        // there's no extra copy step. On cancel/failure, nothing was inserted and that file (if
+        // the camera app happened to create an empty one) simply isn't referenced by any block.
+        if (success) {
+            insertImageBlock(NoteImageStorage.fileFor(context, pendingNoteId).absolutePath)
+        }
+    }
+
+    fun launchAddImage() {
+        addImageLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
+
+    fun launchCamera() {
+        cameraLauncher.launch(NoteImageStorage.createCaptureUri(context, pendingNoteId))
+    }
+
     // Eagerly persists a brand-new note the moment it first gets real content, instead of only
     // on exit (commitOnExit's own create path) - Pin/Archive/Delete and Note Info all need a real
     // DB row (persistedNote) to act on, and previously had none until the editor was closed and
-    // reopened. Keyed on the boolean itself (not on title/contentValue/checklistItems), so it
-    // fires exactly once per editing session, on the false->true edge - keying on the raw content
-    // would restart (and so never let complete) this coroutine on every keystroke typed before
-    // the previous attempt's local Room insert finished.
+    // reopened. Keyed on the boolean itself (not on title/blocks), so it fires exactly once per
+    // editing session, on the false->true edge - keying on the raw content would restart (and so
+    // never let complete) this coroutine on every keystroke typed before the previous attempt's
+    // local Room insert finished.
     val hasContentNow = hasContent()
     LaunchedEffect(hasContentNow) {
         if (hasContentNow && persistedNote == null) {
             persistedNote = viewModel.createNoteAwait(
                 title = title,
-                content = contentValue.text,
+                content = blocks.map { it.toPersisted() }.toLegacyContent(),
                 noteType = effectiveNoteType,
-                checklistItems = checklistItems.filter { it.text.isNotBlank() },
+                checklistItems = blocks.map { it.toPersisted() }.toLegacyChecklistItems(),
                 label = noteLabel,
-                contentFormatSpans = formatSpans,
+                contentFormatSpans = emptyList(),
                 pinned = isPinned,
-                id = pendingNoteId
+                id = pendingNoteId,
+                blocks = blocks.map { it.toPersisted() }
             )
+        }
+    }
+
+    // Restores this note's image from cloud Storage the first time it's opened on a device that
+    // doesn't have the local file yet (a fresh install/reinstall, or a note whose image was added
+    // on another device) - mirrors AuthViewModel's own downloadProfilePhoto usage, just triggered
+    // by opening the note rather than by signing in, since eagerly downloading every note's image
+    // for every note during sign-in sync would be far more than this feature needs.
+    LaunchedEffect(existingNote?.id) {
+        val note = existingNote ?: return@LaunchedEffect
+        val hasImageBlock = note.blocks.any { it.type == NoteBlockType.IMAGE } ||
+            blocks.any { it.type == NoteBlockType.IMAGE && it.imagePath == null }
+        if (!hasImageBlock) return@LaunchedEffect
+        val localFile = NoteImageStorage.fileFor(context, note.id)
+        if (localFile.exists()) return@LaunchedEffect
+        val downloaded = CloudBackupRepository.downloadNoteImage(note.id, localFile)
+        if (downloaded) {
+            blocks = blocks.map { b -> if (b.type == NoteBlockType.IMAGE) b.copy(imagePath = localFile.absolutePath) else b }
         }
     }
 
@@ -331,190 +559,112 @@ fun NoteEditorScreen(
         onDone()
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            NoteFormattingToolbar(
-                formattingEnabled = effectiveNoteType == JournalNoteType.TEXT,
-                isBoldActive = isCharacterStyleActive(NoteFormatStyle.BOLD),
-                isItalicActive = isCharacterStyleActive(NoteFormatStyle.ITALIC),
-                isUnderlineActive = isCharacterStyleActive(NoteFormatStyle.UNDERLINE),
-                onBoldClick = { toggleCharacterStyle(NoteFormatStyle.BOLD) },
-                onItalicClick = { toggleCharacterStyle(NoteFormatStyle.ITALIC) },
-                onUnderlineClick = { toggleCharacterStyle(NoteFormatStyle.UNDERLINE) },
-                onSizeSelected = { style -> applyHeading(style) },
-                // Bulleted list / Checklist toolbar buttons and both + menu options are
-                // placeholders only, per this task's own spec - deliberately no-op.
-                onBulletedListClick = {},
-                onChecklistClick = {},
-                onAddImageClick = {},
-                onOpenCameraClick = {}
-            )
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                // innerPadding.bottom already reflects the keyboard: NoteFormattingToolbar (this
-                // Scaffold's bottomBar) applies windowInsetsPadding(navigationBars.union(ime)) to
-                // itself, so its own measured height - which Scaffold uses to compute
-                // innerPadding - already grows by the IME's height while the keyboard is open. A
-                // separate .imePadding() here used to subtract that same IME height a second
-                // time, collapsing this Box's available height to only a couple of lines and
-                // leaving a large blank gap between the shrunk content and the (correctly
-                // positioned) toolbar/keyboard below it. Consuming innerPadding alone is enough -
-                // the IME inset only needs to be accounted for once in this chain.
-                .padding(innerPadding),
-            contentAlignment = Alignment.TopCenter
-        ) {
-            when (effectiveNoteType) {
-                JournalNoteType.TEXT -> {
-                    val contentScrollState = rememberScrollState()
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            bottomBar = {
+                NoteFormattingToolbar(
+                    formattingEnabled = formattingEnabled,
+                    isBoldActive = isCharacterStyleActive(NoteFormatStyle.BOLD),
+                    isItalicActive = isCharacterStyleActive(NoteFormatStyle.ITALIC),
+                    isUnderlineActive = isCharacterStyleActive(NoteFormatStyle.UNDERLINE),
+                    onBoldClick = { toggleCharacterStyle(NoteFormatStyle.BOLD) },
+                    onItalicClick = { toggleCharacterStyle(NoteFormatStyle.ITALIC) },
+                    onUnderlineClick = { toggleCharacterStyle(NoteFormatStyle.UNDERLINE) },
+                    onSizeSelected = { style -> applyHeading(style) },
+                    onBulletedListClick = { convertFocusedLinesToType(NoteBlockType.BULLET) },
+                    onChecklistClick = { convertFocusedLinesToType(NoteBlockType.CHECKLIST) },
+                    imageActionsEnabled = !hasImage,
+                    onAddImageClick = ::launchAddImage,
+                    onOpenCameraClick = ::launchCamera
+                )
+            }
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    // innerPadding.bottom already reflects the keyboard: NoteFormattingToolbar
+                    // (this Scaffold's bottomBar) applies
+                    // windowInsetsPadding(navigationBars.union(ime)) to itself, so its own
+                    // measured height - which Scaffold uses to compute innerPadding - already
+                    // grows by the IME's height while the keyboard is open. Consuming
+                    // innerPadding alone is enough - the IME inset only needs to be accounted for
+                    // once in this chain (see the prior fix for this screen's own double-inset
+                    // bug).
+                    .padding(innerPadding),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Column(
+                    modifier = Modifier
+                        .widthIn(max = 640.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                ) {
+                    NoteEditorTopBar(
+                        onBackClick = { commitOnExit(); onDone() },
+                        canModifyNote = persistedNote != null,
+                        isPinned = isPinned,
+                        onShareClick = ::performShare,
+                        onAddToLabelClick = { showLabelDialog = true },
+                        onPinToggleClick = ::togglePin,
+                        onArchiveClick = ::performArchive,
+                        onDeleteClick = ::performDelete,
+                        onNoteInfoClick = { showNoteInfoDialog = true }
+                    )
 
-                    // The content TextField's built-in cursor-follow behavior handles keeping the
-                    // active line visible on every keystroke except the very first time the note
-                    // grows past the visible viewport, where its internal bring-into-view
-                    // calculation can run before imePadding()'s own animation has settled. This is
-                    // a deterministic backstop: whenever the cursor is collapsed at the exact end
-                    // of the text (i.e. the user is actively typing forward, not editing
-                    // mid-note), force-scroll to the true bottom. It never fires during mid-note
-                    // edits or manual scrolling elsewhere.
-                    LaunchedEffect(contentValue) {
-                        if (contentValue.selection.collapsed && contentValue.selection.end == contentValue.text.length) {
-                            contentScrollState.animateScrollTo(contentScrollState.maxValue)
-                        }
-                    }
-
-                    val formatTransformation = remember(formatSpans) { noteFormatVisualTransformation(formatSpans) }
-
-                    Column(
+                    TextField(
+                        value = title,
+                        onValueChange = { title = it },
                         modifier = Modifier
-                            .widthIn(max = 640.dp)
                             .fillMaxWidth()
-                            .verticalScroll(contentScrollState)
-                            .padding(horizontal = 20.dp, vertical = 12.dp)
-                    ) {
-                        NoteEditorTopBar(
-                            onBackClick = { commitOnExit(); onDone() },
-                            canModifyNote = persistedNote != null,
-                            isPinned = isPinned,
-                            onShareClick = ::performShare,
-                            onAddToLabelClick = { showLabelDialog = true },
-                            onPinToggleClick = ::togglePin,
-                            onArchiveClick = ::performArchive,
-                            onDeleteClick = ::performDelete,
-                            onNoteInfoClick = { showNoteInfoDialog = true }
-                        )
+                            .padding(top = 24.dp),
+                        placeholder = {
+                            Text(
+                                text = stringResource(id = R.string.note_title_placeholder),
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        textStyle = MaterialTheme.typography.headlineSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        ),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                        colors = transparentTextFieldColors()
+                    )
 
-                        TextField(
-                            value = title,
-                            onValueChange = { title = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 24.dp),
-                            placeholder = {
-                                Text(
-                                    text = stringResource(id = R.string.note_title_placeholder),
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            textStyle = MaterialTheme.typography.headlineSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
-                            ),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                            colors = transparentTextFieldColors()
-                        )
-
-                        TextField(
-                            value = contentValue,
-                            onValueChange = { newValue ->
-                                val diff = diffText(contentValue.text, newValue.text)
-                                var updatedSpans = shiftSpansForEdit(formatSpans, diff)
-                                if (pendingCharacterStyles.isNotEmpty() && diff.newEnd > diff.oldStart) {
-                                    pendingCharacterStyles.forEach { style ->
-                                        updatedSpans = addCoverage(updatedSpans, style, diff.oldStart, diff.newEnd)
-                                    }
-                                }
-                                formatSpans = updatedSpans
-                                contentValue = newValue
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp),
-                            placeholder = {
-                                Text(
-                                    text = stringResource(id = R.string.note_content_placeholder),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                color = MaterialTheme.colorScheme.onBackground
-                            ),
-                            visualTransformation = formatTransformation,
-                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                            colors = transparentTextFieldColors()
-                        )
-                    }
-                }
-                JournalNoteType.CHECKLIST -> {
-                    // Unlike TEXT mode, the checklist owns its own scrolling (a LazyColumn, so it
-                    // stays smooth and light with 50+ items) - the back bar and title sit above it,
-                    // fixed, rather than sharing one big verticalScroll container with the items.
-                    Column(
+                    NoteBlocksList(
+                        blocks = blocks,
+                        focusTargetId = focusTargetId,
+                        onFocusTargetHandled = { focusTargetId = null },
+                        onFocusChanged = { id -> focusedBlockId = id },
+                        onBlockValueChange = ::onBlockValueChange,
+                        onCheckedChange = { id, checked -> updateBlock(id) { it.copy(checked = checked) } },
+                        onEnterPressed = ::handleBlockEnterPressed,
+                        onBackspaceAtStart = ::handleBlockBackspaceAtStart,
+                        onDeleteBlock = { id ->
+                            val remaining = blocks.filterNot { it.id == id }
+                            blocks = remaining.ifEmpty { listOf(EditableBlock(id = UUID.randomUUID().toString(), type = NoteBlockType.TEXT)) }
+                        },
+                        onImageTap = { id -> focusedImageBlockId = id },
                         modifier = Modifier
-                            .widthIn(max = 640.dp)
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 12.dp)
-                    ) {
-                        NoteEditorTopBar(
-                            onBackClick = { commitOnExit(); onDone() },
-                            canModifyNote = persistedNote != null,
-                            isPinned = isPinned,
-                            onShareClick = ::performShare,
-                            onAddToLabelClick = { showLabelDialog = true },
-                            onPinToggleClick = ::togglePin,
-                            onArchiveClick = ::performArchive,
-                            onDeleteClick = ::performDelete,
-                            onNoteInfoClick = { showNoteInfoDialog = true }
-                        )
-
-                        TextField(
-                            value = title,
-                            onValueChange = { title = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 24.dp),
-                            placeholder = {
-                                Text(
-                                    text = stringResource(id = R.string.note_title_placeholder),
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            textStyle = MaterialTheme.typography.headlineSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
-                            ),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                            colors = transparentTextFieldColors()
-                        )
-
-                        ChecklistEditor(
-                            items = checklistItems,
-                            onItemsChange = { checklistItems = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                                .padding(top = 4.dp)
-                        )
-                    }
+                            .weight(1f)
+                            .padding(top = 4.dp)
+                    )
                 }
             }
+        }
+
+        val focusedImageBlock = blocks.find { it.id == focusedImageBlockId }
+        val focusedImagePath = focusedImageBlock?.imagePath
+        if (focusedImageBlock != null && focusedImagePath != null) {
+            ImageFocusOverlay(
+                imagePath = focusedImagePath,
+                onBack = { focusedImageBlockId = null },
+                onDelete = { deleteImageBlock(focusedImageBlock.id) }
+            )
         }
     }
 
@@ -633,11 +783,12 @@ private fun NoteEditorTopBar(
 }
 
 /**
- * The bottom formatting toolbar: Bold/Italic/Underline/Aa are only functional for a TEXT note's
- * body ([formattingEnabled]) - a CHECKLIST note has no single content field for them to act on,
- * so they're shown but disabled rather than hidden, keeping the toolbar's layout identical across
- * both note types. Bulleted list, Checklist, and both items in the + menu are placeholders only,
- * per this task's own spec.
+ * The bottom formatting toolbar: Bold/Italic/Underline/Aa act on whichever block currently has
+ * focus (or the last block, if none does - see [NoteEditorScreen]'s own targetBlock), disabled
+ * only while that block is an image ([formattingEnabled]). Bullet/Checklist stay directly on the
+ * toolbar (never moved into the + menu); Add Image/Open Camera live in the + menu and are
+ * disabled once the note already has an image ([imageActionsEnabled]) - see this task's own
+ * one-image-per-note limit.
  */
 @Composable
 private fun NoteFormattingToolbar(
@@ -651,6 +802,7 @@ private fun NoteFormattingToolbar(
     onSizeSelected: (NoteFormatStyle?) -> Unit,
     onBulletedListClick: () -> Unit,
     onChecklistClick: () -> Unit,
+    imageActionsEnabled: Boolean,
     onAddImageClick: () -> Unit,
     onOpenCameraClick: () -> Unit
 ) {
@@ -672,9 +824,8 @@ private fun NoteFormattingToolbar(
             // the three tab screens), so it must consume that same inset directly, or its own
             // content renders underneath/behind the system bar instead of sitting above it.
             // union(WindowInsets.ime) keeps the toolbar rising above the keyboard when it's open
-            // (this screen's previous imePadding()-only behavior) while never ALSO adding the
-            // navigation-bar inset on top of that - union is the larger of the two, not their
-            // sum, so there's no double-padding either way.
+            // while never ALSO adding the navigation-bar inset on top of that - union is the
+            // larger of the two, not their sum, so there's no double-padding either way.
             .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 4.dp
@@ -802,12 +953,19 @@ private fun NoteFormattingToolbar(
                     shape = RoundedCornerShape(16.dp),
                     containerColor = MaterialTheme.colorScheme.surface
                 ) {
+                    val imageActionColor = if (imageActionsEnabled) {
+                        MaterialTheme.colorScheme.onBackground
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                    }
                     DropdownMenuItem(
-                        text = { Text(stringResource(id = R.string.note_plus_menu_add_image)) },
+                        text = { Text(stringResource(id = R.string.note_plus_menu_add_image), color = imageActionColor) },
+                        enabled = imageActionsEnabled,
                         onClick = { showPlusMenu = false; onAddImageClick() }
                     )
                     DropdownMenuItem(
-                        text = { Text(stringResource(id = R.string.note_plus_menu_open_camera)) },
+                        text = { Text(stringResource(id = R.string.note_plus_menu_open_camera), color = imageActionColor) },
+                        enabled = imageActionsEnabled,
                         onClick = { showPlusMenu = false; onOpenCameraClick() }
                     )
                 }
@@ -1084,16 +1242,138 @@ private fun NoteInfoRow(label: String, value: String) {
 }
 
 // ============================================================================
+// Mixed-content block model (UI-editing layer) - see NoteBlock's own doc comment for the
+// persisted data model this mirrors. EditableBlock swaps NoteBlock's plain `text: String` for a
+// TextFieldValue, so each block's own live cursor/selection can be tracked (needed for
+// Bold/Italic/Underline/Aa and for the Bullet/Checklist line-conversion below) - exactly the same
+// reason this screen's old single content field, and its checklist item rows, already owned a
+// TextFieldValue of their own rather than a plain String.
+// ============================================================================
+
+private data class EditableBlock(
+    val id: String = UUID.randomUUID().toString(),
+    val type: NoteBlockType,
+    val value: TextFieldValue = TextFieldValue(""),
+    val checked: Boolean = false,
+    val formatSpans: List<NoteFormatSpan> = emptyList(),
+    val imagePath: String? = null
+)
+
+private fun NoteBlock.toEditable(): EditableBlock = EditableBlock(
+    id = id,
+    type = type,
+    value = TextFieldValue(text, selection = TextRange(text.length)),
+    checked = checked,
+    formatSpans = formatSpans,
+    imagePath = imagePath
+)
+
+private fun EditableBlock.toPersisted(): NoteBlock = NoteBlock(
+    id = id,
+    type = type,
+    text = value.text,
+    checked = checked,
+    formatSpans = formatSpans,
+    imagePath = imagePath
+)
+
+/** Synthesizes an equivalent block list from a note saved before the mixed-content editor existed
+ * (its own [JournalNoteEntity.blocks] is empty) - a TEXT note becomes one TEXT block carrying its
+ * old content/contentFormatSpans, a CHECKLIST note becomes one CHECKLIST block per old checklist
+ * item (state/order preserved). Purely an in-memory adaptation for this editing session; nothing
+ * is written back until the note is actually saved again. */
+private fun legacyBlocksFor(note: JournalNoteEntity): List<EditableBlock> = when (note.noteType) {
+    JournalNoteType.TEXT -> listOf(
+        EditableBlock(
+            type = NoteBlockType.TEXT,
+            value = TextFieldValue(note.content, selection = TextRange(note.content.length)),
+            formatSpans = note.contentFormatSpans
+        )
+    )
+    JournalNoteType.CHECKLIST -> note.checklistItems.map { item ->
+        EditableBlock(
+            id = item.id,
+            type = NoteBlockType.CHECKLIST,
+            value = TextFieldValue(item.text, selection = TextRange(item.text.length)),
+            checked = item.checked
+        )
+    }.ifEmpty { listOf(EditableBlock(type = NoteBlockType.TEXT)) }
+}
+
+private fun initialBlocksFor(note: JournalNoteEntity?): List<EditableBlock> = when {
+    note == null -> listOf(EditableBlock(type = NoteBlockType.TEXT))
+    note.blocks.isNotEmpty() -> note.blocks.map { it.toEditable() }
+    else -> legacyBlocksFor(note)
+}
+
+/** Flattens the note's blocks into one plain-text preview/search string - purely a backward-
+ * compatibility bridge so the Notes list's existing card preview and search (JournalViewModel's
+ * own matchesSearch), which both still read [JournalNoteEntity.content]/[JournalNoteEntity.status]
+ * for a TEXT-type note, keep working unchanged for a mixed-content note without either of them
+ * needing to know about [NoteBlock] at all. Never re-parsed back into blocks - [NoteBlock] is
+ * always the source of truth once a note has any. */
+private fun List<NoteBlock>.toLegacyContent(): String =
+    filter { it.type != NoteBlockType.IMAGE }
+        .joinToString("\n") { block ->
+            when (block.type) {
+                NoteBlockType.BULLET -> "• ${block.text}"
+                NoteBlockType.CHECKLIST -> "${if (block.checked) "☑" else "☐"} ${block.text}"
+                else -> block.text
+            }
+        }
+
+/** Mirrors [toLegacyContent] for a CHECKLIST-type note's own preview/search path (which reads
+ * [JournalNoteEntity.checklistItems] instead of content - see matchesSearch). */
+private fun List<NoteBlock>.toLegacyChecklistItems(): List<ChecklistItem> =
+    filter { it.type == NoteBlockType.CHECKLIST }
+        .map { ChecklistItem(id = it.id, text = it.text, checked = it.checked) }
+
+/** Every line [start, end) touched by [selStart, selEnd] (a collapsed selection touches just the
+ * one line the cursor sits on), extended outward to the nearest newlines on either side - the
+ * Bullet/Checklist toolbar buttons' own "selected lines, or just the current line" behavior (see
+ * this task's own spec). Ranges are in the original [text]'s own coordinates, using the same
+ * [start, end) convention as [NoteFormatSpan]. */
+private fun linesTouchedBy(text: String, selStart: Int, selEnd: Int): List<IntRange> {
+    val lo = selStart.coerceIn(0, text.length)
+    val hi = selEnd.coerceIn(lo, text.length)
+    var rangeStart = lo
+    while (rangeStart > 0 && text[rangeStart - 1] != '\n') rangeStart--
+    var rangeEnd = hi
+    while (rangeEnd < text.length && text[rangeEnd] != '\n') rangeEnd++
+    val segment = text.substring(rangeStart, rangeEnd)
+    val lines = segment.split('\n')
+    val result = mutableListOf<IntRange>()
+    var cursor = rangeStart
+    for (line in lines) {
+        result += cursor until (cursor + line.length)
+        cursor += line.length + 1
+    }
+    return result
+}
+
+/** Extracts whichever spans overlap [rangeStart, rangeEnd), clipped to that range and re-based to
+ * be relative to [rangeStart] (0-based within the extracted substring) - how a line's own
+ * formatting survives being split out into its own new block (see convertFocusedLinesToType/
+ * insertImageBlock in [NoteEditorScreen]). */
+private fun rebaseSpans(spans: List<NoteFormatSpan>, rangeStart: Int, rangeEnd: Int): List<NoteFormatSpan> =
+    spans.mapNotNull { span ->
+        val start = maxOf(span.start, rangeStart)
+        val end = minOf(span.end, rangeEnd)
+        if (start >= end) null else span.copy(start = start - rangeStart, end = end - rangeStart)
+    }
+
+// ============================================================================
 // Formatting-span engine backing Bold/Italic/Underline/Aa - see NoteFormatSpan's own doc comment
 // for the data model these operate on. Each function here is a small, self-contained, pure
 // transform over a List<NoteFormatSpan>; none of them touch Compose state directly, so they're
-// exercised the same way regardless of which control (toolbar tap vs. live typing) drives them.
+// exercised the same way regardless of which control (toolbar tap vs. live typing) drives them,
+// and regardless of which block's own formatSpans they're called with.
 // ============================================================================
 
 private val HEADING_MEDIUM_FONT_SIZE = 20.sp
 private val HEADING_LARGE_FONT_SIZE = 24.sp
 
-/** Builds the [VisualTransformation] that actually renders [spans] as styled text inside the
+/** Builds the [VisualTransformation] that actually renders [spans] as styled text inside a block's
  * content TextField while it keeps editing plain text underneath - [OffsetMapping.Identity] is
  * exactly correct here since this only ever restyles existing characters, never adds or removes
  * any for display. */
@@ -1149,7 +1429,7 @@ private fun mapOffsetAcrossEdit(offset: Int, diff: TextEditDiff): Int = when {
  * fully contained the edit (so typing inside a bold word keeps it bold), and dropping any span
  * that collapses to nothing (fully inside a deletion). Called on every keystroke, before this
  * edit's own newly-typed characters (if any) pick up [pendingCharacterStyles] - see
- * [NoteEditorScreen]'s content TextField onValueChange. */
+ * [NoteEditorScreen]'s own onBlockValueChange. */
 private fun shiftSpansForEdit(spans: List<NoteFormatSpan>, diff: TextEditDiff): List<NoteFormatSpan> =
     spans.mapNotNull { span ->
         val newStart = mapOffsetAcrossEdit(span.start, diff)
@@ -1224,64 +1504,40 @@ private fun setHeadingOverRange(spans: List<NoteFormatSpan>, style: NoteFormatSt
     return if (style != null) addCoverage(result, style, start, end) else result
 }
 
+// ============================================================================
+// Block rendering
+// ============================================================================
+
+/**
+ * Renders [blocks] in order inside a LazyColumn - TEXT as plain (multi-line-capable) text,
+ * BULLET/CHECKLIST as one-line rows with their own leading marker, IMAGE as an inline picture.
+ * Drag-and-drop reordering was intentionally not carried over from this screen's old, pure-
+ * checklist editor: ordering here is controlled by WHERE content is inserted (cursor position,
+ * Enter-key sequencing, image insertion-at-cursor), which is what this task's own spec's examples
+ * actually exercise - not by dragging an already-placed block past its neighbors.
+ */
 @Composable
-private fun ChecklistEditor(
-    items: List<ChecklistItem>,
-    onItemsChange: (List<ChecklistItem>) -> Unit,
+private fun NoteBlocksList(
+    blocks: List<EditableBlock>,
+    focusTargetId: String?,
+    onFocusTargetHandled: () -> Unit,
+    onFocusChanged: (String) -> Unit,
+    onBlockValueChange: (EditableBlock, TextFieldValue) -> Unit,
+    onCheckedChange: (String, Boolean) -> Unit,
+    onEnterPressed: (String) -> Unit,
+    onBackspaceAtStart: (String) -> Unit,
+    onDeleteBlock: (String) -> Unit,
+    onImageTap: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var focusTargetId by remember { mutableStateOf<String?>(null) }
-    var focusedItemId by remember { mutableStateOf<String?>(null) }
+    var focusedBlockId by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
 
-    // Drag-and-drop reorder state, mirroring the Tasks homepage's own drag-and-drop
-    // implementation: draggedItemId is non-null only while a long-press-drag is in progress,
-    // dragOffsetY is that one item's live, cumulative finger movement in px (applied as a visual
-    // translation), and dragPreviewItems is the optimistic, already-swapped order while a drag is
-    // in progress - null the rest of the time, in which case [items] (the checklist's real,
-    // persisted order) is rendered directly. Rendering [items] directly whenever nothing is being
-    // dragged - instead of mirroring it into a separate state asynchronously - matters: an extra
-    // frame of lag here was letting a checklist row's text field see its own just-typed value
-    // reasserted a moment later as if it came from outside, which was breaking both the first
-    // character's cursor placement and the keyboard's Backspace/Delete key-repeat.
-    var draggedItemId by remember { mutableStateOf<String?>(null) }
-    var dragOffsetY by remember { mutableStateOf(0f) }
-    var dragPreviewItems by remember { mutableStateOf<List<ChecklistItem>?>(null) }
-    val renderedItems = if (draggedItemId != null) (dragPreviewItems ?: items) else items
-
-    // Drag auto-scroll: while an item is being dragged and it's within the top/bottom edge zone
-    // of the visible list area, keep scrolling that direction every frame - independent of the
-    // typing auto-scroll below, and independent of the reorder swap itself (which only fires on
-    // finger movement), so holding near an edge keeps the list moving even if the drag itself
-    // pauses momentarily.
-    LaunchedEffect(draggedItemId) {
-        val id = draggedItemId ?: return@LaunchedEffect
-        while (isActive) {
-            val info = listState.layoutInfo
-            val draggedInfo = info.visibleItemsInfo.find { it.key == id }
-            if (draggedInfo != null) {
-                val draggedTop = draggedInfo.offset + dragOffsetY
-                val draggedBottom = draggedTop + draggedInfo.size
-                val viewportTop = info.viewportStartOffset
-                val viewportBottom = info.viewportEndOffset
-                val edgeZone = ((viewportBottom - viewportTop) * 0.18f).coerceAtLeast(1f)
-                when {
-                    draggedTop < viewportTop + edgeZone -> listState.scrollBy(-14f)
-                    draggedBottom > viewportBottom - edgeZone -> listState.scrollBy(14f)
-                }
-            }
-            withFrameNanos { }
-        }
-    }
-
-    // Typing auto-scroll: whenever the focused item changes, or its (or any item's) content
-    // changes - e.g. it wraps onto another line, or a new item was just inserted below it -
-    // re-check whether the focused item still fits above the keyboard/viewport bottom and scroll
-    // up just enough if not. Mirrors the Text Note editor's own "keep the active line visible"
-    // backstop and the Tasks homepage's subtask-expand auto-scroll: wait a couple of frames for
-    // the new layout to settle, then scroll only the minimum necessary amount.
-    LaunchedEffect(focusedItemId, renderedItems) {
-        val targetId = focusedItemId ?: return@LaunchedEffect
+    // Keeps the focused block visible above the keyboard, the same "typing auto-scroll" backstop
+    // this screen's own checklist editor already used: wait a couple of frames for the new layout
+    // to settle, then scroll only the minimum necessary amount.
+    LaunchedEffect(focusedBlockId, blocks) {
+        val targetId = focusedBlockId ?: return@LaunchedEffect
         withFrameNanos { }
         withFrameNanos { }
         val info = listState.layoutInfo
@@ -1297,285 +1553,228 @@ private fun ChecklistEditor(
     }
 
     LazyColumn(state = listState, modifier = modifier) {
-        items(renderedItems, key = { it.id }) { item ->
-            val isDragged = item.id == draggedItemId
-            ChecklistItemRow(
-                item = item,
-                requestFocus = focusTargetId == item.id,
-                onFocusHandled = { focusTargetId = null },
-                onFocusChanged = { focused -> if (focused) focusedItemId = item.id },
-                onCheckedChange = { checked ->
-                    onItemsChange(items.map { if (it.id == item.id) it.copy(checked = checked) else it })
-                },
-                onTextChange = { text ->
-                    onItemsChange(items.map { if (it.id == item.id) it.copy(text = text) else it })
-                },
-                onDeleteClick = {
-                    onItemsChange(items.filterNot { it.id == item.id })
-                },
-                onEnterPressed = {
-                    // Empty item protection: Enter on a row that's still blank does nothing,
-                    // rather than piling up more blank rows underneath it.
-                    val currentIndex = items.indexOfFirst { it.id == item.id }
-                    val current = items.getOrNull(currentIndex)
-                    if (currentIndex >= 0 && current != null && current.text.isNotBlank()) {
-                        val newItem = ChecklistItem(text = "")
-                        val newList = items.toMutableList().apply { add(currentIndex + 1, newItem) }
-                        onItemsChange(newList)
-                        focusTargetId = newItem.id
-                    }
-                },
-                isDragged = isDragged,
-                dragOffsetY = if (isDragged) dragOffsetY else 0f,
-                onDragStart = {
-                    draggedItemId = item.id
-                    dragOffsetY = 0f
-                },
-                onDrag = { deltaY ->
-                    dragOffsetY += deltaY
-                    // Live reads of dragPreviewItems here (not a value captured when this
-                    // closure was created) matter: several onDrag calls can land before
-                    // recomposition catches up, and each one must see the previous one's result.
-                    val base = dragPreviewItems ?: items
-                    val (reordered, correctedOffset) = checklistDragSwapIfNeeded(
-                        items = base,
-                        draggedItemId = item.id,
-                        dragOffsetY = dragOffsetY,
-                        listState = listState
-                    )
-                    dragPreviewItems = reordered
-                    dragOffsetY = correctedOffset
-                },
-                onDragEnd = {
-                    val finalOrder = dragPreviewItems ?: items
-                    draggedItemId = null
-                    dragPreviewItems = null
-                    dragOffsetY = 0f
-                    onItemsChange(finalOrder)
-                }
+        items(blocks, key = { it.id }) { block ->
+            EditableBlockRow(
+                block = block,
+                requestFocus = focusTargetId == block.id,
+                onFocusHandled = onFocusTargetHandled,
+                onFocusChanged = { focused -> if (focused) { focusedBlockId = block.id; onFocusChanged(block.id) } },
+                onValueChange = { newValue -> onBlockValueChange(block, newValue) },
+                onCheckedChange = { checked -> onCheckedChange(block.id, checked) },
+                onEnterPressed = { onEnterPressed(block.id) },
+                onBackspaceAtStart = { onBackspaceAtStart(block.id) },
+                onDeleteClick = { onDeleteBlock(block.id) },
+                onImageTap = { onImageTap(block.id) }
             )
         }
-
-        item(key = "__add_checklist_item__") {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        val newItem = ChecklistItem(text = "")
-                        onItemsChange(items + newItem)
-                        focusTargetId = newItem.id
-                    }
-                    .padding(vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-                Text(
-                    text = stringResource(id = R.string.add_checklist_item),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 12.dp)
-                )
-            }
-        }
     }
-}
-
-/**
- * Finds whether the dragged item has crossed far enough past a visible neighbor to swap places
- * with it - the exact same "compare dragged center to neighbor center, swap, and carry over the
- * neighbor's height as an offset correction" approach the Tasks homepage's own drag-and-drop
- * (dragSwapIfNeeded) already uses, so a long-press-drag on a checklist item behaves identically.
- * A no-op (returns the inputs unchanged) once this frame's crossing doesn't warrant a swap, or if
- * layout info for the relevant items isn't available yet (e.g. scrolled just out of view).
- */
-private fun checklistDragSwapIfNeeded(
-    items: List<ChecklistItem>,
-    draggedItemId: String,
-    dragOffsetY: Float,
-    listState: LazyListState
-): Pair<List<ChecklistItem>, Float> {
-    val draggedIndex = items.indexOfFirst { it.id == draggedItemId }
-    val visibleItems = listState.layoutInfo.visibleItemsInfo
-    val draggedInfo = visibleItems.find { it.key == draggedItemId }
-    if (draggedIndex < 0 || draggedInfo == null) return items to dragOffsetY
-    val draggedCenter = draggedInfo.offset + draggedInfo.size / 2f + dragOffsetY
-
-    val nextInfo = items.getOrNull(draggedIndex + 1)?.let { next -> visibleItems.find { it.key == next.id } }
-    if (nextInfo != null && draggedCenter > nextInfo.offset + nextInfo.size / 2f) {
-        val reordered = items.toMutableList().apply { add(draggedIndex + 1, removeAt(draggedIndex)) }
-        return reordered to (dragOffsetY - nextInfo.size)
-    }
-
-    val prevInfo = items.getOrNull(draggedIndex - 1)?.let { prev -> visibleItems.find { it.key == prev.id } }
-    if (prevInfo != null && draggedCenter < prevInfo.offset + prevInfo.size / 2f) {
-        val reordered = items.toMutableList().apply { add(draggedIndex - 1, removeAt(draggedIndex)) }
-        return reordered to (dragOffsetY + prevInfo.size)
-    }
-
-    return items to dragOffsetY
 }
 
 @Composable
-private fun ChecklistItemRow(
-    item: ChecklistItem,
+private fun EditableBlockRow(
+    block: EditableBlock,
     requestFocus: Boolean,
     onFocusHandled: () -> Unit,
     onFocusChanged: (Boolean) -> Unit,
+    onValueChange: (TextFieldValue) -> Unit,
     onCheckedChange: (Boolean) -> Unit,
-    onTextChange: (String) -> Unit,
-    onDeleteClick: () -> Unit,
     onEnterPressed: () -> Unit,
-    isDragged: Boolean,
-    dragOffsetY: Float,
-    onDragStart: () -> Unit,
-    onDrag: (Float) -> Unit,
-    onDragEnd: () -> Unit
+    onBackspaceAtStart: () -> Unit,
+    onDeleteClick: () -> Unit,
+    onImageTap: () -> Unit
 ) {
-    val focusRequester = remember(item.id) { FocusRequester() }
-
-    // Owns this row's live text + cursor/selection locally, seeded once (per item id) from the
-    // persisted text. The field used to be driven directly by `item.text: String`, which lets
-    // Compose's TextField reconstruct its own internal selection state from scratch on every
-    // recompose - that reconstruction was placing the cursor before, not after, a newly typed
-    // first character, and was also interrupting the platform keyboard's Backspace/Delete
-    // key-repeat (each keystroke's round trip back through the checklist's own state and back
-    // down as a new `item.text` was enough to make the field look like it had been changed from
-    // outside). Owning a real TextFieldValue locally - the same pattern already used correctly by
-    // this screen's Text Note content field - keeps the field's cursor/selection continuous
-    // across keystrokes; edits still flow up to the checklist's own state via onTextChange.
-    var textFieldValue by remember(item.id) {
-        mutableStateOf(TextFieldValue(text = item.text, selection = TextRange(item.text.length)))
-    }
-
-    LaunchedEffect(requestFocus) {
-        if (requestFocus) {
-            focusRequester.requestFocus()
-            onFocusHandled()
-        }
-    }
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .zIndex(if (isDragged) 1f else 0f)
-            .graphicsLayer { translationY = dragOffsetY },
-        shape = RoundedCornerShape(10.dp),
-        color = if (isDragged) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
-        shadowElevation = if (isDragged) 3.dp else 0.dp
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Box(modifier = Modifier.padding(top = 10.dp)) {
-                ChecklistCheckbox(checked = item.checked, onToggle = { onCheckedChange(!item.checked) })
+    when (block.type) {
+        NoteBlockType.IMAGE -> {
+            val imagePath = block.imagePath
+            val bitmap = remember(imagePath) { imagePath?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() } }
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = null,
+                    contentScale = ContentScale.FillWidth,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(onClick = onImageTap)
+                )
             }
-
+        }
+        NoteBlockType.TEXT -> {
+            val focusRequester = remember(block.id) { FocusRequester() }
+            LaunchedEffect(requestFocus) {
+                if (requestFocus) {
+                    focusRequester.requestFocus()
+                    onFocusHandled()
+                }
+            }
+            val formatTransformation = remember(block.formatSpans) { noteFormatVisualTransformation(block.formatSpans) }
             TextField(
-                value = textFieldValue,
-                onValueChange = { newValue ->
-                    textFieldValue = newValue
-                    if (newValue.text != item.text) {
-                        onTextChange(newValue.text)
-                    }
-                },
+                value = block.value,
+                onValueChange = onValueChange,
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
                     .focusRequester(focusRequester)
                     .onFocusChanged { onFocusChanged(it.isFocused) },
                 placeholder = {
                     Text(
-                        text = stringResource(id = R.string.checklist_item_placeholder),
+                        text = stringResource(id = R.string.note_content_placeholder),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 },
-                // Deliberately no strike-through/decoration on the text regardless of [checked] -
-                // completed checklist items look exactly like unchecked ones apart from the box.
-                // singleLine is intentionally false so long text wraps onto further lines instead
-                // of scrolling off-screen, and the row's height grows to fit; Enter is still never
-                // typed as a literal newline into the text because imeAction is Next below, not
-                // Default - Compose routes Enter to onNext instead of inserting "\n" whenever a
-                // non-default imeAction is set, even in multiline fields.
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground),
-                singleLine = false,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Text,
-                    capitalization = KeyboardCapitalization.Sentences,
-                    imeAction = ImeAction.Next
-                ),
-                keyboardActions = KeyboardActions(onNext = { onEnterPressed() }),
+                visualTransformation = formatTransformation,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 colors = transparentTextFieldColors()
             )
-
-            // A fixed-size trailing slot for the delete button - it's an unweighted sibling of
-            // the weighted text field above, so Row always reserves its width first and the text
-            // can never grow underneath or behind it, at any wrap length.
-            IconButton(onClick = onDeleteClick, modifier = Modifier.padding(top = 4.dp)) {
-                Icon(
-                    imageVector = Icons.Filled.Close,
-                    contentDescription = stringResource(id = R.string.delete),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp)
-                )
+        }
+        NoteBlockType.BULLET, NoteBlockType.CHECKLIST -> {
+            val focusRequester = remember(block.id) { FocusRequester() }
+            LaunchedEffect(requestFocus) {
+                if (requestFocus) {
+                    focusRequester.requestFocus()
+                    onFocusHandled()
+                }
+            }
+            val formatTransformation = remember(block.formatSpans) { noteFormatVisualTransformation(block.formatSpans) }
+            // Seeded from the block's own actual initial cursor position (not hardcoded true) -
+            // a freshly-converted non-empty Bullet/Checklist item starts with its cursor at the
+            // END of its text (see convertFocusedLinesToType), not the start, and this must
+            // reflect that correctly even before the field's first onValueChange fires.
+            var atLineStart by remember(block.id) {
+                mutableStateOf(block.value.selection.collapsed && block.value.selection.start == 0)
             }
 
-            // A dedicated drag handle, separate from the text field above: the text field needs
-            // first claim on every touch that starts on it (to place the cursor, select text, or
-            // just type), so a long-press-drag gesture spanning the whole row is never actually
-            // reachable when the row is mostly text field. Long-pressing this handle instead lifts
-            // the item into the same dragged state as before (background, elevation, and
-            // translationY are all still applied to the whole Surface above, so the entire
-            // multi-line item still moves as one unit) and reuses the exact same swap/auto-scroll
-            // logic the Tasks homepage's own drag-and-drop already uses.
-            Box(
+            Row(
                 modifier = Modifier
-                    .padding(top = 2.dp)
-                    .size(40.dp)
-                    .pointerInput(item.id) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = { onDragStart() },
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                onDrag(dragAmount.y)
-                            },
-                            onDragEnd = { onDragEnd() },
-                            onDragCancel = { onDragEnd() }
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                if (block.type == NoteBlockType.CHECKLIST) {
+                    Box(modifier = Modifier.padding(top = 10.dp)) {
+                        ChecklistCheckbox(checked = block.checked, onToggle = { onCheckedChange(!block.checked) })
+                    }
+                } else {
+                    Text(
+                        text = "•",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(top = 8.dp, end = 12.dp)
+                    )
+                }
+
+                TextField(
+                    value = block.value,
+                    onValueChange = { newValue ->
+                        atLineStart = newValue.selection.collapsed && newValue.selection.start == 0
+                        onValueChange(newValue)
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(focusRequester)
+                        .onFocusChanged { onFocusChanged(it.isFocused) }
+                        // Best-effort backspace-at-start handling: Android soft keyboards don't
+                        // always deliver a KeyEvent for a backspace that has nothing to delete
+                        // forward of the cursor (an IME may instead call deleteSurroundingText
+                        // directly, which never reaches onKeyEvent) - this reliably catches a
+                        // hardware keyboard and many soft keyboards, but isn't guaranteed on
+                        // every keyboard app/OS version. Enter (spec 3C/3D, 4C/4D) is the
+                        // primary, reliable way to exit Bullet/Checklist mode - it doesn't
+                        // depend on this at all.
+                        .onKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyDown && event.key == Key.Backspace && atLineStart) {
+                                onBackspaceAtStart()
+                                true
+                            } else {
+                                false
+                            }
+                        },
+                    placeholder = {
+                        Text(
+                            text = stringResource(id = R.string.checklist_item_placeholder),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     },
-                contentAlignment = Alignment.Center
-            ) {
-                ChecklistDragHandle()
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground),
+                    visualTransformation = formatTransformation,
+                    // singleLine is intentionally false so long text wraps onto further lines
+                    // instead of scrolling off-screen; Enter is still never typed as a literal
+                    // newline into the text because imeAction is Next below, not Default -
+                    // Compose routes Enter to onNext instead of inserting "\n" whenever a
+                    // non-default imeAction is set, even in multiline fields.
+                    singleLine = false,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        capitalization = KeyboardCapitalization.Sentences,
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(onNext = onEnterPressed),
+                    colors = transparentTextFieldColors()
+                )
+
+                IconButton(onClick = onDeleteClick, modifier = Modifier.padding(top = 4.dp)) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = stringResource(id = R.string.delete),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }
 }
 
-/** A small grip icon (three horizontal bars) marking the checklist item's long-press-to-drag
- * touch target - drawn directly, matching this file's existing stroke-based custom icon style,
- * since the app doesn't depend on Material's extended icon pack. */
+/** Spec's own "tap an image" interaction: Back (top-left) returns to the editor unchanged; Delete
+ * (top-right) removes only that image block and returns to the editor - the note's title, other
+ * blocks, and their order are all untouched either way. Rendered as a full-bleed overlay layered
+ * on top of the editor's own Scaffold (see [NoteEditorScreen]'s own outer Box), rather than a
+ * separate navigation route, since it's a transient focus state of the same editor session, not a
+ * distinct screen. */
 @Composable
-private fun ChecklistDragHandle(tint: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
-    Canvas(modifier = Modifier.size(18.dp)) {
-        val strokeWidth = size.minDimension * 0.12f
-        val left = size.width * 0.15f
-        val right = size.width * 0.85f
-        listOf(0.24f, 0.5f, 0.76f).forEach { fraction ->
-            val y = size.height * fraction
-            drawLine(
-                color = tint,
-                start = Offset(left, y),
-                end = Offset(right, y),
-                strokeWidth = strokeWidth,
-                cap = StrokeCap.Round
+private fun ImageFocusOverlay(imagePath: String, onBack: () -> Unit, onDelete: () -> Unit) {
+    val bitmap = remember(imagePath) { BitmapFactory.decodeFile(imagePath)?.asImageBitmap() }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .align(Alignment.Center)
             )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.Filled.ArrowBack,
+                    contentDescription = stringResource(id = R.string.back),
+                    tint = Color.White
+                )
+            }
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = stringResource(id = R.string.delete),
+                    tint = Color.White
+                )
+            }
         }
     }
 }

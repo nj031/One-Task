@@ -41,7 +41,8 @@ class JournalRepository(private val dao: JournalNoteDao) {
         label: String? = null,
         contentFormatSpans: List<NoteFormatSpan> = emptyList(),
         pinned: Boolean = false,
-        id: String = UUID.randomUUID().toString()
+        id: String = UUID.randomUUID().toString(),
+        blocks: List<NoteBlock> = emptyList()
     ): JournalNoteEntity {
         val now = System.currentTimeMillis()
         val note = JournalNoteEntity(
@@ -57,7 +58,8 @@ class JournalRepository(private val dao: JournalNoteDao) {
             updatedAt = now,
             label = label,
             contentFormatSpans = contentFormatSpans,
-            pinned = pinned
+            pinned = pinned,
+            blocks = blocks
         )
         dao.insert(note)
         CloudBackupRepository.pushNote(note)
@@ -71,7 +73,8 @@ class JournalRepository(private val dao: JournalNoteDao) {
         checklistItems: List<ChecklistItem>,
         label: String? = note.label,
         contentFormatSpans: List<NoteFormatSpan> = note.contentFormatSpans,
-        pinned: Boolean = note.pinned
+        pinned: Boolean = note.pinned,
+        blocks: List<NoteBlock> = note.blocks
     ) {
         val updated = note.copy(
             title = title,
@@ -80,6 +83,7 @@ class JournalRepository(private val dao: JournalNoteDao) {
             label = label,
             contentFormatSpans = contentFormatSpans,
             pinned = pinned,
+            blocks = blocks,
             updatedAt = System.currentTimeMillis()
         )
         dao.update(updated)

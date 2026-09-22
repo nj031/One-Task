@@ -63,4 +63,17 @@ class CloudPathsTest {
         assertTrue(profilePhotoPath(uidA).contains(uidA))
         assertNotEquals(profilePhotoPath(uidA), profilePhotoPath(uidB))
     }
+
+    @Test
+    fun `note image path is uid- and note-scoped, never a shared or global path`() {
+        val noteId = "note-1"
+        assertEquals("note_images/$uidA/$noteId.jpg", noteImagePath(uidA, noteId))
+        assertTrue(noteImagePath(uidA, noteId).contains(uidA))
+        assertNotEquals(noteImagePath(uidA, noteId), noteImagePath(uidB, noteId))
+    }
+
+    @Test
+    fun `note image path also isolates two different notes for the same account`() {
+        assertNotEquals(noteImagePath(uidA, "note-1"), noteImagePath(uidA, "note-2"))
+    }
 }

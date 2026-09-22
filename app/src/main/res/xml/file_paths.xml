@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Exposes this app's own private note_images directory (see NoteImageStorage) to the system
+     Camera app via FileProvider, so Open Camera can write a captured photo directly into this
+     app's storage without needing broad external-storage access. -->
+<paths xmlns:android="http://schemas.android.com/apk/res-auto">
+    <files-path name="note_images" path="note_images/" />
+</paths>
