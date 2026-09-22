@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -257,14 +256,16 @@ fun NoteEditorScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                // Scaffold's own content insets don't include the IME by default (so text
-                // fields aren't force-pushed up on every screen, even ones with no input).
-                // Consuming it here shrinks this Box's visible height as the keyboard animates
-                // in, which is what lets either the TEXT field's own scroll container or the
-                // CHECKLIST's LazyColumn actually scroll far enough to keep the active line/item
-                // above the keyboard.
-                .imePadding(),
+                // innerPadding.bottom already reflects the keyboard: NoteFormattingToolbar (this
+                // Scaffold's bottomBar) applies windowInsetsPadding(navigationBars.union(ime)) to
+                // itself, so its own measured height - which Scaffold uses to compute
+                // innerPadding - already grows by the IME's height while the keyboard is open. A
+                // separate .imePadding() here used to subtract that same IME height a second
+                // time, collapsing this Box's available height to only a couple of lines and
+                // leaving a large blank gap between the shrunk content and the (correctly
+                // positioned) toolbar/keyboard below it. Consuming innerPadding alone is enough -
+                // the IME inset only needs to be accounted for once in this chain.
+                .padding(innerPadding),
             contentAlignment = Alignment.TopCenter
         ) {
             when (effectiveNoteType) {
