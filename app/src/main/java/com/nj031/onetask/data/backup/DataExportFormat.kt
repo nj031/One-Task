@@ -4,6 +4,10 @@ import com.nj031.onetask.data.journal.ChecklistItem
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.JournalNoteStatus
 import com.nj031.onetask.data.journal.JournalNoteType
+import com.nj031.onetask.data.journal.NoteBlock
+import com.nj031.onetask.data.journal.NoteBlockType
+import com.nj031.onetask.data.journal.NoteFormatSpan
+import com.nj031.onetask.data.journal.NoteFormatStyle
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.SuccessCondition
 import com.nj031.onetask.data.task.TaskEntity
@@ -165,6 +169,35 @@ private fun JournalNoteEntity.toJson(): JSONObject = JSONObject().apply {
     put("createdAt", createdAt)
     put("updatedAt", updatedAt)
     put("status", status.name)
+    // imagePath is a local-device file path, deliberately never exported - see
+    // CloudBackupRepository.toFirestoreMap's own comment on the same decision for the cloud
+    // representation; an IMAGE block round-trips through this backup format as an image-shaped
+    // block with no local file attached, exactly like a note pulled down fresh from the cloud.
+    put(
+        "blocks",
+        JSONArray(
+            blocks.map { block ->
+                JSONObject().apply {
+                    put("id", block.id)
+                    put("type", block.type.name)
+                    put("text", block.text)
+                    put("checked", block.checked)
+                    put(
+                        "formatSpans",
+                        JSONArray(
+                            block.formatSpans.map { span ->
+                                JSONObject().apply {
+                                    put("start", span.start)
+                                    put("end", span.end)
+                                    put("style", span.style.name)
+                                }
+                            }
+                        )
+                    )
+                }
+            }
+        )
+    )
 }
 
 // noteType/checklistItems are absent from any backup file written before the Notes redesign -
@@ -184,6 +217,38 @@ private fun JSONObject.toNoteEntity(): JournalNoteEntity {
     } else {
         emptyList()
     }
+    // Absent from any backup file written before the mixed-content Note Editor existed - default
+    // to no blocks, exactly matching JournalNoteEntity's own constructor default (the Note Editor
+    // synthesizes an equivalent block list from content/checklistItems for such a note the first
+    // time it's opened after restoring this backup).
+    val blocksArray = optJSONArray("blocks")
+    val blocks = if (blocksArray != null) {
+        (0 until blocksArray.length()).map { index ->
+            val entry = blocksArray.getJSONObject(index)
+            val spansArray = entry.optJSONArray("formatSpans")
+            val formatSpans = if (spansArray != null) {
+                (0 until spansArray.length()).mapNotNull { spanIndex ->
+                    val spanEntry = spansArray.getJSONObject(spanIndex)
+                    val style = runCatching { NoteFormatStyle.valueOf(spanEntry.getString("style")) }.getOrNull()
+                        ?: return@mapNotNull null
+                    NoteFormatSpan(start = spanEntry.getInt("start"), end = spanEntry.getInt("end"), style = style)
+                }
+            } else {
+                emptyList()
+            }
+            NoteBlock(
+                id = entry.getString("id"),
+                type = runCatching { NoteBlockType.valueOf(entry.getString("type")) }.getOrDefault(NoteBlockType.TEXT),
+                text = entry.optString("text", ""),
+                checked = entry.optBoolean("checked", false),
+                formatSpans = formatSpans,
+                // Never restored from a backup file directly - see toJson's own comment.
+                imagePath = null
+            )
+        }
+    } else {
+        emptyList()
+    }
     return JournalNoteEntity(
         id = getString("id"),
         title = getString("title"),
@@ -194,6 +259,7 @@ private fun JSONObject.toNoteEntity(): JournalNoteEntity {
         journalDate = getLong("journalDate"),
         createdAt = getLong("createdAt"),
         updatedAt = getLong("updatedAt"),
-        status = runCatching { JournalNoteStatus.valueOf(getString("status")) }.getOrDefault(JournalNoteStatus.ACTIVE)
+        status = runCatching { JournalNoteStatus.valueOf(getString("status")) }.getOrDefault(JournalNoteStatus.ACTIVE),
+        blocks = blocks
     )
 }

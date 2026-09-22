@@ -142,6 +142,18 @@ private val MIGRATION_14_15 = object : Migration(14, 15) {
     }
 }
 
+/** Adds the mixed-content Note Editor's own ordered-blocks storage column, so every existing
+ * note survives this update: blocks defaults to '' (empty list, via Converters.toNoteBlocks - see
+ * its own comment). An empty blocks list is NOT treated as "this note has no content" for a note
+ * that already has one - the Note Editor synthesizes an equivalent block list from that note's
+ * existing content/checklistItems the first time it's opened after this update, rather than this
+ * migration itself rewriting every row's content into the new representation. */
+private val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE journal_notes ADD COLUMN blocks TEXT NOT NULL DEFAULT ''")
+    }
+}
+
 @Database(
     entities = [
         JournalNoteEntity::class,
@@ -151,7 +163,7 @@ private val MIGRATION_14_15 = object : Migration(14, 15) {
         RecurringExclusionEntity::class,
         CategoryEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = false
 )
 @TypeConverters(Converters::class, TaskConverters::class)
@@ -193,7 +205,7 @@ abstract class AppDatabase : RoomDatabase() {
                 instance?.close()
                 val databaseName = "${LEGACY_DATABASE_NAME}_$userId"
                 val database = Room.databaseBuilder(appContext, AppDatabase::class.java, databaseName)
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                     .fallbackToDestructiveMigration()
                     .build()
                 instance = database

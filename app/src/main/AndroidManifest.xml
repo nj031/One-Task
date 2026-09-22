@@ -56,6 +56,20 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- Grants the system Camera app permission to write a captured note photo directly into
+             this app's own private storage (see NoteImageStorage.createCaptureUri) - the standard
+             Android mechanism for handing another app a writable content:// Uri into a directory
+             this app doesn't otherwise expose. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

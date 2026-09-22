@@ -8,6 +8,7 @@ import com.nj031.onetask.data.journal.ChecklistItem
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.JournalNoteType
 import com.nj031.onetask.data.journal.JournalRepository
+import com.nj031.onetask.data.journal.NoteBlock
 import com.nj031.onetask.data.journal.NoteFormatSpan
 import com.nj031.onetask.data.settings.GeneralSettingsRepository
 import com.nj031.onetask.data.settings.NotesViewMode
@@ -107,7 +108,8 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         label: String? = null,
         contentFormatSpans: List<NoteFormatSpan> = emptyList(),
         pinned: Boolean = false,
-        id: String = UUID.randomUUID().toString()
+        id: String = UUID.randomUUID().toString(),
+        blocks: List<NoteBlock> = emptyList()
     ) {
         viewModelScope.launch {
             repository.createNote(
@@ -118,7 +120,8 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                 label = label,
                 contentFormatSpans = contentFormatSpans,
                 pinned = pinned,
-                id = id
+                id = id,
+                blocks = blocks
             )
         }
     }
@@ -135,7 +138,8 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         label: String? = null,
         contentFormatSpans: List<NoteFormatSpan> = emptyList(),
         pinned: Boolean = false,
-        id: String = UUID.randomUUID().toString()
+        id: String = UUID.randomUUID().toString(),
+        blocks: List<NoteBlock> = emptyList()
     ): JournalNoteEntity = repository.createNote(
         title = title,
         content = content,
@@ -144,7 +148,8 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         label = label,
         contentFormatSpans = contentFormatSpans,
         pinned = pinned,
-        id = id
+        id = id,
+        blocks = blocks
     )
 
     fun getNoteById(id: String?): JournalNoteEntity? =
@@ -157,10 +162,11 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         checklistItems: List<ChecklistItem>,
         label: String? = note.label,
         contentFormatSpans: List<NoteFormatSpan> = note.contentFormatSpans,
-        pinned: Boolean = note.pinned
+        pinned: Boolean = note.pinned,
+        blocks: List<NoteBlock> = note.blocks
     ) {
         viewModelScope.launch {
-            repository.updateNote(note, title, content, checklistItems, label, contentFormatSpans, pinned)
+            repository.updateNote(note, title, content, checklistItems, label, contentFormatSpans, pinned, blocks)
         }
     }
 
