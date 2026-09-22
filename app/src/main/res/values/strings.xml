@@ -380,9 +380,9 @@
     <string name="notes_search_placeholder">Search your notes…</string>
     <string name="notes_add_button">Add</string>
     <string name="notes_list_heading">Notes</string>
+    <string name="notes_pinned_heading">Pinned Notes</string>
     <string name="notes_view_list">List View</string>
     <string name="notes_view_card">Card View</string>
-    <string name="notes_add_choice_title">Add Note</string>
     <string name="notes_more_options">More options</string>
     <string name="labels_title">Labels</string>
     <string name="labels_name_placeholder">Label name…</string>
@@ -399,12 +399,18 @@
     <string name="back">Back</string>
 
     <string name="note_menu_share">Share</string>
-    <string name="note_menu_make_a_copy">Make a copy</string>
     <string name="note_menu_add_to_label">Add to Label</string>
     <string name="note_no_label">No Label</string>
     <string name="note_add_label_button">+ Add Label</string>
     <string name="note_menu_pin_note">Pin note</string>
+    <string name="note_menu_unpin_note">Unpin note</string>
     <string name="note_menu_note_info">Note info</string>
+    <string name="note_info_title">Note Info</string>
+    <string name="note_info_name_label">Name</string>
+    <string name="note_info_type_label">Type</string>
+    <string name="note_info_created_label">Created</string>
+    <string name="note_info_modified_label">Last Modified</string>
+    <string name="note_info_labels_label">Labels</string>
     <string name="note_plus_menu_add_image">Add Image</string>
     <string name="note_plus_menu_open_camera">Open Camera</string>
     <string name="note_editor_plus_button">Add</string>

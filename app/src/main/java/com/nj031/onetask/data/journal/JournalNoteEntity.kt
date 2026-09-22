@@ -52,7 +52,11 @@ data class JournalNoteEntity(
     // meaningful for a TEXT note; always empty for a CHECKLIST note (its own per-item text isn't
     // formattable). Empty for every note saved before the Note Editor's formatting toolbar
     // existed, which is exactly the correct "no formatting applied" state for them.
-    val contentFormatSpans: List<NoteFormatSpan> = emptyList()
+    val contentFormatSpans: List<NoteFormatSpan> = emptyList(),
+    // Whether this note shows in the Notes list's separate "Pinned Notes" section, above every
+    // unpinned note. False for every note saved before pinning existed, which is exactly the
+    // correct "not pinned" state for them.
+    val pinned: Boolean = false
 )
 
 /** The set of labels available to assign to notes - conceptually the Notes equivalent of

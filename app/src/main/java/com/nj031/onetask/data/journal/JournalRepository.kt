@@ -31,7 +31,8 @@ class JournalRepository(private val dao: JournalNoteDao) {
         noteType: JournalNoteType,
         checklistItems: List<ChecklistItem>,
         label: String? = null,
-        contentFormatSpans: List<NoteFormatSpan> = emptyList()
+        contentFormatSpans: List<NoteFormatSpan> = emptyList(),
+        pinned: Boolean = false
     ) {
         val now = System.currentTimeMillis()
         val note = JournalNoteEntity(
@@ -45,7 +46,8 @@ class JournalRepository(private val dao: JournalNoteDao) {
             createdAt = now,
             updatedAt = now,
             label = label,
-            contentFormatSpans = contentFormatSpans
+            contentFormatSpans = contentFormatSpans,
+            pinned = pinned
         )
         dao.insert(note)
         CloudBackupRepository.pushNote(note)
@@ -57,7 +59,8 @@ class JournalRepository(private val dao: JournalNoteDao) {
         content: String,
         checklistItems: List<ChecklistItem>,
         label: String? = note.label,
-        contentFormatSpans: List<NoteFormatSpan> = note.contentFormatSpans
+        contentFormatSpans: List<NoteFormatSpan> = note.contentFormatSpans,
+        pinned: Boolean = note.pinned
     ) {
         val updated = note.copy(
             title = title,
@@ -65,8 +68,20 @@ class JournalRepository(private val dao: JournalNoteDao) {
             checklistItems = checklistItems,
             label = label,
             contentFormatSpans = contentFormatSpans,
+            pinned = pinned,
             updatedAt = System.currentTimeMillis()
         )
+        dao.update(updated)
+        CloudBackupRepository.pushNote(updated)
+    }
+
+    /** Immediate (not deferred-saved) write, mirroring [archiveNote]/[trashNote] - Pin/Unpin must
+     * survive a process death right after tapping it, not just a normal exit through the Note
+     * Editor's own deferred commitOnExit save (see NoteEditorScreen's own togglePin). Deliberately
+     * does not touch updatedAt, matching archiveNote/trashNote's own status-change convention -
+     * pinning is a metadata action, not a content edit. */
+    suspend fun setPinned(note: JournalNoteEntity, pinned: Boolean) {
+        val updated = note.copy(pinned = pinned)
         dao.update(updated)
         CloudBackupRepository.pushNote(updated)
     }

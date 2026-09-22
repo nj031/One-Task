@@ -600,7 +600,8 @@ private fun JournalNoteEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "label" to label,
     "contentFormatSpans" to contentFormatSpans.map {
         mapOf("start" to it.start, "end" to it.end, "style" to it.style.name)
-    }
+    },
+    "pinned" to pinned
 )
 
 @Suppress("UNCHECKED_CAST")
@@ -641,6 +642,9 @@ private fun DocumentSnapshot.toJournalNoteEntity(): JournalNoteEntity? {
             val style = (raw["style"] as? String)?.let { runCatching { NoteFormatStyle.valueOf(it) }.getOrNull() }
                 ?: return@mapNotNull null
             NoteFormatSpan(start = start, end = end, style = style)
-        }
+        },
+        // Absent from any note document written before pinning existed - default to false (not
+        // pinned), exactly matching JournalNoteEntity's own constructor default.
+        pinned = getBoolean("pinned") ?: false
     )
 }
