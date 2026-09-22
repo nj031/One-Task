@@ -34,6 +34,7 @@ import com.nj031.onetask.ui.screens.AddTaskScreen
 import com.nj031.onetask.ui.screens.AppearanceSettingsScreen
 import com.nj031.onetask.ui.screens.ArchiveScreen
 import com.nj031.onetask.ui.screens.AuthScreen
+import com.nj031.onetask.ui.screens.CategoriesScreen
 import com.nj031.onetask.ui.screens.CreateAccountEmailScreen
 import com.nj031.onetask.ui.screens.CreateAccountPasswordScreen
 import com.nj031.onetask.ui.screens.DataPrivacyScreen
@@ -435,7 +436,7 @@ fun OneTaskNavHost(
                 onEditTaskClick = { taskId ->
                     navController.navigate(Screen.AddTask.createRoute(taskId))
                 },
-                onAddCategoryClick = { navController.navigate(Screen.DefaultTaskSettings.route) },
+                onAddCategoryClick = { navController.navigate(Screen.CategoriesSettings.route) },
                 weekStartDay = weekStartDay,
                 wallpaper = wallpaper,
                 darkTheme = darkTheme
@@ -495,7 +496,7 @@ fun OneTaskNavHost(
                 draftViewModel = addTaskDraftViewModel,
                 taskId = backStackEntry.arguments?.getString("taskId"),
                 customCategories = customCategories,
-                onAddCategoryClick = { navController.navigate(Screen.DefaultTaskSettings.route) },
+                onAddCategoryClick = { navController.navigate(Screen.CategoriesSettings.route) },
                 defaultTimerMinutes = defaultTimerMinutes,
                 defaultTag = defaultTag,
                 defaultPostponeIfIncomplete = defaultPostponeIfIncomplete,
@@ -642,6 +643,7 @@ fun OneTaskNavHost(
                 onBackClick = { navController.popBackStack() },
                 onAppearanceClick = { navController.navigate(Screen.AppearanceSettings.route) },
                 onStartScreenClick = { navController.navigate(Screen.StartScreenSettings.route) },
+                onCategoriesClick = { navController.navigate(Screen.CategoriesSettings.route) },
                 onDefaultTaskSettingsClick = { navController.navigate(Screen.DefaultTaskSettings.route) },
                 onNotificationsClick = { navController.navigate(Screen.NotificationsSettings.route) },
                 onWeekStartsOnClick = { navController.navigate(Screen.WeekStartsOnSettings.route) },
@@ -677,13 +679,18 @@ fun OneTaskNavHost(
         composable(Screen.DefaultTaskSettings.route) {
             val defaultTimerMinutes by generalSettingsViewModel.defaultTimerMinutes.collectAsState()
             val defaultPostponeIfIncomplete by generalSettingsViewModel.defaultPostponeIfIncomplete.collectAsState()
-            val customCategories by homeViewModel.customCategories.collectAsState()
             DefaultTaskSettingsScreen(
                 defaultTimerMinutes = defaultTimerMinutes,
                 defaultPostponeIfIncomplete = defaultPostponeIfIncomplete,
-                customCategories = customCategories,
                 onDefaultTimerMinutesChange = generalSettingsViewModel::setDefaultTimerMinutes,
                 onDefaultPostponeIfIncompleteChange = generalSettingsViewModel::setDefaultPostponeIfIncomplete,
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.CategoriesSettings.route) {
+            val customCategories by homeViewModel.customCategories.collectAsState()
+            CategoriesScreen(
+                customCategories = customCategories,
                 onAddCustomCategory = homeViewModel::addCustomCategory,
                 onRenameCustomCategory = homeViewModel::renameCustomCategory,
                 onDeleteCustomCategory = homeViewModel::deleteCustomCategory,

@@ -42,6 +42,7 @@ fun GeneralSettingsScreen(
     onBackClick: () -> Unit,
     onAppearanceClick: () -> Unit,
     onStartScreenClick: () -> Unit,
+    onCategoriesClick: () -> Unit,
     onDefaultTaskSettingsClick: () -> Unit,
     onNotificationsClick: () -> Unit,
     onWeekStartsOnClick: () -> Unit,
@@ -98,6 +99,10 @@ fun GeneralSettingsScreen(
                 title = stringResource(id = R.string.general_start_screen),
                 value = startScreenLabel,
                 onClick = onStartScreenClick
+            )
+            GeneralSettingsRow(
+                title = stringResource(id = R.string.general_categories),
+                onClick = onCategoriesClick
             )
             GeneralSettingsRow(
                 title = stringResource(id = R.string.general_default_task_settings),
