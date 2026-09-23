@@ -69,6 +69,7 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
                         // overlay never outlives it: no break prompt, no history, straight back to
                         // the normal idle Timer/Stopwatch screen.
                         _focusOverlay.value = null
+                        repository.clearFocusBlocking()
                     } else if (overlay.breakEndAtMillis != null && System.currentTimeMillis() >= overlay.breakEndAtMillis) {
                         when (current.activeMode) {
                             TimerMode.TIMER -> resumeTimer()
@@ -76,6 +77,7 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
                             null -> {}
                         }
                         _focusOverlay.value = overlay.copy(breakEndAtMillis = null)
+                        repository.setFocusBreakEndAtMillis(null)
                     }
                 }
 
@@ -147,6 +149,7 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
             breaksRemaining = breaksTotal,
             blockedPackages = blockedPackages
         )
+        repository.setFocusBlockedPackages(blockedPackages)
     }
 
     /** Starts a Stopwatch Focus session: an ordinary Stopwatch (counts up from 00:00, no fixed
@@ -159,6 +162,7 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
             breaksRemaining = breaksTotal,
             blockedPackages = blockedPackages
         )
+        repository.setFocusBlockedPackages(blockedPackages)
     }
 
     /** Terminates the Focus session outright - not a completion, so nothing is recorded anywhere
@@ -171,6 +175,7 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
             null -> {}
         }
         _focusOverlay.value = null
+        repository.clearFocusBlocking()
     }
 
     /** Consumes exactly one break (no-op, returns false, if none remain or one is already in
@@ -186,10 +191,12 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
             TimerMode.STOPWATCH -> pauseStopwatch()
             null -> return false
         }
+        val breakEndAtMillis = System.currentTimeMillis() + FOCUS_BREAK_DURATION_MILLIS
         _focusOverlay.value = overlay.copy(
             breaksRemaining = overlay.breaksRemaining - 1,
-            breakEndAtMillis = System.currentTimeMillis() + FOCUS_BREAK_DURATION_MILLIS
+            breakEndAtMillis = breakEndAtMillis
         )
+        repository.setFocusBreakEndAtMillis(breakEndAtMillis)
         return true
     }
 }
