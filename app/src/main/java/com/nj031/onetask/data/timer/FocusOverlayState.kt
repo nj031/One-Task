@@ -14,11 +14,14 @@ const val FOCUS_BREAK_DURATION_MILLIS = 10 * 60_000L
  * bit of extra bookkeeping the normal Timer has no notion of: how many manual breaks are left, and
  * whether one is currently in progress.
  *
- * Deliberately in-memory only (held by TimerViewModel, not persisted to TimerSessionRepository or
- * any other store) - unlike the underlying Timer countdown itself, a Focus session does not need
- * to survive the app process being killed for this phase; it only needs to survive ordinary
- * navigation within a live process, which sharing one TimerViewModel instance between the Timer
- * tab and the Focus Mode Configuration screen already provides.
+ * The live instance is held in-memory by TimerViewModel, not itself serialized anywhere - but
+ * every field here is also durably mirrored into TimerSessionRepository as it changes (see
+ * TimerSessionRepository.setFocusSessionConfig/setFocusBreakEndAtMillis/setFocusBlockedPackages),
+ * so TimerSessionRepository.restoreFocusOverlayState() can reconstruct an equivalent instance
+ * whenever TimerViewModel is recreated (app backgrounded/killed and reopened) while a session is
+ * active - the underlying Timer/Stopwatch countdown and its app-blocking enforcement already
+ * survive that independently, so this overlay must be able to catch back up to them rather than
+ * silently reverting the UI to a normal Timer/Stopwatch screen.
  */
 data class FocusOverlayState(
     val breaksTotal: Int,
@@ -48,9 +51,10 @@ data class FocusOverlayState(
     /** Phase 13: when true, [breaksTotal]/blocking/notifications-calls all keep working exactly
      * as configured, but stopFocusSession() must be unreachable from the UI before the session
      * ends naturally - see TimerPlaceholderScreen's gating of the Stop button and "Stop focusing"
-     * menu row, the only two call sites of stopFocusSession(). Enforced purely in the UI layer
-     * (no persistence needed), matching this whole class's existing in-memory/session-scoped,
-     * UI-enforcement-only precedent (e.g. breaksTotal). */
+     * menu row, the only two call sites of stopFocusSession(). The gating itself is purely a UI
+     * concern (this field, read directly off the live overlay); it is durably mirrored alongside
+     * the rest of this class's fields only so restoration (see this class's own doc comment above)
+     * doesn't accidentally drop back to Strict Mode OFF after TimerViewModel is recreated. */
     val strictModeEnabled: Boolean = false
 ) {
     val isOnBreak: Boolean get() = breakEndAtMillis != null

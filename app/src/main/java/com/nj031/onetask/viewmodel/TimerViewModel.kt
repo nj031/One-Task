@@ -47,7 +47,15 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedIdleDurationMillis = MutableStateFlow(DEFAULT_TIMER_DURATION_MILLIS)
     val selectedIdleDurationMillis: StateFlow<Long> = _selectedIdleDurationMillis.asStateFlow()
 
-    private val _focusOverlay = MutableStateFlow<FocusOverlayState?>(null)
+    // Restored once, synchronously, before the tick loop below starts ticking - see
+    // TimerSessionRepository.restoreFocusOverlayState's own doc comment for why this is
+    // necessary: this ViewModel (and the plain in-memory FocusOverlayState it owns) does not
+    // survive the app being backgrounded/killed and reopened, or a same-process tab switch that
+    // happens to recreate it, but the underlying Timer/Stopwatch session and its app-blocking
+    // enforcement both already do (TimerSessionRepository/FocusBlockingAccessibilityService) -
+    // without this, a still-active Focus session would silently render as a normal Timer/
+    // Stopwatch screen instead of the Focus running UI it actually still is.
+    private val _focusOverlay = MutableStateFlow(repository.restoreFocusOverlayState())
     val focusOverlay: StateFlow<FocusOverlayState?> = _focusOverlay.asStateFlow()
 
     init {
@@ -173,6 +181,7 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
             strictModeEnabled = strictModeEnabled
         )
         repository.setFocusBlockedPackages(blockedPackages)
+        repository.setFocusSessionConfig(breaksTotal, notificationsMode, callsMode, strictModeEnabled, priorNotificationPolicy)
         FocusNotificationPolicyManager.applyPolicy(getApplication(), notificationsMode, callsMode)
     }
 
@@ -198,6 +207,7 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
             strictModeEnabled = strictModeEnabled
         )
         repository.setFocusBlockedPackages(blockedPackages)
+        repository.setFocusSessionConfig(breaksTotal, notificationsMode, callsMode, strictModeEnabled, priorNotificationPolicy)
         FocusNotificationPolicyManager.applyPolicy(getApplication(), notificationsMode, callsMode)
     }
 
@@ -238,7 +248,7 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
             breaksRemaining = overlay.breaksRemaining - 1,
             breakEndAtMillis = breakEndAtMillis
         )
-        repository.setFocusBreakEndAtMillis(breakEndAtMillis)
+        repository.setFocusBreakEndAtMillis(breakEndAtMillis, overlay.breaksRemaining - 1)
         overlay.priorNotificationPolicy?.let {
             FocusNotificationPolicyManager.restore(getApplication(), it)
         }
