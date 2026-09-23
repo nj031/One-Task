@@ -61,14 +61,22 @@ fun findInstalledApp(context: Context, packageName: String): InstalledApp? {
 /** Every other launchable user app on the device (icon + name only, no package name shown) -
  * excludes this app itself and, via [excludedPackages], whatever the caller already lists
  * explicitly elsewhere (the Distracting Apps shortlist, Discord, Telegram) so no app is ever
- * duplicated across sections. System/internal apps are hidden by default (see [isSystemApp]). */
+ * duplicated across sections. System/internal apps are hidden by default (see [isSystemApp]).
+ *
+ * Queried with flags = 0, not MATCH_DEFAULT_ONLY: that flag restricts results to activities whose
+ * intent-filter also declares CATEGORY_DEFAULT, which is the right flag for resolving "what should
+ * handle this generic Intent by default" but wrong here - a launcher activity only needs MAIN +
+ * LAUNCHER (this app's own MainActivity declares exactly that, no CATEGORY_DEFAULT, same as many
+ * other apps' launcher activities), so MATCH_DEFAULT_ONLY was silently dropping otherwise-eligible,
+ * launcher-visible installed apps from this list. This is the same flag-less pattern a standard
+ * Android app drawer/launcher uses to enumerate all launchable apps. */
 fun queryLaunchableUserApps(context: Context, excludedPackages: Set<String>): List<InstalledApp> {
     val pm = context.packageManager
     val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
     val ownPackage = context.packageName
     val fullyExcluded = excludedPackages + ownPackage
 
-    return pm.queryIntentActivities(launcherIntent, PackageManager.MATCH_DEFAULT_ONLY)
+    return pm.queryIntentActivities(launcherIntent, 0)
         .distinctBy { it.activityInfo.packageName }
         .asSequence()
         .filter { info -> info.activityInfo.packageName !in fullyExcluded }
