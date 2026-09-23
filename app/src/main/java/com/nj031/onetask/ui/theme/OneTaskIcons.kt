@@ -1239,3 +1239,58 @@ fun OneTaskPhoneIcon(
         }
     }
 }
+
+/** A coffee-cup glyph (cup body + a side handle) - the Running Focus screen's manual Break
+ * control. */
+@Composable
+fun OneTaskCoffeeCupIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.09f
+        val cupLeft = this.size.width * 0.2f
+        val cupRight = this.size.width * 0.68f
+        val cupTop = this.size.height * 0.28f
+        val cupBottom = this.size.height * 0.78f
+        val cupBottomLeft = cupLeft + this.size.width * 0.04f
+        val cupBottomRight = cupRight - this.size.width * 0.04f
+
+        val cupPath = Path().apply {
+            moveTo(cupLeft, cupTop)
+            lineTo(cupBottomLeft, cupBottom)
+            lineTo(cupBottomRight, cupBottom)
+            lineTo(cupRight, cupTop)
+            close()
+        }
+        drawPath(cupPath, color = tint, style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+
+        val handleCenter = Offset(cupRight + this.size.width * 0.08f, (cupTop + cupBottom) / 2f)
+        val handleRadius = this.size.width * 0.12f
+        drawArc(
+            color = tint,
+            startAngle = -100f,
+            sweepAngle = 200f,
+            useCenter = false,
+            topLeft = Offset(handleCenter.x - handleRadius, handleCenter.y - handleRadius),
+            size = Size(handleRadius * 2f, handleRadius * 2f),
+            style = Stroke(width = strokeWidth * 0.85f, cap = StrokeCap.Round)
+        )
+
+        drawLine(
+            color = tint,
+            start = Offset(this.size.width * 0.3f, cupTop - this.size.height * 0.1f),
+            end = Offset(this.size.width * 0.34f, cupTop - this.size.height * 0.02f),
+            strokeWidth = strokeWidth * 0.7f,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = tint,
+            start = Offset(this.size.width * 0.46f, cupTop - this.size.height * 0.12f),
+            end = Offset(this.size.width * 0.5f, cupTop - this.size.height * 0.04f),
+            strokeWidth = strokeWidth * 0.7f,
+            cap = StrokeCap.Round
+        )
+    }
+}

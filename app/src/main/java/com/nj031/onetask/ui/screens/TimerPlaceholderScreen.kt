@@ -3,6 +3,8 @@ package com.nj031.onetask.ui.screens
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -26,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -34,7 +37,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -55,10 +60,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.settings.Wallpaper
+import com.nj031.onetask.data.timer.FOCUS_BREAK_DURATION_MILLIS
+import com.nj031.onetask.data.timer.FocusOverlayState
 import com.nj031.onetask.data.timer.TimerMode
 import com.nj031.onetask.data.timer.TimerSessionSnapshot
 import com.nj031.onetask.data.timer.formatTimerDuration
@@ -68,6 +76,7 @@ import com.nj031.onetask.ui.components.OneTaskDurationPickerDialog
 import com.nj031.onetask.ui.components.WallpaperBackdrop
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.ui.theme.OneTaskClockIcon
+import com.nj031.onetask.ui.theme.OneTaskCoffeeCupIcon
 import com.nj031.onetask.ui.theme.OneTaskLapFlagIcon
 import com.nj031.onetask.ui.theme.OneTaskPauseIcon
 import com.nj031.onetask.ui.theme.OneTaskPlayIcon
@@ -107,6 +116,36 @@ fun TimerPlaceholderScreen(
     val context = LocalContext.current
     val snapshot by viewModel.snapshot.collectAsState()
     val selectedIdleDurationMillis by viewModel.selectedIdleDurationMillis.collectAsState()
+    val focusOverlay by viewModel.focusOverlay.collectAsState()
+    val isFocusActive = focusOverlay != null
+
+    var showFocusActionMenu by remember { mutableStateOf(false) }
+    var showBreakConfirm by remember { mutableStateOf(false) }
+    var showStopConfirm by remember { mutableStateOf(false) }
+    var showTimerRunningWarning by remember { mutableStateOf(false) }
+
+    // Running Focus screen's own Back-button behavior (per spec) - a 3-option action menu
+    // (Take a break / Stop focusing / Cancel) instead of ordinary back navigation.
+    BackHandler(enabled = isFocusActive) { showFocusActionMenu = true }
+
+    val handleTakeBreakRequest: () -> Unit = {
+        if ((focusOverlay?.breaksRemaining ?: 0) <= 0) {
+            Toast.makeText(context, context.getString(R.string.focus_no_breaks_remaining), Toast.LENGTH_SHORT).show()
+        } else {
+            showBreakConfirm = true
+        }
+    }
+
+    // The Focus mode button only ever renders while no session (normal or Focus) is already
+    // active on the Timer tab, so the "already running" collision this guards against can only
+    // ever be a normal (non-Focus) running/paused Timer.
+    val handleFocusModeClick: () -> Unit = {
+        if (snapshot.isTimerRunning || snapshot.isTimerPaused) {
+            showTimerRunningWarning = true
+        } else {
+            onFocusModeClick()
+        }
+    }
 
     // Same runtime-permission request FocusTimerScreen already performs: a one-time ask, silently
     // no-op if already granted/denied - the session itself is unaffected either way, since the
@@ -200,7 +239,10 @@ fun TimerPlaceholderScreen(
                         onPause = viewModel::pauseTimer,
                         onResume = viewModel::resumeTimer,
                         onStop = viewModel::stopTimer,
-                        onFocusModeClick = onFocusModeClick,
+                        onFocusModeClick = handleFocusModeClick,
+                        focusOverlay = focusOverlay,
+                        onBreakButtonClick = handleTakeBreakRequest,
+                        onStopFocusButtonClick = { showStopConfirm = true },
                         wallpaper = wallpaper
                     )
                     TimerTab.STOPWATCH -> StopwatchModeContent(
@@ -227,6 +269,159 @@ fun TimerPlaceholderScreen(
             }
         )
     }
+
+    if (showFocusActionMenu) {
+        FocusActionMenuDialog(
+            breaksRemaining = focusOverlay?.breaksRemaining ?: 0,
+            onTakeBreak = { showFocusActionMenu = false; handleTakeBreakRequest() },
+            onStopFocusing = { showFocusActionMenu = false; showStopConfirm = true },
+            onCancel = { showFocusActionMenu = false }
+        )
+    }
+
+    if (showBreakConfirm) {
+        BreakConfirmDialog(
+            breaksRemaining = focusOverlay?.breaksRemaining ?: 0,
+            onConfirm = { viewModel.takeFocusBreak(); showBreakConfirm = false },
+            onDismiss = { showBreakConfirm = false }
+        )
+    }
+
+    if (showStopConfirm) {
+        StopFocusConfirmDialog(
+            onConfirm = { viewModel.stopFocusSession(); showStopConfirm = false },
+            onDismiss = { showStopConfirm = false }
+        )
+    }
+
+    if (showTimerRunningWarning) {
+        TimerRunningWarningDialog(
+            onContinue = {
+                showTimerRunningWarning = false
+                viewModel.stopTimer()
+                onFocusModeClick()
+            },
+            onDismiss = { showTimerRunningWarning = false }
+        )
+    }
+}
+
+/** The Running Focus screen's Back-button action menu (per spec): Take a break (with the dynamic
+ * remaining count) / Stop focusing / Cancel - a plain rounded dialog, matching the shell every
+ * other picker dialog in the app already uses (see OneTaskDurationPickerDialog/
+ * CategorySelectorDialog), not a new visual pattern. */
+@Composable
+private fun FocusActionMenuDialog(
+    breaksRemaining: Int,
+    onTakeBreak: () -> Unit,
+    onStopFocusing: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Dialog(onDismissRequest = onCancel) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 6.dp
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                FocusActionMenuRow(
+                    title = stringResource(id = R.string.focus_action_menu_take_break),
+                    subtitle = stringResource(id = R.string.focus_break_confirm_message_format, breaksRemaining),
+                    onClick = onTakeBreak
+                )
+                FocusActionMenuRow(
+                    title = stringResource(id = R.string.focus_action_menu_stop_focusing),
+                    onClick = onStopFocusing
+                )
+                FocusActionMenuRow(
+                    title = stringResource(id = R.string.cancel),
+                    onClick = onCancel
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FocusActionMenuRow(title: String, onClick: () -> Unit, subtitle: String? = null) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 14.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        if (subtitle != null) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun BreakConfirmDialog(breaksRemaining: Int, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(id = R.string.focus_break_confirm_title)) },
+        text = { Text(text = stringResource(id = R.string.focus_break_confirm_message_format, breaksRemaining)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(text = stringResource(id = R.string.take_a_break))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun StopFocusConfirmDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(id = R.string.focus_stop_confirm_title)) },
+        text = { Text(text = stringResource(id = R.string.focus_stop_confirm_message)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(text = stringResource(id = R.string.timer_stop_button))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun TimerRunningWarningDialog(onContinue: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(id = R.string.focus_timer_running_warning_title)) },
+        text = { Text(text = stringResource(id = R.string.focus_timer_running_warning_message)) },
+        confirmButton = {
+            TextButton(onClick = onContinue) {
+                Text(text = stringResource(id = R.string.continue_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.cancel))
+            }
+        }
+    )
 }
 
 @Composable
@@ -389,15 +584,33 @@ private fun TimerModeContent(
     onResume: () -> Unit,
     onStop: () -> Unit,
     onFocusModeClick: () -> Unit = {},
+    focusOverlay: FocusOverlayState? = null,
+    onBreakButtonClick: () -> Unit = {},
+    onStopFocusButtonClick: () -> Unit = {},
     wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val hapticTick = rememberHapticTick()
     val isRunning = snapshot.isTimerRunning
     val isPaused = snapshot.isTimerPaused
     val isActive = isRunning || isPaused
+    val isOnBreak = focusOverlay?.isOnBreak == true
 
-    val totalMillis = if (isActive) snapshot.timerTotalDurationMillis else selectedIdleDurationMillis
-    val displayMillis = if (isActive) snapshot.timerRemainingNowMillis() else selectedIdleDurationMillis
+    val totalMillis: Long
+    val displayMillis: Long
+    when {
+        isOnBreak -> {
+            totalMillis = FOCUS_BREAK_DURATION_MILLIS
+            displayMillis = focusOverlay!!.breakRemainingNowMillis()
+        }
+        isActive -> {
+            totalMillis = snapshot.timerTotalDurationMillis
+            displayMillis = snapshot.timerRemainingNowMillis()
+        }
+        else -> {
+            totalMillis = selectedIdleDurationMillis
+            displayMillis = selectedIdleDurationMillis
+        }
+    }
     val remainingFraction = if (totalMillis > 0) displayMillis.toFloat() / totalMillis.toFloat() else 0f
 
     Box(
@@ -407,7 +620,7 @@ private fun TimerModeContent(
         contentAlignment = Alignment.Center
     ) {
         Box(modifier = timerRingBackingModifier(wallpaper), contentAlignment = Alignment.Center) {
-            TimerRing(remainingFraction = remainingFraction, showProgress = isActive)
+            TimerRing(remainingFraction = remainingFraction, showProgress = isActive || isOnBreak)
             TimerCenterLabel(millis = displayMillis)
         }
     }
@@ -421,31 +634,138 @@ private fun TimerModeContent(
         )
     }
 
-    when {
-        !isActive -> TimerPrimaryButton(
-            icon = { OneTaskPlayIcon(tint = Color.White, size = 20.dp) },
-            label = stringResource(id = R.string.timer_start_button),
-            onClick = { hapticTick(); onStart() },
+    if (focusOverlay != null) {
+        FocusRunningControls(
+            isOnBreak = isOnBreak,
+            isRunning = isRunning,
+            breaksRemaining = focusOverlay.breaksRemaining,
+            onPause = { hapticTick(); onPause() },
+            onResume = { hapticTick(); onResume() },
+            onBreakClick = { hapticTick(); onBreakButtonClick() },
+            onStopClick = { hapticTick(); onStopFocusButtonClick() },
             wallpaper = wallpaper
         )
-        isRunning -> TimerPrimaryButton(
-            icon = { OneTaskPauseIcon(tint = Color.White, size = 20.dp) },
-            label = stringResource(id = R.string.pause),
-            onClick = { hapticTick(); onPause() },
-            wallpaper = wallpaper
-        )
-        isPaused -> {
-            TimerPrimaryButton(
+    } else {
+        when {
+            !isActive -> TimerPrimaryButton(
                 icon = { OneTaskPlayIcon(tint = Color.White, size = 20.dp) },
-                label = stringResource(id = R.string.resume),
-                onClick = { hapticTick(); onResume() },
+                label = stringResource(id = R.string.timer_start_button),
+                onClick = { hapticTick(); onStart() },
                 wallpaper = wallpaper
             )
-            TimerSecondaryStopButton(onClick = { hapticTick(); onStop() })
+            isRunning -> TimerPrimaryButton(
+                icon = { OneTaskPauseIcon(tint = Color.White, size = 20.dp) },
+                label = stringResource(id = R.string.pause),
+                onClick = { hapticTick(); onPause() },
+                wallpaper = wallpaper
+            )
+            isPaused -> {
+                TimerPrimaryButton(
+                    icon = { OneTaskPlayIcon(tint = Color.White, size = 20.dp) },
+                    label = stringResource(id = R.string.resume),
+                    onClick = { hapticTick(); onResume() },
+                    wallpaper = wallpaper
+                )
+                TimerSecondaryStopButton(onClick = { hapticTick(); onStop() })
+            }
         }
+
+        FocusModeButton(onClick = onFocusModeClick)
+    }
+}
+
+/** The Running Focus screen's own bottom controls (per spec): Pause/Resume + Break while
+ * running/paused (Stop only appears once paused), or a plain "on break" indicator - no buttons at
+ * all, since a break always resumes automatically - while a manual break is counting down. */
+@Composable
+private fun FocusRunningControls(
+    isOnBreak: Boolean,
+    isRunning: Boolean,
+    breaksRemaining: Int,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onBreakClick: () -> Unit,
+    onStopClick: () -> Unit,
+    wallpaper: Wallpaper
+) {
+    if (isOnBreak) {
+        Box(
+            modifier = Modifier.fillMaxWidth().padding(top = 28.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = stringResource(id = R.string.focus_on_break_message),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        return
     }
 
-    FocusModeButton(onClick = onFocusModeClick)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (isRunning) {
+            FocusHalfButton(
+                icon = { OneTaskPauseIcon(tint = Color.White, size = 20.dp) },
+                label = stringResource(id = R.string.pause),
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White,
+                onClick = onPause,
+                modifier = Modifier.weight(1f)
+            )
+        } else {
+            FocusHalfButton(
+                icon = { OneTaskPlayIcon(tint = Color.White, size = 20.dp) },
+                label = stringResource(id = R.string.resume),
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White,
+                onClick = onResume,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        FocusHalfButton(
+            icon = { OneTaskCoffeeCupIcon(tint = MaterialTheme.colorScheme.primary, size = 18.dp) },
+            label = stringResource(id = R.string.break_label),
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.primary,
+            onClick = onBreakClick,
+            modifier = Modifier.weight(1f)
+        )
+    }
+
+    if (!isRunning) {
+        TimerSecondaryStopButton(onClick = onStopClick)
+    }
+}
+
+/** A half-width sibling of TimerPrimaryButton (same shape/height, no baked-in top padding of its
+ * own since two of these sit side by side in one Row) - the Running Focus screen's Pause/Resume
+ * and Break buttons. */
+@Composable
+private fun FocusHalfButton(
+    icon: @Composable () -> Unit,
+    label: String,
+    containerColor: Color,
+    contentColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth().height(56.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = containerColor, contentColor = contentColor)
+    ) {
+        icon()
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(start = 8.dp)
+        )
+    }
 }
 
 @Composable
