@@ -188,9 +188,14 @@ fun FocusModeConfigScreen(
             Button(
                 onClick = {
                     hapticTick()
+                    val blockedPackages = blockedAppsViewModel.selectedPackages.value
                     when (selectedTab) {
-                        FocusModeTab.TIMER -> viewModel.startFocusSession(selectedFocusTimeMinutes * 60_000L, selectedBreaksCount)
-                        FocusModeTab.STOPWATCH -> viewModel.startStopwatchFocusSession(selectedBreaksCount)
+                        FocusModeTab.TIMER -> viewModel.startFocusSession(
+                            selectedFocusTimeMinutes * 60_000L,
+                            selectedBreaksCount,
+                            blockedPackages
+                        )
+                        FocusModeTab.STOPWATCH -> viewModel.startStopwatchFocusSession(selectedBreaksCount, blockedPackages)
                     }
                     onCloseClick()
                 },
