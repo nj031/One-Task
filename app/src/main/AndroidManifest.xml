@@ -8,6 +8,19 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
+    <!-- Lets Focus Mode's Block Distractions screen enumerate the device's other launchable apps
+         (icon/name only, to build the block-list UI - see InstalledAppsRepository) without the
+         restricted, Play-Store-discouraged QUERY_ALL_PACKAGES permission. Android 11+ hides
+         package visibility by default unless the target apps match a declared <queries> filter;
+         this is the standard, minimal filter for "any app with a launcher icon". No runtime
+         permission prompt is involved. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"

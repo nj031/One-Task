@@ -23,6 +23,10 @@ sealed class Screen(val route: String) {
      * named/routed apart from [FocusTimer], the separate, already-built task-timer Focus Mode
      * feature this does not touch or replace. */
     data object FocusModeConfig : Screen("focus_mode_config")
+    /** The Block Distractions app-selection picker reached from Focus Mode Configuration's Block
+     * Distractions card (see BlockDistractingAppsScreen) - Phase 5: app-selection UI only, no
+     * actual app-blocking enforcement yet (planned for a later phase). */
+    data object BlockDistractingApps : Screen("block_distracting_apps")
     data object Archive : Screen("archive")
     data object RecycleBin : Screen("recycle_bin")
     data object Labels : Screen("labels")

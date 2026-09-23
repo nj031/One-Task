@@ -510,6 +510,22 @@
     <string name="focus_mode_config_notifications_calls_subtitle">Mute notifications and/or block incoming calls during focus.</string>
     <string name="focus_mode_config_save_and_start">Save &amp; Start Focus</string>
 
+    <!-- Block Distracting Apps picker (Phase 5) - reached from Focus Mode Configuration's Block
+         Distractions card. Selection UI only; no app-blocking enforcement yet. -->
+    <string name="block_apps_screen_subtitle">Choose apps to block during your focus session.</string>
+    <string name="block_apps_youtube_title">YouTube</string>
+    <string name="block_apps_youtube_subtitle">Control what to block on YouTube.</string>
+    <string name="block_apps_short_form_title">Short-form Videos</string>
+    <string name="block_apps_short_form_subtitle">Block short videos across multiple apps.</string>
+    <string name="block_apps_other_apps_title">Other Apps</string>
+    <string name="block_apps_other_apps_subtitle">Choose which apps to block during focus.</string>
+    <string name="block_apps_distracting_apps_title">Distracting Apps</string>
+    <string name="block_apps_others_title">Others</string>
+    <string name="block_apps_select_all">Select all</string>
+    <string name="block_apps_deselect_all">Deselect all</string>
+    <string name="block_apps_all_other_user_apps">All other user apps</string>
+    <string name="block_apps_done_format">Done (%1$d selected)</string>
+
     <string name="focus_break_confirm_title">Take a break?</string>
     <string name="focus_break_confirm_message_format">%1$d breaks remaining</string>
     <string name="focus_no_breaks_remaining">No breaks remaining</string>

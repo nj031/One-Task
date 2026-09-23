@@ -35,6 +35,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +61,7 @@ import com.nj031.onetask.ui.theme.OneTaskLockIcon
 import com.nj031.onetask.ui.theme.OneTaskPhoneIcon
 import com.nj031.onetask.ui.theme.OneTaskStopwatchIcon
 import com.nj031.onetask.ui.theme.OneTaskTargetIcon
+import com.nj031.onetask.viewmodel.FocusBlockedAppsViewModel
 import com.nj031.onetask.viewmodel.TimerViewModel
 
 private enum class FocusModeTab { TIMER, STOPWATCH }
@@ -81,15 +83,6 @@ private const val DEFAULT_FOCUS_TIME_MINUTES = 5
 private val BlockDistractionsAccent = Color(0xFF22B455)
 private val BlockDistractionsAccentBackground = Color(0xFFE8F8EE)
 
-/** Static placeholder tile colors for the Block Distractions app-preview row - plain color
- * swatches, not real app icons/logos, since Phase 1 has no actual app selection to preview. */
-private val AppPreviewColors = listOf(
-    Color(0xFFFF4D4D),
-    Color(0xFFD62E7A),
-    Color(0xFFFF7A1A),
-    Color(0xFF5865F2)
-)
-
 /**
  * Phase 2 build of the new distraction-blocking-style "Focus mode" configuration screen, reached
  * by tapping the Timer tab's own Focus mode button (see TimerPlaceholderScreen). Functional now:
@@ -107,7 +100,9 @@ private val AppPreviewColors = listOf(
 @Composable
 fun FocusModeConfigScreen(
     viewModel: TimerViewModel = viewModel(),
-    onCloseClick: () -> Unit
+    blockedAppsViewModel: FocusBlockedAppsViewModel = viewModel(),
+    onCloseClick: () -> Unit,
+    onBlockDistractionsClick: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(FocusModeTab.TIMER) }
     var selectedLevel by remember { mutableStateOf(FocusLevel.DEEP) }
@@ -182,7 +177,11 @@ fun FocusModeConfigScreen(
                 )
             }
 
-            BlockDistractionsCard(modifier = Modifier.padding(top = 24.dp))
+            BlockDistractionsCard(
+                blockedAppsViewModel = blockedAppsViewModel,
+                onClick = onBlockDistractionsClick,
+                modifier = Modifier.padding(top = 24.dp)
+            )
 
             NotificationsCallsCard(modifier = Modifier.padding(top = 16.dp))
 
@@ -419,7 +418,7 @@ private fun FocusModeValueRow(title: String, value: String, onClick: (() -> Unit
 }
 
 @Composable
-private fun FocusModeSectionLabel(
+fun FocusModeSectionLabel(
     icon: @Composable (tint: Color) -> Unit,
     iconTint: Color,
     iconBackground: Color,
@@ -532,14 +531,30 @@ private fun FocusLevelRadioIndicator(selected: Boolean, modifier: Modifier = Mod
     }
 }
 
-/** Section icon + title/subtitle + chevron, plus a small selected-app preview row below (static
- * color-swatch placeholders standing in for real app icons - Phase 1 has no actual app selection,
- * so these are not real app logos) - reference's "app-selection preview area". UI-only: tapping
- * this card does nothing yet, and no app-blocking permission is requested in this phase. */
+/** Section icon + title/subtitle + chevron, plus a small selected-app preview row below - real
+ * icons (via [AppIconImage]) for whichever installed apps are currently selected in the Block
+ * Distracting Apps picker (see [FocusBlockedAppsViewModel]), not placeholder swatches. Tapping
+ * this card opens that picker; no app-blocking permission is requested or enforced in this phase,
+ * only the selection itself is real. */
 @Composable
-private fun BlockDistractionsCard(modifier: Modifier = Modifier) {
+private fun BlockDistractionsCard(
+    blockedAppsViewModel: FocusBlockedAppsViewModel,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val distractingApps by blockedAppsViewModel.distractingApps.collectAsState()
+    val discordApp by blockedAppsViewModel.discordApp.collectAsState()
+    val telegramApp by blockedAppsViewModel.telegramApp.collectAsState()
+    val otherApps by blockedAppsViewModel.otherApps.collectAsState()
+    val selectedPackages by blockedAppsViewModel.selectedPackages.collectAsState()
+
+    val selectedApps = remember(distractingApps, discordApp, telegramApp, otherApps, selectedPackages) {
+        (distractingApps + listOfNotNull(discordApp, telegramApp) + otherApps)
+            .filter { it.packageName in selectedPackages }
+    }
+
     Card(
-        modifier = modifier.fillMaxWidth().clickable(onClick = {}),
+        modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
@@ -574,30 +589,24 @@ private fun BlockDistractionsCard(modifier: Modifier = Modifier) {
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Row(modifier = Modifier.padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                AppPreviewColors.forEach { color ->
-                    AppPreviewTile(color = color, modifier = Modifier.padding(end = 8.dp))
+            if (selectedApps.isNotEmpty()) {
+                Row(modifier = Modifier.padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    selectedApps.take(4).forEach { app ->
+                        AppIconImage(app = app, size = 32.dp, modifier = Modifier.padding(end = 8.dp))
+                    }
+                    if (selectedApps.size > 4) {
+                        MoreAppsChip(count = selectedApps.size - 4)
+                    }
                 }
-                MoreAppsChip(count = 3)
             }
             Text(
-                text = stringResource(id = R.string.focus_mode_config_apps_selected_format, 4),
+                text = stringResource(id = R.string.focus_mode_config_apps_selected_format, selectedPackages.size),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
     }
-}
-
-@Composable
-private fun AppPreviewTile(color: Color, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .size(32.dp)
-            .clip(RoundedCornerShape(9.dp))
-            .background(color)
-    )
 }
 
 @Composable
