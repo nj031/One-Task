@@ -93,16 +93,16 @@ private val AppPreviewColors = listOf(
 /**
  * Phase 2 build of the new distraction-blocking-style "Focus mode" configuration screen, reached
  * by tapping the Timer tab's own Focus mode button (see TimerPlaceholderScreen). Functional now:
- * the Timer/Stopwatch selector, Focus Time selection (presets + the existing shared Custom
- * Duration picker), Breaks count, and Save & Start Focus (which starts the session on the shared
- * TimerViewModel and returns to the Timer tab - see NavGraph's viewModelStoreOwner wiring for why
- * this screen shares that instance rather than getting its own).
+ * the Timer/Stopwatch selector, Focus Time selection for Timer (presets + the existing shared
+ * Custom Duration picker) or the fixed "0 -> infinity" for Stopwatch (no duration - it counts up
+ * indefinitely), Breaks count (shared by both modes), and Save & Start Focus, which starts the
+ * matching kind of session (TimerViewModel.startFocusSession or startStopwatchFocusSession) on
+ * the shared TimerViewModel and returns to the Timer tab - see NavGraph's viewModelStoreOwner
+ * wiring for why this screen shares that instance rather than getting its own.
  *
  * Still UI-only, per spec: Focus Level, Block Distractions, and Notifications & Calls have no
- * behavioral effect this phase, and Stopwatch Focus Mode isn't implemented (only its UI state is
- * reachable via the selector - Save & Start Focus is disabled while it's selected). This screen
- * is entirely separate from, and does not touch, the existing task-timer Focus Mode feature
- * (FocusTimerScreen/TimerForegroundService).
+ * behavioral effect this phase. This screen is entirely separate from, and does not touch, the
+ * existing task-timer Focus Mode feature (FocusTimerScreen/TimerForegroundService).
  */
 @Composable
 fun FocusModeConfigScreen(
@@ -186,16 +186,15 @@ fun FocusModeConfigScreen(
 
             NotificationsCallsCard(modifier = Modifier.padding(top = 16.dp))
 
-            val canStartFocus = selectedTab == FocusModeTab.TIMER
             Button(
                 onClick = {
-                    if (canStartFocus) {
-                        hapticTick()
-                        viewModel.startFocusSession(selectedFocusTimeMinutes * 60_000L, selectedBreaksCount)
-                        onCloseClick()
+                    hapticTick()
+                    when (selectedTab) {
+                        FocusModeTab.TIMER -> viewModel.startFocusSession(selectedFocusTimeMinutes * 60_000L, selectedBreaksCount)
+                        FocusModeTab.STOPWATCH -> viewModel.startStopwatchFocusSession(selectedBreaksCount)
                     }
+                    onCloseClick()
                 },
-                enabled = canStartFocus,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 28.dp, bottom = 8.dp)
@@ -203,9 +202,7 @@ fun FocusModeConfigScreen(
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White,
-                    disabledContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    contentColor = Color.White
                 )
             ) {
                 Icon(imageVector = Icons.Filled.Check, contentDescription = null)
@@ -340,9 +337,10 @@ private fun FocusModeSegmentedTab(
     }
 }
 
-/** Focus Time/Breaks (Timer state, both functional - tapping opens a picker) or Total
- * duration/Breaks (Stopwatch state, still the reference's own static placeholders - Stopwatch
- * Focus Mode logic is out of scope for this phase). */
+/** Focus Time/Breaks (Timer state) or Total duration/Breaks (Stopwatch state). Breaks is
+ * functional in both states (shared selectedBreaksCount/onBreaksClick - one Focus session config
+ * regardless of which tab starts it); Focus Time is Timer-only, and Stopwatch's Total duration
+ * stays the reference's own fixed "0 -> infinity" text (never a real duration, per spec). */
 @Composable
 private fun FocusModeDurationCard(
     selectedTab: FocusModeTab,
@@ -352,6 +350,7 @@ private fun FocusModeDurationCard(
     onBreaksClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val breaksValue = stringResource(id = R.string.focus_mode_config_breaks_count_format, selectedBreaksCount)
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -368,7 +367,7 @@ private fun FocusModeDurationCard(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                     FocusModeValueRow(
                         title = stringResource(id = R.string.focus_mode_config_breaks),
-                        value = stringResource(id = R.string.focus_mode_config_breaks_count_format, selectedBreaksCount),
+                        value = breaksValue,
                         onClick = onBreaksClick
                     )
                 }
@@ -380,7 +379,8 @@ private fun FocusModeDurationCard(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                     FocusModeValueRow(
                         title = stringResource(id = R.string.focus_mode_config_breaks),
-                        value = stringResource(id = R.string.focus_mode_config_breaks_value_stopwatch)
+                        value = breaksValue,
+                        onClick = onBreaksClick
                     )
                 }
             }

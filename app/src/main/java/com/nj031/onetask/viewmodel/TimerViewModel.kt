@@ -27,8 +27,11 @@ import kotlinx.coroutines.launch
  * remember the last preset" requirement for the idle (nothing started yet) case.
  *
  * Also owns [focusOverlay] - the Timer tab's distraction-blocking Focus Mode session (see
- * FocusOverlayState's own doc comment for why this rides on top of the plain Timer countdown
- * above rather than being a separate engine). This is a different, unrelated system from the
+ * FocusOverlayState's own doc comment for why this rides on top of the plain Timer/Stopwatch
+ * engine above rather than being a separate one). A Focus session can be riding on either
+ * engine - its own pause/resume/stop always act on whichever one is currently active (see
+ * TimerSessionSnapshot.activeMode), since the two are already mutually exclusive by
+ * construction (see TimerSessionRepository). This is a different, unrelated system from the
  * existing task-based Focus Mode (FocusTimerScreen/TimerForegroundService/FocusSessionState),
  * which this class never touches.
  */
@@ -60,13 +63,18 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
 
                 val overlay = _focusOverlay.value
                 if (overlay != null) {
-                    if (current.activeMode != TimerMode.TIMER) {
-                        // The Focus session's own underlying Timer ended (natural completion just
-                        // above, or an explicit stopTimer()) - the overlay never outlives it: no
-                        // break prompt, no history, straight back to the normal idle Timer screen.
+                    if (current.activeMode == null) {
+                        // The Focus session's own underlying Timer/Stopwatch ended (natural Timer
+                        // completion just above, or an explicit stopTimer()/stopStopwatch()) - the
+                        // overlay never outlives it: no break prompt, no history, straight back to
+                        // the normal idle Timer/Stopwatch screen.
                         _focusOverlay.value = null
                     } else if (overlay.breakEndAtMillis != null && System.currentTimeMillis() >= overlay.breakEndAtMillis) {
-                        resumeTimer()
+                        when (current.activeMode) {
+                            TimerMode.TIMER -> resumeTimer()
+                            TimerMode.STOPWATCH -> resumeStopwatch()
+                            null -> {}
+                        }
                         _focusOverlay.value = overlay.copy(breakEndAtMillis = null)
                     }
                 }
@@ -125,7 +133,7 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
         StandaloneTimerForegroundService.stop(getApplication())
     }
 
-    /** Starts a Focus session: an ordinary Timer countdown (same engine, same background
+    /** Starts a Timer Focus session: an ordinary Timer countdown (same engine, same background
      * survival as a normal running Timer - see the class doc comment) plus the break bookkeeping
      * layered on top. Replaces whatever normal Timer/Stopwatch session (if any) was previously
      * active, exactly like starting a plain Timer already does. */
@@ -135,21 +143,39 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
         _focusOverlay.value = FocusOverlayState(breaksTotal = breaksTotal, breaksRemaining = breaksTotal)
     }
 
+    /** Starts a Stopwatch Focus session: an ordinary Stopwatch (counts up from 00:00, no fixed
+     * duration or completion point - see the class doc comment) plus the same break bookkeeping
+     * startFocusSession layers onto a Timer. */
+    fun startStopwatchFocusSession(breaksTotal: Int) {
+        startStopwatch()
+        _focusOverlay.value = FocusOverlayState(breaksTotal = breaksTotal, breaksRemaining = breaksTotal)
+    }
+
     /** Terminates the Focus session outright - not a completion, so nothing is recorded anywhere
-     * (there is no Focus History in this phase). Reuses stopTimer() as-is. */
+     * (there is no Focus History in this phase). Stops whichever engine (Timer or Stopwatch) the
+     * session is currently riding on. */
     fun stopFocusSession() {
-        stopTimer()
+        when (_snapshot.value.activeMode) {
+            TimerMode.TIMER -> stopTimer()
+            TimerMode.STOPWATCH -> stopStopwatch()
+            null -> {}
+        }
         _focusOverlay.value = null
     }
 
     /** Consumes exactly one break (no-op, returns false, if none remain or one is already in
-     * progress): freezes the Focus Timer's exact remaining time via the existing pauseTimer(),
-     * then starts a separate 10-minute break countdown. The break auto-resumes the Focus Timer
-     * from that exact preserved remaining time when it reaches zero (see the init tick loop). */
+     * progress): freezes the Focus session's exact elapsed/remaining time via the existing
+     * pauseTimer()/pauseStopwatch() (whichever engine is active), then starts a separate
+     * 10-minute break countdown. The break auto-resumes the Focus session from that exact
+     * preserved time when it reaches zero (see the init tick loop). */
     fun takeFocusBreak(): Boolean {
         val overlay = _focusOverlay.value ?: return false
         if (overlay.isOnBreak || overlay.breaksRemaining <= 0) return false
-        pauseTimer()
+        when (_snapshot.value.activeMode) {
+            TimerMode.TIMER -> pauseTimer()
+            TimerMode.STOPWATCH -> pauseStopwatch()
+            null -> return false
+        }
         _focusOverlay.value = overlay.copy(
             breaksRemaining = overlay.breaksRemaining - 1,
             breakEndAtMillis = System.currentTimeMillis() + FOCUS_BREAK_DURATION_MILLIS

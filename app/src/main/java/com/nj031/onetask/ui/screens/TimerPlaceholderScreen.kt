@@ -251,6 +251,9 @@ fun TimerPlaceholderScreen(
                         onPause = viewModel::pauseStopwatch,
                         onResume = viewModel::resumeStopwatch,
                         onStop = viewModel::stopStopwatch,
+                        focusOverlay = focusOverlay,
+                        onBreakButtonClick = handleTakeBreakRequest,
+                        onStopFocusButtonClick = { showStopConfirm = true },
                         wallpaper = wallpaper
                     )
                 }
@@ -775,13 +778,21 @@ private fun StopwatchModeContent(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onStop: () -> Unit,
+    focusOverlay: FocusOverlayState? = null,
+    onBreakButtonClick: () -> Unit = {},
+    onStopFocusButtonClick: () -> Unit = {},
     wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val hapticTick = rememberHapticTick()
     val isRunning = snapshot.isStopwatchRunning
     val isPaused = snapshot.isStopwatchPaused
     val isActive = isRunning || isPaused
-    val elapsedMillis = if (isActive) snapshot.stopwatchElapsedNowMillis() else 0L
+    val isOnBreak = focusOverlay?.isOnBreak == true
+    val elapsedMillis = when {
+        isOnBreak -> focusOverlay!!.breakRemainingNowMillis()
+        isActive -> snapshot.stopwatchElapsedNowMillis()
+        else -> 0L
+    }
 
     Box(
         modifier = Modifier
@@ -795,30 +806,43 @@ private fun StopwatchModeContent(
         }
     }
 
-    when {
-        !isActive -> TimerPrimaryButton(
-            icon = { OneTaskPlayIcon(tint = Color.White, size = 20.dp) },
-            label = stringResource(id = R.string.timer_start_button),
-            onClick = { hapticTick(); onStart() },
-            modifier = Modifier.padding(top = 28.dp),
+    if (focusOverlay != null) {
+        FocusRunningControls(
+            isOnBreak = isOnBreak,
+            isRunning = isRunning,
+            breaksRemaining = focusOverlay.breaksRemaining,
+            onPause = { hapticTick(); onPause() },
+            onResume = { hapticTick(); onResume() },
+            onBreakClick = { hapticTick(); onBreakButtonClick() },
+            onStopClick = { hapticTick(); onStopFocusButtonClick() },
             wallpaper = wallpaper
         )
-        isRunning -> TimerPrimaryButton(
-            icon = { OneTaskPauseIcon(tint = Color.White, size = 20.dp) },
-            label = stringResource(id = R.string.pause),
-            onClick = { hapticTick(); onPause() },
-            modifier = Modifier.padding(top = 28.dp),
-            wallpaper = wallpaper
-        )
-        isPaused -> {
-            TimerPrimaryButton(
+    } else {
+        when {
+            !isActive -> TimerPrimaryButton(
                 icon = { OneTaskPlayIcon(tint = Color.White, size = 20.dp) },
-                label = stringResource(id = R.string.resume),
-                onClick = { hapticTick(); onResume() },
+                label = stringResource(id = R.string.timer_start_button),
+                onClick = { hapticTick(); onStart() },
                 modifier = Modifier.padding(top = 28.dp),
                 wallpaper = wallpaper
             )
-            TimerSecondaryStopButton(onClick = { hapticTick(); onStop() })
+            isRunning -> TimerPrimaryButton(
+                icon = { OneTaskPauseIcon(tint = Color.White, size = 20.dp) },
+                label = stringResource(id = R.string.pause),
+                onClick = { hapticTick(); onPause() },
+                modifier = Modifier.padding(top = 28.dp),
+                wallpaper = wallpaper
+            )
+            isPaused -> {
+                TimerPrimaryButton(
+                    icon = { OneTaskPlayIcon(tint = Color.White, size = 20.dp) },
+                    label = stringResource(id = R.string.resume),
+                    onClick = { hapticTick(); onResume() },
+                    modifier = Modifier.padding(top = 28.dp),
+                    wallpaper = wallpaper
+                )
+                TimerSecondaryStopButton(onClick = { hapticTick(); onStop() })
+            }
         }
     }
 
