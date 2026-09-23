@@ -494,29 +494,43 @@
     <string name="focus_mode_config_breaks_count_format">%1$d breaks</string>
     <string name="focus_mode_config_total_duration">Total duration</string>
     <string name="focus_mode_config_total_duration_value">0 → ∞</string>
-    <string name="focus_mode_config_level_title">Focus level</string>
-    <string name="focus_mode_config_level_subtitle">Choose how strictly to block distractions.</string>
-    <string name="focus_mode_config_level_light">Light</string>
-    <string name="focus_mode_config_level_light_description">Mute notifications (calls allowed)</string>
-    <string name="focus_mode_config_level_deep">Deep</string>
-    <string name="focus_mode_config_level_deep_description">Mute notifications, limit apps</string>
-    <string name="focus_mode_config_level_strict">Strict</string>
-    <string name="focus_mode_config_level_strict_description">Maximum blocking (only essential apps)</string>
+    <string name="focus_mode_config_strict_mode_title">Strict Mode</string>
+    <string name="focus_mode_config_strict_mode_subtitle">You can\'t stop Focus before the session ends.</string>
     <string name="focus_mode_config_block_distractions_title">Block distracting apps</string>
     <string name="focus_mode_config_block_distractions_subtitle">Block selected apps during focus.</string>
     <string name="focus_mode_config_apps_selected_format">%1$d apps selected</string>
     <string name="focus_mode_config_more_apps_format">+%1$d</string>
     <string name="focus_mode_config_notifications_calls_title">Notifications &amp; Calls</string>
-    <string name="focus_mode_config_notifications_calls_subtitle">Mute notifications and/or block incoming calls during focus.</string>
+    <string name="focus_mode_config_notifications_calls_subtitle">Manage notifications and incoming calls during focus.</string>
+    <string name="focus_mode_config_notifications_calls_summary_format">%1$s • %2$s</string>
     <string name="focus_mode_config_save_and_start">Save &amp; Start Focus</string>
+
+    <!-- Notifications &amp; Calls picker dialog (Phase 12) - reached from Focus Mode
+         Configuration's Notifications &amp; Calls card. -->
+    <string name="focus_notifications_section_title">Notifications</string>
+    <string name="focus_notifications_option_none">No notifications</string>
+    <string name="focus_notifications_option_none_description">Notifications are hidden until Focus restrictions end.</string>
+    <string name="focus_notifications_option_silent">Silent</string>
+    <string name="focus_notifications_option_silent_description">Notifications stay visible, without sound or vibration.</string>
+    <string name="focus_notifications_option_allow">Allow</string>
+    <string name="focus_notifications_option_allow_description">Notifications behave normally.</string>
+    <string name="focus_calls_section_title">Calls</string>
+    <string name="focus_calls_option_silent">Silent</string>
+    <string name="focus_calls_option_silent_description">Calls still ring through, without sound or vibration.</string>
+    <string name="focus_calls_option_allow">Allow</string>
+    <string name="focus_calls_option_allow_description">Calls behave normally.</string>
+
+    <!-- Notification Policy Access gate dialog (Phase 12) - mirrors
+         focus_mode_enable_blocking_* below, shown only when Silent/No notifications is selected
+         and the permission isn\'t granted yet. -->
+    <string name="focus_mode_enable_notification_policy_title">Enable Do Not Disturb Access</string>
+    <string name="focus_mode_enable_notification_policy_message">Silencing notifications and calls during Focus requires turning on One Task\'s Do Not Disturb access permission in system Settings.</string>
+    <string name="focus_mode_enable_notification_policy_allow">Allow</string>
+    <string name="focus_mode_enable_notification_policy_deny">Deny</string>
 
     <!-- Block Distracting Apps picker (Phase 5) - reached from Focus Mode Configuration's Block
          Distractions card. Selection UI only; no app-blocking enforcement yet. -->
     <string name="block_apps_screen_subtitle">Choose apps to block during your focus session.</string>
-    <string name="block_apps_youtube_title">YouTube</string>
-    <string name="block_apps_youtube_subtitle">Control what to block on YouTube.</string>
-    <string name="block_apps_short_form_title">Short-form Videos</string>
-    <string name="block_apps_short_form_subtitle">Block short videos across multiple apps.</string>
     <string name="block_apps_other_apps_title">Other Apps</string>
     <string name="block_apps_other_apps_subtitle">Choose which apps to block during focus.</string>
     <string name="block_apps_distracting_apps_title">Distracting Apps</string>

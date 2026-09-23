@@ -33,7 +33,25 @@ data class FocusOverlayState(
      * once at session start and never mutated by pause/resume/break/auto-resume - it shares this
      * whole class's in-memory, session-scoped lifecycle (cleared only when the overlay itself is,
      * i.e. on session stop or natural completion). */
-    val blockedPackages: Set<String> = emptySet()
+    val blockedPackages: Set<String> = emptySet(),
+    /** Phase 12: the Notifications/Calls restriction levels selected for this session - see
+     * FocusNotificationPolicyManager for how each is actually applied. Both default to ALLOW
+     * (no restriction), matching a session started with no explicit selection. */
+    val notificationsMode: FocusNotificationsMode = FocusNotificationsMode.ALLOW,
+    val callsMode: FocusCallsMode = FocusCallsMode.ALLOW,
+    /** Phase 12: the system's own DND/ringer state as it was the moment this session started,
+     * captured once regardless of which modes are selected - null only before FocusNotificationPolicyManager
+     * has captured it, which should never observably happen (TimerViewModel captures it in the
+     * same call that creates this overlay). Restored exactly (never a hardcoded revert target) at
+     * break-start/stop/natural-completion; reapplied (not recaptured) at break-end. */
+    val priorNotificationPolicy: FocusNotificationPolicySnapshot? = null,
+    /** Phase 13: when true, [breaksTotal]/blocking/notifications-calls all keep working exactly
+     * as configured, but stopFocusSession() must be unreachable from the UI before the session
+     * ends naturally - see TimerPlaceholderScreen's gating of the Stop button and "Stop focusing"
+     * menu row, the only two call sites of stopFocusSession(). Enforced purely in the UI layer
+     * (no persistence needed), matching this whole class's existing in-memory/session-scoped,
+     * UI-enforcement-only precedent (e.g. breaksTotal). */
+    val strictModeEnabled: Boolean = false
 ) {
     val isOnBreak: Boolean get() = breakEndAtMillis != null
 

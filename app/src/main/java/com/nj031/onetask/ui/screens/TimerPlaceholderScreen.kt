@@ -118,6 +118,10 @@ fun TimerPlaceholderScreen(
     val selectedIdleDurationMillis by viewModel.selectedIdleDurationMillis.collectAsState()
     val focusOverlay by viewModel.focusOverlay.collectAsState()
     val isFocusActive = focusOverlay != null
+    // Phase 13: Strict Mode only ever gates whether the Stop action can reach
+    // viewModel.stopFocusSession() early - see FocusActionMenuDialog's stopFocusingEnabled and
+    // FocusRunningControls' strictModeEnabled, the two (and only) UI paths that call it.
+    val strictModeEnabled = focusOverlay?.strictModeEnabled == true
 
     var showFocusActionMenu by remember { mutableStateOf(false) }
     var showBreakConfirm by remember { mutableStateOf(false) }
@@ -242,7 +246,7 @@ fun TimerPlaceholderScreen(
                         onFocusModeClick = handleFocusModeClick,
                         focusOverlay = focusOverlay,
                         onBreakButtonClick = handleTakeBreakRequest,
-                        onStopFocusButtonClick = { showStopConfirm = true },
+                        onStopFocusButtonClick = { if (!strictModeEnabled) showStopConfirm = true },
                         onEndBreakButtonClick = viewModel::endFocusBreak,
                         wallpaper = wallpaper
                     )
@@ -254,7 +258,7 @@ fun TimerPlaceholderScreen(
                         onStop = viewModel::stopStopwatch,
                         focusOverlay = focusOverlay,
                         onBreakButtonClick = handleTakeBreakRequest,
-                        onStopFocusButtonClick = { showStopConfirm = true },
+                        onStopFocusButtonClick = { if (!strictModeEnabled) showStopConfirm = true },
                         onEndBreakButtonClick = viewModel::endFocusBreak,
                         wallpaper = wallpaper
                     )
@@ -278,8 +282,14 @@ fun TimerPlaceholderScreen(
     if (showFocusActionMenu) {
         FocusActionMenuDialog(
             breaksRemaining = focusOverlay?.breaksRemaining ?: 0,
+            stopFocusingEnabled = !strictModeEnabled,
             onTakeBreak = { showFocusActionMenu = false; handleTakeBreakRequest() },
-            onStopFocusing = { showFocusActionMenu = false; showStopConfirm = true },
+            onStopFocusing = {
+                if (!strictModeEnabled) {
+                    showFocusActionMenu = false
+                    showStopConfirm = true
+                }
+            },
             onCancel = { showFocusActionMenu = false }
         )
     }
@@ -318,6 +328,7 @@ fun TimerPlaceholderScreen(
 @Composable
 private fun FocusActionMenuDialog(
     breaksRemaining: Int,
+    stopFocusingEnabled: Boolean,
     onTakeBreak: () -> Unit,
     onStopFocusing: () -> Unit,
     onCancel: () -> Unit
@@ -334,9 +345,13 @@ private fun FocusActionMenuDialog(
                     subtitle = stringResource(id = R.string.focus_break_confirm_message_format, breaksRemaining),
                     onClick = onTakeBreak
                 )
+                // Strict Mode (Phase 13): visible but disabled - never removed from the UI, never
+                // clickable, so this menu can never be used to bypass the same gate the standalone
+                // Stop button enforces (see TimerModeContent/StopwatchModeContent's FocusRunningControls).
                 FocusActionMenuRow(
                     title = stringResource(id = R.string.focus_action_menu_stop_focusing),
-                    onClick = onStopFocusing
+                    onClick = onStopFocusing,
+                    enabled = stopFocusingEnabled
                 )
                 FocusActionMenuRow(
                     title = stringResource(id = R.string.cancel),
@@ -348,18 +363,19 @@ private fun FocusActionMenuDialog(
 }
 
 @Composable
-private fun FocusActionMenuRow(title: String, onClick: () -> Unit, subtitle: String? = null) {
+private fun FocusActionMenuRow(title: String, onClick: () -> Unit, subtitle: String? = null, enabled: Boolean = true) {
+    val contentColor = if (enabled) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.outline
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 20.dp, vertical = 14.dp)
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground
+            color = contentColor
         )
         if (subtitle != null) {
             Text(
@@ -645,6 +661,7 @@ private fun TimerModeContent(
             isOnBreak = isOnBreak,
             isRunning = isRunning,
             breaksRemaining = focusOverlay.breaksRemaining,
+            strictModeEnabled = focusOverlay.strictModeEnabled,
             onPause = { hapticTick(); onPause() },
             onResume = { hapticTick(); onResume() },
             onBreakClick = { hapticTick(); onBreakButtonClick() },
@@ -689,6 +706,7 @@ private fun FocusRunningControls(
     isOnBreak: Boolean,
     isRunning: Boolean,
     breaksRemaining: Int,
+    strictModeEnabled: Boolean,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onBreakClick: () -> Unit,
@@ -748,7 +766,9 @@ private fun FocusRunningControls(
     }
 
     if (!isRunning) {
-        TimerSecondaryStopButton(onClick = onStopClick)
+        // Strict Mode (Phase 13): visible but disabled - never removed from the UI - see
+        // TimerSecondaryStopButton's own doc comment.
+        TimerSecondaryStopButton(onClick = onStopClick, enabled = !strictModeEnabled)
     }
 }
 
@@ -821,6 +841,7 @@ private fun StopwatchModeContent(
             isOnBreak = isOnBreak,
             isRunning = isRunning,
             breaksRemaining = focusOverlay.breaksRemaining,
+            strictModeEnabled = focusOverlay.strictModeEnabled,
             onPause = { hapticTick(); onPause() },
             onResume = { hapticTick(); onResume() },
             onBreakClick = { hapticTick(); onBreakButtonClick() },
@@ -1078,25 +1099,30 @@ private fun TimerPrimaryButton(
     }
 }
 
+/** [enabled] defaults to true for this button's plain (non-Focus) Timer/Stopwatch call sites,
+ * which have no notion of Strict Mode. The Focus session's own call site (FocusRunningControls)
+ * passes `!strictModeEnabled` - per Phase 13, the Stop action must stay visible but become
+ * non-interactive (dimmed, no click) while Strict Mode is active, never be removed from the UI. */
 @Composable
-private fun TimerSecondaryStopButton(onClick: () -> Unit) {
+private fun TimerSecondaryStopButton(onClick: () -> Unit, enabled: Boolean = true) {
+    val contentColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 10.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.secondaryContainer)
-            .clickable(onClick = onClick)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = 12.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        OneTaskStopIcon(tint = MaterialTheme.colorScheme.primary, size = 16.dp)
+        OneTaskStopIcon(tint = contentColor, size = 16.dp)
         Text(
             text = stringResource(id = R.string.timer_stop_button),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
+            color = contentColor,
             modifier = Modifier.padding(start = 8.dp)
         )
     }

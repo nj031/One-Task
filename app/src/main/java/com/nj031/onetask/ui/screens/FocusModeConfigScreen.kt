@@ -34,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -54,22 +55,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
+import com.nj031.onetask.data.timer.FocusCallsMode
+import com.nj031.onetask.data.timer.FocusNotificationsMode
 import com.nj031.onetask.data.timer.MAX_FOCUS_BREAKS
 import com.nj031.onetask.service.FocusAccessibilityUtil
+import com.nj031.onetask.service.FocusNotificationPolicyManager
 import com.nj031.onetask.ui.components.OneTaskDurationPickerDialog
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.ui.theme.OneTaskCardViewIcon
 import com.nj031.onetask.ui.theme.OneTaskClockIcon
-import com.nj031.onetask.ui.theme.OneTaskLeafIcon
 import com.nj031.onetask.ui.theme.OneTaskLockIcon
 import com.nj031.onetask.ui.theme.OneTaskPhoneIcon
 import com.nj031.onetask.ui.theme.OneTaskStopwatchIcon
-import com.nj031.onetask.ui.theme.OneTaskTargetIcon
 import com.nj031.onetask.viewmodel.FocusBlockedAppsViewModel
 import com.nj031.onetask.viewmodel.TimerViewModel
 
 private enum class FocusModeTab { TIMER, STOPWATCH }
-private enum class FocusLevel { LIGHT, DEEP, STRICT }
 
 /** The Timer tab's own existing Focus Time presets, reused as-is (see TimerPlaceholderScreen's
  * own TIMER_PRESET_MINUTES) rather than inventing separate Focus Mode values. */
@@ -79,7 +80,7 @@ private const val DEFAULT_FOCUS_TIME_MINUTES = 5
 /**
  * Fixed accent for Block Distractions (green), matching the reference design's per-section color
  * differentiation - independent of the user's selected app-wide color theme, since green is not a
- * semantic slot in One Task's theme system. Focus Level and Notifications & Calls instead reuse
+ * semantic slot in One Task's theme system. Strict Mode and Notifications & Calls instead reuse
  * the app's own dynamic MaterialTheme.colorScheme primary/secondaryContainer tokens, matching the
  * reference's blue in this app's default theme while staying theme-adaptive like every other
  * screen.
@@ -88,18 +89,19 @@ private val BlockDistractionsAccent = Color(0xFF22B455)
 private val BlockDistractionsAccentBackground = Color(0xFFE8F8EE)
 
 /**
- * Phase 2 build of the new distraction-blocking-style "Focus mode" configuration screen, reached
- * by tapping the Timer tab's own Focus mode button (see TimerPlaceholderScreen). Functional now:
- * the Timer/Stopwatch selector, Focus Time selection for Timer (presets + the existing shared
- * Custom Duration picker) or the fixed "0 -> infinity" for Stopwatch (no duration - it counts up
- * indefinitely), Breaks count (shared by both modes), and Save & Start Focus, which starts the
- * matching kind of session (TimerViewModel.startFocusSession or startStopwatchFocusSession) on
- * the shared TimerViewModel and returns to the Timer tab - see NavGraph's viewModelStoreOwner
- * wiring for why this screen shares that instance rather than getting its own.
+ * The distraction-blocking-style "Focus mode" configuration screen, reached by tapping the Timer
+ * tab's own Focus mode button (see TimerPlaceholderScreen). Fully functional: the Timer/Stopwatch
+ * selector, Focus Time selection for Timer (presets + the existing shared Custom Duration picker)
+ * or the fixed "0 -> infinity" for Stopwatch (no duration - it counts up indefinitely), Breaks
+ * count (shared by both modes), Strict Mode (Phase 13 - see [StrictModeCard]), Block Distractions,
+ * and Notifications & Calls (Phase 12 - see [NotificationsCallsCard]/[FocusNotificationPolicyManager]),
+ * and Save & Start Focus, which starts the matching kind of session
+ * (TimerViewModel.startFocusSession or startStopwatchFocusSession) with all of the above on the
+ * shared TimerViewModel and returns to the Timer tab - see NavGraph's viewModelStoreOwner wiring
+ * for why this screen shares that instance rather than getting its own.
  *
- * Still UI-only, per spec: Focus Level, Block Distractions, and Notifications & Calls have no
- * behavioral effect this phase. This screen is entirely separate from, and does not touch, the
- * existing task-timer Focus Mode feature (FocusTimerScreen/TimerForegroundService).
+ * This screen is entirely separate from, and does not touch, the existing task-timer Focus Mode
+ * feature (FocusTimerScreen/TimerForegroundService).
  */
 @Composable
 fun FocusModeConfigScreen(
@@ -109,18 +111,22 @@ fun FocusModeConfigScreen(
     onBlockDistractionsClick: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(FocusModeTab.TIMER) }
-    var selectedLevel by remember { mutableStateOf(FocusLevel.DEEP) }
     var selectedFocusTimeMinutes by remember { mutableStateOf(DEFAULT_FOCUS_TIME_MINUTES) }
     var selectedBreaksCount by remember { mutableStateOf(MAX_FOCUS_BREAKS) }
+    var selectedNotificationsMode by remember { mutableStateOf(FocusNotificationsMode.ALLOW) }
+    var selectedCallsMode by remember { mutableStateOf(FocusCallsMode.ALLOW) }
+    var strictModeEnabled by remember { mutableStateOf(false) }
     var showFocusTimePicker by remember { mutableStateOf(false) }
     var showCustomDurationPicker by remember { mutableStateOf(false) }
     var showBreaksPicker by remember { mutableStateOf(false) }
+    var showNotificationsCallsPicker by remember { mutableStateOf(false) }
     var showEnableBlockingDialog by remember { mutableStateOf(false) }
+    var showEnableNotificationPolicyDialog by remember { mutableStateOf(false) }
     val hapticTick = rememberHapticTick()
     val context = LocalContext.current
 
     /** Starts whichever Focus session is currently selected - the actual "Save & Start Focus"
-     * action, factored out so both the direct (Accessibility already enabled/not needed) path and
+     * action, factored out so both the direct (permissions already granted/not needed) path and
      * the post-dialog-Allow path (user returns from Settings and taps the button again) call the
      * exact same logic, never a second copy of it. */
     fun startSelectedFocusSession() {
@@ -129,9 +135,18 @@ fun FocusModeConfigScreen(
             FocusModeTab.TIMER -> viewModel.startFocusSession(
                 selectedFocusTimeMinutes * 60_000L,
                 selectedBreaksCount,
-                blockedPackages
+                blockedPackages,
+                selectedNotificationsMode,
+                selectedCallsMode,
+                strictModeEnabled
             )
-            FocusModeTab.STOPWATCH -> viewModel.startStopwatchFocusSession(selectedBreaksCount, blockedPackages)
+            FocusModeTab.STOPWATCH -> viewModel.startStopwatchFocusSession(
+                selectedBreaksCount,
+                blockedPackages,
+                selectedNotificationsMode,
+                selectedCallsMode,
+                strictModeEnabled
+            )
         }
         onCloseClick()
     }
@@ -162,51 +177,24 @@ fun FocusModeConfigScreen(
                 modifier = Modifier.padding(top = 16.dp)
             )
 
-            FocusModeSectionLabel(
-                icon = { tint -> OneTaskTargetIcon(tint = tint, size = 18.dp) },
-                iconTint = MaterialTheme.colorScheme.primary,
-                iconBackground = MaterialTheme.colorScheme.secondaryContainer,
-                title = stringResource(id = R.string.focus_mode_config_level_title),
-                subtitle = stringResource(id = R.string.focus_mode_config_level_subtitle),
-                modifier = Modifier.padding(top = 28.dp)
+            StrictModeCard(
+                enabled = strictModeEnabled,
+                onToggle = { hapticTick(); strictModeEnabled = !strictModeEnabled },
+                modifier = Modifier.padding(top = 24.dp)
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FocusLevelCard(
-                    icon = { tint -> OneTaskLeafIcon(tint = tint, size = 18.dp) },
-                    title = stringResource(id = R.string.focus_mode_config_level_light),
-                    description = stringResource(id = R.string.focus_mode_config_level_light_description),
-                    selected = selectedLevel == FocusLevel.LIGHT,
-                    onClick = { hapticTick(); selectedLevel = FocusLevel.LIGHT },
-                    modifier = Modifier.weight(1f)
-                )
-                FocusLevelCard(
-                    icon = { tint -> OneTaskTargetIcon(tint = tint, size = 18.dp) },
-                    title = stringResource(id = R.string.focus_mode_config_level_deep),
-                    description = stringResource(id = R.string.focus_mode_config_level_deep_description),
-                    selected = selectedLevel == FocusLevel.DEEP,
-                    onClick = { hapticTick(); selectedLevel = FocusLevel.DEEP },
-                    modifier = Modifier.weight(1f)
-                )
-                FocusLevelCard(
-                    icon = { tint -> OneTaskLockIcon(tint = tint, size = 18.dp) },
-                    title = stringResource(id = R.string.focus_mode_config_level_strict),
-                    description = stringResource(id = R.string.focus_mode_config_level_strict_description),
-                    selected = selectedLevel == FocusLevel.STRICT,
-                    onClick = { hapticTick(); selectedLevel = FocusLevel.STRICT },
-                    modifier = Modifier.weight(1f)
-                )
-            }
 
             BlockDistractionsCard(
                 blockedAppsViewModel = blockedAppsViewModel,
                 onClick = onBlockDistractionsClick,
-                modifier = Modifier.padding(top = 24.dp)
+                modifier = Modifier.padding(top = 16.dp)
             )
 
-            NotificationsCallsCard(modifier = Modifier.padding(top = 16.dp))
+            NotificationsCallsCard(
+                notificationsMode = selectedNotificationsMode,
+                callsMode = selectedCallsMode,
+                onClick = { hapticTick(); showNotificationsCallsPicker = true },
+                modifier = Modifier.padding(top = 16.dp)
+            )
 
             Button(
                 onClick = {
@@ -214,10 +202,13 @@ fun FocusModeConfigScreen(
                     val blockedPackages = blockedAppsViewModel.selectedPackages.value
                     val blockingNeedsAccessibility = blockedPackages.isNotEmpty() &&
                         !FocusAccessibilityUtil.isFocusBlockingServiceEnabled(context)
-                    if (blockingNeedsAccessibility) {
-                        showEnableBlockingDialog = true
-                    } else {
-                        startSelectedFocusSession()
+                    val notificationsCallsNeedPolicyAccess =
+                        (selectedNotificationsMode != FocusNotificationsMode.ALLOW || selectedCallsMode != FocusCallsMode.ALLOW) &&
+                            !FocusNotificationPolicyManager.isNotificationPolicyAccessGranted(context)
+                    when {
+                        blockingNeedsAccessibility -> showEnableBlockingDialog = true
+                        notificationsCallsNeedPolicyAccess -> showEnableNotificationPolicyDialog = true
+                        else -> startSelectedFocusSession()
                     }
                 },
                 modifier = Modifier
@@ -285,6 +276,29 @@ fun FocusModeConfigScreen(
                 context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             },
             onDeny = { showEnableBlockingDialog = false }
+        )
+    }
+
+    if (showNotificationsCallsPicker) {
+        NotificationsCallsPickerDialog(
+            selectedNotificationsMode = selectedNotificationsMode,
+            selectedCallsMode = selectedCallsMode,
+            onConfirm = { notificationsMode, callsMode ->
+                selectedNotificationsMode = notificationsMode
+                selectedCallsMode = callsMode
+                showNotificationsCallsPicker = false
+            },
+            onDismiss = { showNotificationsCallsPicker = false }
+        )
+    }
+
+    if (showEnableNotificationPolicyDialog) {
+        EnableNotificationPolicyDialog(
+            onAllow = {
+                showEnableNotificationPolicyDialog = false
+                context.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+            },
+            onDeny = { showEnableNotificationPolicyDialog = false }
         )
     }
 }
@@ -489,81 +503,46 @@ fun FocusModeSectionLabel(
     }
 }
 
-/** One Focus Level option (Light/Deep/Strict) - a compact, selectable reference-style card:
- * icon top-left in a neutral circle, a radio indicator top-right, title and description below.
- * UI-only: no restrictions are actually applied for whichever level is highlighted here. */
+/** Phase 13: the single Strict Mode setting that replaced the old 3-card Focus Level concept -
+ * a plain icon/title/subtitle row (matching this screen's other cards) plus a Switch, mirroring
+ * NotificationsSettingsScreen's own NotificationToggleRow shape. Strict Mode only ever gates
+ * whether the Stop action reaches TimerViewModel.stopFocusSession() early - see that function's
+ * own doc comment and TimerPlaceholderScreen's gating of its two call sites. */
 @Composable
-private fun FocusLevelCard(
-    icon: @Composable (tint: Color) -> Unit,
-    title: String,
-    description: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
+private fun StrictModeCard(enabled: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
         modifier = modifier
+            .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface)
-            .border(
-                width = 1.dp,
-                color = if (selected) Color.Transparent else MaterialTheme.colorScheme.outline,
-                shape = RoundedCornerShape(16.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(12.dp)
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClick = onToggle)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
-            ) {
-                icon(MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            FocusLevelRadioIndicator(selected = selected)
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.secondaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            OneTaskLockIcon(tint = MaterialTheme.colorScheme.primary, size = 18.dp)
         }
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(top = 10.dp)
-        )
-        Text(
-            text = description,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 2.dp)
-        )
-    }
-}
-
-/** A plain radio button (outline ring, filled with a blue dot when selected) - the reference's
- * own selection indicator for a Focus Level card, deliberately not a checkmark. */
-@Composable
-private fun FocusLevelRadioIndicator(selected: Boolean, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .size(20.dp)
-            .clip(CircleShape)
-            .border(
-                width = 2.dp,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                shape = CircleShape
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        if (selected) {
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
+        Column(modifier = Modifier.weight(1f).padding(start = 14.dp)) {
+            Text(
+                text = stringResource(id = R.string.focus_mode_config_strict_mode_title),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = stringResource(id = R.string.focus_mode_config_strict_mode_subtitle),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp)
             )
         }
+        Switch(checked = enabled, onCheckedChange = { onToggle() })
     }
 }
 
@@ -663,14 +642,36 @@ private fun MoreAppsChip(count: Int, modifier: Modifier = Modifier) {
     }
 }
 
+/** Phase 12: label shown for the currently selected Notifications mode - see
+ * FocusNotificationsMode/FocusNotificationPolicyManager for how each mode actually behaves. */
 @Composable
-private fun NotificationsCallsCard(modifier: Modifier = Modifier) {
+private fun FocusNotificationsMode.label(): String = when (this) {
+    FocusNotificationsMode.NONE -> stringResource(id = R.string.focus_notifications_option_none)
+    FocusNotificationsMode.SILENT -> stringResource(id = R.string.focus_notifications_option_silent)
+    FocusNotificationsMode.ALLOW -> stringResource(id = R.string.focus_notifications_option_allow)
+}
+
+/** Phase 12: label shown for the currently selected Calls mode - see FocusCallsMode for why there
+ * is deliberately no "block calls" option. */
+@Composable
+private fun FocusCallsMode.label(): String = when (this) {
+    FocusCallsMode.SILENT -> stringResource(id = R.string.focus_calls_option_silent)
+    FocusCallsMode.ALLOW -> stringResource(id = R.string.focus_calls_option_allow)
+}
+
+@Composable
+private fun NotificationsCallsCard(
+    notificationsMode: FocusNotificationsMode,
+    callsMode: FocusCallsMode,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .clickable(onClick = {})
+            .clickable(onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -703,7 +704,15 @@ private fun NotificationsCallsCard(modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                text = stringResource(id = R.string.focus_mode_config_notifications_calls_subtitle),
+                text = if (notificationsMode == FocusNotificationsMode.ALLOW && callsMode == FocusCallsMode.ALLOW) {
+                    stringResource(id = R.string.focus_mode_config_notifications_calls_subtitle)
+                } else {
+                    stringResource(
+                        id = R.string.focus_mode_config_notifications_calls_summary_format,
+                        notificationsMode.label(),
+                        callsMode.label()
+                    )
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp)
@@ -714,6 +723,168 @@ private fun NotificationsCallsCard(modifier: Modifier = Modifier) {
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+/** Notifications &amp; Calls picker (Phase 12): two labeled option groups (Notifications' 3 modes,
+ * Calls' 2 modes), each a column of selectable rows matching this screen's existing dialog shell
+ * (compare BreaksPickerDialog/FocusTimePickerDialog) - a simple checkmark-style row rather than
+ * pills/cards since there are more options here than fit comfortably in a row. Confirms both
+ * selections together via a single Done button, matching block_apps_done_format's "Done" style
+ * rather than auto-closing on tap, so the user can freely change either group before confirming. */
+@Composable
+private fun NotificationsCallsPickerDialog(
+    selectedNotificationsMode: FocusNotificationsMode,
+    selectedCallsMode: FocusCallsMode,
+    onConfirm: (FocusNotificationsMode, FocusCallsMode) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var pendingNotificationsMode by remember(selectedNotificationsMode) { mutableStateOf(selectedNotificationsMode) }
+    var pendingCallsMode by remember(selectedCallsMode) { mutableStateOf(selectedCallsMode) }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 6.dp
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+                Text(
+                    text = stringResource(id = R.string.focus_mode_config_notifications_calls_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                Text(
+                    text = stringResource(id = R.string.focus_notifications_section_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                NotificationsCallsOptionRow(
+                    label = stringResource(id = R.string.focus_notifications_option_none),
+                    description = stringResource(id = R.string.focus_notifications_option_none_description),
+                    selected = pendingNotificationsMode == FocusNotificationsMode.NONE,
+                    onClick = { pendingNotificationsMode = FocusNotificationsMode.NONE }
+                )
+                NotificationsCallsOptionRow(
+                    label = stringResource(id = R.string.focus_notifications_option_silent),
+                    description = stringResource(id = R.string.focus_notifications_option_silent_description),
+                    selected = pendingNotificationsMode == FocusNotificationsMode.SILENT,
+                    onClick = { pendingNotificationsMode = FocusNotificationsMode.SILENT }
+                )
+                NotificationsCallsOptionRow(
+                    label = stringResource(id = R.string.focus_notifications_option_allow),
+                    description = stringResource(id = R.string.focus_notifications_option_allow_description),
+                    selected = pendingNotificationsMode == FocusNotificationsMode.ALLOW,
+                    onClick = { pendingNotificationsMode = FocusNotificationsMode.ALLOW }
+                )
+
+                Text(
+                    text = stringResource(id = R.string.focus_calls_section_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+                NotificationsCallsOptionRow(
+                    label = stringResource(id = R.string.focus_calls_option_silent),
+                    description = stringResource(id = R.string.focus_calls_option_silent_description),
+                    selected = pendingCallsMode == FocusCallsMode.SILENT,
+                    onClick = { pendingCallsMode = FocusCallsMode.SILENT }
+                )
+                NotificationsCallsOptionRow(
+                    label = stringResource(id = R.string.focus_calls_option_allow),
+                    description = stringResource(id = R.string.focus_calls_option_allow_description),
+                    selected = pendingCallsMode == FocusCallsMode.ALLOW,
+                    onClick = { pendingCallsMode = FocusCallsMode.ALLOW }
+                )
+
+                Row(modifier = Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) {
+                        Text(text = stringResource(id = R.string.cancel))
+                    }
+                    TextButton(onClick = { onConfirm(pendingNotificationsMode, pendingCallsMode) }) {
+                        Text(text = stringResource(id = R.string.done_action))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationsCallsOptionRow(label: String, description: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 1.dp)
+            )
+        }
+        if (selected) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+/** Basic gate dialog shown only when Notifications and/or Calls is set to a restricting mode but
+ * FocusNotificationPolicyManager.isNotificationPolicyAccessGranted is currently false - mirrors
+ * EnableAppBlockingDialog exactly (see its own doc comment for why this shape: deep link to system
+ * Settings, no in-app runtime permission dialog exists for this either, re-checked fresh on every
+ * Save & Start Focus tap rather than cached). Deny simply closes this dialog without starting
+ * Focus. */
+@Composable
+private fun EnableNotificationPolicyDialog(onAllow: () -> Unit, onDeny: () -> Unit) {
+    Dialog(onDismissRequest = onDeny) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 6.dp
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+                Text(
+                    text = stringResource(id = R.string.focus_mode_enable_notification_policy_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Text(
+                    text = stringResource(id = R.string.focus_mode_enable_notification_policy_message),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(modifier = Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDeny) {
+                        Text(text = stringResource(id = R.string.focus_mode_enable_notification_policy_deny))
+                    }
+                    TextButton(onClick = onAllow) {
+                        Text(text = stringResource(id = R.string.focus_mode_enable_notification_policy_allow))
+                    }
+                }
+            }
+        }
     }
 }
 
