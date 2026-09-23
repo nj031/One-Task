@@ -34,6 +34,7 @@ import com.nj031.onetask.ui.screens.AddTaskScreen
 import com.nj031.onetask.ui.screens.AppearanceSettingsScreen
 import com.nj031.onetask.ui.screens.ArchiveScreen
 import com.nj031.onetask.ui.screens.AuthScreen
+import com.nj031.onetask.ui.screens.BlockDistractingAppsScreen
 import com.nj031.onetask.ui.screens.CategoriesScreen
 import com.nj031.onetask.ui.screens.CreateAccountEmailScreen
 import com.nj031.onetask.ui.screens.CreateAccountPasswordScreen
@@ -72,6 +73,7 @@ import com.nj031.onetask.ui.theme.WallpaperSettingsTheme
 import com.nj031.onetask.viewmodel.AddTaskDraftViewModel
 import com.nj031.onetask.viewmodel.AppearanceSettingsViewModel
 import com.nj031.onetask.viewmodel.AuthViewModel
+import com.nj031.onetask.viewmodel.FocusBlockedAppsViewModel
 import com.nj031.onetask.viewmodel.GeneralSettingsViewModel
 import com.nj031.onetask.viewmodel.HomeViewModel
 import com.nj031.onetask.viewmodel.JournalViewModel
@@ -467,7 +469,21 @@ fun OneTaskNavHost(
             val timerBackStackEntry = remember { navController.getBackStackEntry(Screen.TimerPlaceholder.route) }
             FocusModeConfigScreen(
                 viewModel = viewModel(viewModelStoreOwner = timerBackStackEntry),
-                onCloseClick = { navController.popBackStack() }
+                onCloseClick = { navController.popBackStack() },
+                onBlockDistractionsClick = { navController.navigate(Screen.BlockDistractingApps.route) }
+            )
+        }
+        composable(Screen.BlockDistractingApps.route) {
+            // Shares Focus Mode Configuration's own FocusBlockedAppsViewModel instance (its back
+            // stack entry, not this route's) so a selection made here is immediately visible on
+            // Configuration's Block Distractions preview and survives reopening this picker - the
+            // same ViewModel-sharing-via-back-stack-entry pattern used above for TimerViewModel.
+            // Safe to assume Screen.FocusModeConfig is already on the back stack: this screen's
+            // only entry point is that very screen's own Block Distractions card.
+            val configBackStackEntry = remember { navController.getBackStackEntry(Screen.FocusModeConfig.route) }
+            BlockDistractingAppsScreen(
+                viewModel = viewModel(viewModelStoreOwner = configBackStackEntry),
+                onDone = { navController.popBackStack() }
             )
         }
         composable(Screen.TimerSettings.route) {
