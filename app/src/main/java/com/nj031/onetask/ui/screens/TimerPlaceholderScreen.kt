@@ -110,6 +110,7 @@ fun TimerPlaceholderScreen(
     onCustomDurationSettingsClick: () -> Unit = {},
     onTimerHistoryClick: () -> Unit = {},
     onFocusModeClick: () -> Unit = {},
+    onStopwatchFocusModeClick: () -> Unit = {},
     wallpaper: Wallpaper = Wallpaper.NONE,
     darkTheme: Boolean = false
 ) {
@@ -127,6 +128,7 @@ fun TimerPlaceholderScreen(
     var showBreakConfirm by remember { mutableStateOf(false) }
     var showStopConfirm by remember { mutableStateOf(false) }
     var showTimerRunningWarning by remember { mutableStateOf(false) }
+    var showStopwatchRunningWarning by remember { mutableStateOf(false) }
 
     // Running Focus screen's own Back-button behavior (per spec) - a 3-option action menu
     // (Take a break / Stop focusing / Cancel) instead of ordinary back navigation.
@@ -148,6 +150,18 @@ fun TimerPlaceholderScreen(
             showTimerRunningWarning = true
         } else {
             onFocusModeClick()
+        }
+    }
+
+    // Same guard as handleFocusModeClick, mirrored for the Stopwatch tab's own Focus mode entry:
+    // this button only ever renders while no session (normal or Focus) is already active on the
+    // Stopwatch tab, so the collision it guards against can only ever be a normal (non-Focus)
+    // running/paused Stopwatch.
+    val handleStopwatchFocusModeClick: () -> Unit = {
+        if (snapshot.isStopwatchRunning || snapshot.isStopwatchPaused) {
+            showStopwatchRunningWarning = true
+        } else {
+            onStopwatchFocusModeClick()
         }
     }
 
@@ -256,6 +270,7 @@ fun TimerPlaceholderScreen(
                         onPause = viewModel::pauseStopwatch,
                         onResume = viewModel::resumeStopwatch,
                         onStop = viewModel::stopStopwatch,
+                        onFocusModeClick = handleStopwatchFocusModeClick,
                         focusOverlay = focusOverlay,
                         onBreakButtonClick = handleTakeBreakRequest,
                         onStopFocusButtonClick = { if (!strictModeEnabled) showStopConfirm = true },
@@ -311,12 +326,27 @@ fun TimerPlaceholderScreen(
 
     if (showTimerRunningWarning) {
         TimerRunningWarningDialog(
+            title = stringResource(id = R.string.focus_timer_running_warning_title),
+            message = stringResource(id = R.string.focus_timer_running_warning_message),
             onContinue = {
                 showTimerRunningWarning = false
                 viewModel.stopTimer()
                 onFocusModeClick()
             },
             onDismiss = { showTimerRunningWarning = false }
+        )
+    }
+
+    if (showStopwatchRunningWarning) {
+        TimerRunningWarningDialog(
+            title = stringResource(id = R.string.focus_stopwatch_running_warning_title),
+            message = stringResource(id = R.string.focus_stopwatch_running_warning_message),
+            onContinue = {
+                showStopwatchRunningWarning = false
+                viewModel.stopStopwatch()
+                onStopwatchFocusModeClick()
+            },
+            onDismiss = { showStopwatchRunningWarning = false }
         )
     }
 }
@@ -426,12 +456,15 @@ private fun StopFocusConfirmDialog(onConfirm: () -> Unit, onDismiss: () -> Unit)
     )
 }
 
+/** Shared shell for both the Timer- and Stopwatch-tab "already running" collision warning (see
+ * handleFocusModeClick/handleStopwatchFocusModeClick) - same dialog, just the title/message and
+ * onContinue action differ per which engine is actually running. */
 @Composable
-private fun TimerRunningWarningDialog(onContinue: () -> Unit, onDismiss: () -> Unit) {
+private fun TimerRunningWarningDialog(title: String, message: String, onContinue: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(id = R.string.focus_timer_running_warning_title)) },
-        text = { Text(text = stringResource(id = R.string.focus_timer_running_warning_message)) },
+        title = { Text(text = title) },
+        text = { Text(text = message) },
         confirmButton = {
             TextButton(onClick = onContinue) {
                 Text(text = stringResource(id = R.string.continue_action))
@@ -765,9 +798,10 @@ private fun FocusRunningControls(
         )
     }
 
-    if (!isRunning) {
-        // Strict Mode (Phase 13): visible but disabled - never removed from the UI - see
-        // TimerSecondaryStopButton's own doc comment.
+    // Strict Mode ON: Stop stays visible (disabled) in BOTH running and paused states, never
+    // removed from the UI - see TimerSecondaryStopButton's own doc comment. Strict Mode OFF
+    // preserves the exact original behavior: Stop only appears once paused.
+    if (!isRunning || strictModeEnabled) {
         TimerSecondaryStopButton(onClick = onStopClick, enabled = !strictModeEnabled)
     }
 }
@@ -807,6 +841,7 @@ private fun StopwatchModeContent(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onStop: () -> Unit,
+    onFocusModeClick: () -> Unit = {},
     focusOverlay: FocusOverlayState? = null,
     onBreakButtonClick: () -> Unit = {},
     onStopFocusButtonClick: () -> Unit = {},
@@ -876,6 +911,8 @@ private fun StopwatchModeContent(
                 TimerSecondaryStopButton(onClick = { hapticTick(); onStop() })
             }
         }
+
+        FocusModeButton(onClick = onFocusModeClick)
     }
 
     if (isActive) {

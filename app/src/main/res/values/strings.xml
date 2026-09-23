@@ -558,6 +558,8 @@
     <string name="focus_action_menu_stop_focusing">Stop focusing</string>
     <string name="focus_timer_running_warning_title">Timer is already running</string>
     <string name="focus_timer_running_warning_message">Starting Focus Mode will stop the current timer.</string>
+    <string name="focus_stopwatch_running_warning_title">Stopwatch is already running</string>
+    <string name="focus_stopwatch_running_warning_message">Starting Focus Mode will stop the current stopwatch.</string>
 
     <string name="pause">Pause</string>
     <string name="resume">Resume</string>

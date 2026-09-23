@@ -107,10 +107,16 @@ private val BlockDistractionsAccentBackground = Color(0xFFE8F8EE)
 fun FocusModeConfigScreen(
     viewModel: TimerViewModel = viewModel(),
     blockedAppsViewModel: FocusBlockedAppsViewModel = viewModel(),
+    startOnStopwatch: Boolean = false,
     onCloseClick: () -> Unit,
     onBlockDistractionsClick: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(FocusModeTab.TIMER) }
+    // Timer entry (the Timer tab's own Focus mode button) defaults here to Timer; the Stopwatch
+    // tab's separate Focus mode button passes startOnStopwatch = true so this shared screen opens
+    // showing Stopwatch's settings instead - see TimerPlaceholderScreen/NavGraph for both entry
+    // points. The Timer/Stopwatch selector below remains fully functional either way; this only
+    // affects which one is selected when the screen first appears.
+    var selectedTab by remember { mutableStateOf(if (startOnStopwatch) FocusModeTab.STOPWATCH else FocusModeTab.TIMER) }
     var selectedFocusTimeMinutes by remember { mutableStateOf(DEFAULT_FOCUS_TIME_MINUTES) }
     var selectedBreaksCount by remember { mutableStateOf(MAX_FOCUS_BREAKS) }
     var selectedNotificationsMode by remember { mutableStateOf(FocusNotificationsMode.ALLOW) }

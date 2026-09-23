@@ -18,11 +18,15 @@ sealed class Screen(val route: String) {
     data object TimerSettings : Screen("timer_settings")
     data object TimerCustomDurationSettings : Screen("timer_custom_duration_settings")
     data object TimerHistory : Screen("timer_history")
-    /** The distraction-blocking-style "Focus mode" configuration screen reached from the Timer
-     * tab's Focus mode button - a UI-only Phase 1 build (see FocusModeConfigScreen). Deliberately
+    /** The distraction-blocking-style "Focus mode" configuration screen, reached from either the
+     * Timer or the Stopwatch tab's own Focus mode button (see FocusModeConfigScreen). Deliberately
      * named/routed apart from [FocusTimer], the separate, already-built task-timer Focus Mode
-     * feature this does not touch or replace. */
-    data object FocusModeConfig : Screen("focus_mode_config")
+     * feature this does not touch or replace. [initialTab] ("timer" or "stopwatch") controls only
+     * which of the shared screen's own Timer/Stopwatch selector starts selected - it stays fully
+     * switchable either way. */
+    data object FocusModeConfig : Screen("focus_mode_config?initialTab={initialTab}") {
+        fun createRoute(initialTab: String = "timer"): String = "focus_mode_config?initialTab=$initialTab"
+    }
     /** The Block Distractions app-selection picker reached from Focus Mode Configuration's Block
      * Distractions card (see BlockDistractingAppsScreen) - Phase 5: app-selection UI only, no
      * actual app-blocking enforcement yet (planned for a later phase). */

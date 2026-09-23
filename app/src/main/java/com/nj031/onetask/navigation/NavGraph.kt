@@ -454,21 +454,27 @@ fun OneTaskNavHost(
                 onTimerSettingsClick = { navController.navigate(Screen.TimerSettings.route) },
                 onCustomDurationSettingsClick = { navController.navigate(Screen.TimerCustomDurationSettings.route) },
                 onTimerHistoryClick = { navController.navigate(Screen.TimerHistory.route) },
-                onFocusModeClick = { navController.navigate(Screen.FocusModeConfig.route) },
+                onFocusModeClick = { navController.navigate(Screen.FocusModeConfig.createRoute("timer")) },
+                onStopwatchFocusModeClick = { navController.navigate(Screen.FocusModeConfig.createRoute("stopwatch")) },
                 wallpaper = wallpaper,
                 darkTheme = darkTheme
             )
         }
-        composable(Screen.FocusModeConfig.route) {
+        composable(
+            route = Screen.FocusModeConfig.route,
+            arguments = listOf(navArgument("initialTab") { type = NavType.StringType; defaultValue = "timer" })
+        ) { backStackEntry ->
             // Shares the Timer tab's own TimerViewModel instance (rather than a fresh one scoped
             // to this route) so a Focus session started here is immediately visible back on the
             // Timer tab - the in-memory focusOverlay state (see TimerViewModel) has nowhere else
             // to live since it's deliberately not persisted to TimerSessionRepository. Safe to
             // assume Screen.TimerPlaceholder is already on the back stack: this screen's only
-            // entry point is that very screen's own Focus mode button.
+            // entry points are that very screen's own Timer and Stopwatch Focus mode buttons.
             val timerBackStackEntry = remember { navController.getBackStackEntry(Screen.TimerPlaceholder.route) }
+            val initialTab = backStackEntry.arguments?.getString("initialTab")
             FocusModeConfigScreen(
                 viewModel = viewModel(viewModelStoreOwner = timerBackStackEntry),
+                startOnStopwatch = initialTab == "stopwatch",
                 onCloseClick = { navController.popBackStack() },
                 onBlockDistractionsClick = { navController.navigate(Screen.BlockDistractingApps.route) }
             )
