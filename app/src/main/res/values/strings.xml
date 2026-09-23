@@ -537,6 +537,7 @@
     <string name="focus_break_confirm_message_format">%1$d breaks remaining</string>
     <string name="focus_no_breaks_remaining">No breaks remaining</string>
     <string name="focus_on_break_message">On a break — resumes automatically</string>
+    <string name="focus_end_break_button">End Break</string>
     <string name="focus_stop_confirm_title">Stop Focus?</string>
     <string name="focus_stop_confirm_message">Are you sure you want to stop this focus session?</string>
     <string name="focus_action_menu_take_break">Take a break</string>

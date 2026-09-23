@@ -243,6 +243,7 @@ fun TimerPlaceholderScreen(
                         focusOverlay = focusOverlay,
                         onBreakButtonClick = handleTakeBreakRequest,
                         onStopFocusButtonClick = { showStopConfirm = true },
+                        onEndBreakButtonClick = viewModel::endFocusBreak,
                         wallpaper = wallpaper
                     )
                     TimerTab.STOPWATCH -> StopwatchModeContent(
@@ -254,6 +255,7 @@ fun TimerPlaceholderScreen(
                         focusOverlay = focusOverlay,
                         onBreakButtonClick = handleTakeBreakRequest,
                         onStopFocusButtonClick = { showStopConfirm = true },
+                        onEndBreakButtonClick = viewModel::endFocusBreak,
                         wallpaper = wallpaper
                     )
                 }
@@ -590,6 +592,7 @@ private fun TimerModeContent(
     focusOverlay: FocusOverlayState? = null,
     onBreakButtonClick: () -> Unit = {},
     onStopFocusButtonClick: () -> Unit = {},
+    onEndBreakButtonClick: () -> Unit = {},
     wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val hapticTick = rememberHapticTick()
@@ -646,6 +649,7 @@ private fun TimerModeContent(
             onResume = { hapticTick(); onResume() },
             onBreakClick = { hapticTick(); onBreakButtonClick() },
             onStopClick = { hapticTick(); onStopFocusButtonClick() },
+            onEndBreakClick = { hapticTick(); onEndBreakButtonClick() },
             wallpaper = wallpaper
         )
     } else {
@@ -689,6 +693,7 @@ private fun FocusRunningControls(
     onResume: () -> Unit,
     onBreakClick: () -> Unit,
     onStopClick: () -> Unit,
+    onEndBreakClick: () -> Unit,
     wallpaper: Wallpaper
 ) {
     if (isOnBreak) {
@@ -702,6 +707,10 @@ private fun FocusRunningControls(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        // Same full-width secondary-action row style already used for Stop (TimerSecondaryStop-
+        // Button) - the minimum addition needed to let the user resume Focus before the break's
+        // own 10-minute countdown elapses on its own.
+        TimerSecondaryEndBreakButton(onClick = onEndBreakClick)
         return
     }
 
@@ -781,6 +790,7 @@ private fun StopwatchModeContent(
     focusOverlay: FocusOverlayState? = null,
     onBreakButtonClick: () -> Unit = {},
     onStopFocusButtonClick: () -> Unit = {},
+    onEndBreakButtonClick: () -> Unit = {},
     wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val hapticTick = rememberHapticTick()
@@ -815,6 +825,7 @@ private fun StopwatchModeContent(
             onResume = { hapticTick(); onResume() },
             onBreakClick = { hapticTick(); onBreakButtonClick() },
             onStopClick = { hapticTick(); onStopFocusButtonClick() },
+            onEndBreakClick = { hapticTick(); onEndBreakButtonClick() },
             wallpaper = wallpaper
         )
     } else {
@@ -1083,6 +1094,34 @@ private fun TimerSecondaryStopButton(onClick: () -> Unit) {
         OneTaskStopIcon(tint = MaterialTheme.colorScheme.primary, size = 16.dp)
         Text(
             text = stringResource(id = R.string.timer_stop_button),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = 8.dp)
+        )
+    }
+}
+
+/** Lets the user resume Focus before the break's own 10-minute countdown elapses on its own -
+ * same shape/colors/typography as [TimerSecondaryStopButton] (this screen's existing secondary-
+ * action row style), just a different icon/label, so the on-break state's own established layout
+ * and visual language stay unchanged. */
+@Composable
+private fun TimerSecondaryEndBreakButton(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OneTaskPlayIcon(tint = MaterialTheme.colorScheme.primary, size = 16.dp)
+        Text(
+            text = stringResource(id = R.string.focus_end_break_button),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary,
