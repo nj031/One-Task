@@ -5,10 +5,13 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nj031.onetask.data.timer.DEFAULT_TIMER_DURATION_MILLIS
 import com.nj031.onetask.data.timer.FOCUS_BREAK_DURATION_MILLIS
+import com.nj031.onetask.data.timer.FocusCallsMode
+import com.nj031.onetask.data.timer.FocusNotificationsMode
 import com.nj031.onetask.data.timer.FocusOverlayState
 import com.nj031.onetask.data.timer.TimerMode
 import com.nj031.onetask.data.timer.TimerSessionRepository
 import com.nj031.onetask.data.timer.TimerSessionSnapshot
+import com.nj031.onetask.service.FocusNotificationPolicyManager
 import com.nj031.onetask.service.StandaloneTimerForegroundService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -70,6 +73,9 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
                         // the normal idle Timer/Stopwatch screen.
                         _focusOverlay.value = null
                         repository.clearFocusBlocking()
+                        overlay.priorNotificationPolicy?.let {
+                            FocusNotificationPolicyManager.restore(getApplication(), it)
+                        }
                     } else if (overlay.breakEndAtMillis != null && System.currentTimeMillis() >= overlay.breakEndAtMillis) {
                         when (current.activeMode) {
                             TimerMode.TIMER -> resumeTimer()
@@ -78,6 +84,11 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
                         }
                         _focusOverlay.value = overlay.copy(breakEndAtMillis = null)
                         repository.setFocusBreakEndAtMillis(null)
+                        FocusNotificationPolicyManager.applyPolicy(
+                            getApplication(),
+                            overlay.notificationsMode,
+                            overlay.callsMode
+                        )
                     }
                 }
 
@@ -141,34 +152,62 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
      * active, exactly like starting a plain Timer already does. [blockedPackages] is the Block
      * Distractions selection (see FocusBlockedAppsViewModel.selectedPackages) as of this moment -
      * carried on the overlay for a later phase to enforce; this call only transports it. */
-    fun startFocusSession(durationMillis: Long, breaksTotal: Int, blockedPackages: Set<String> = emptySet()) {
+    fun startFocusSession(
+        durationMillis: Long,
+        breaksTotal: Int,
+        blockedPackages: Set<String> = emptySet(),
+        notificationsMode: FocusNotificationsMode = FocusNotificationsMode.ALLOW,
+        callsMode: FocusCallsMode = FocusCallsMode.ALLOW,
+        strictModeEnabled: Boolean = false
+    ) {
         selectIdleDuration(durationMillis)
         startTimer()
+        val priorNotificationPolicy = FocusNotificationPolicyManager.captureCurrentState(getApplication())
         _focusOverlay.value = FocusOverlayState(
             breaksTotal = breaksTotal,
             breaksRemaining = breaksTotal,
-            blockedPackages = blockedPackages
+            blockedPackages = blockedPackages,
+            notificationsMode = notificationsMode,
+            callsMode = callsMode,
+            priorNotificationPolicy = priorNotificationPolicy,
+            strictModeEnabled = strictModeEnabled
         )
         repository.setFocusBlockedPackages(blockedPackages)
+        FocusNotificationPolicyManager.applyPolicy(getApplication(), notificationsMode, callsMode)
     }
 
     /** Starts a Stopwatch Focus session: an ordinary Stopwatch (counts up from 00:00, no fixed
      * duration or completion point - see the class doc comment) plus the same break bookkeeping
-     * startFocusSession layers onto a Timer. See [startFocusSession] for [blockedPackages]. */
-    fun startStopwatchFocusSession(breaksTotal: Int, blockedPackages: Set<String> = emptySet()) {
+     * startFocusSession layers onto a Timer. See [startFocusSession] for the shared params. */
+    fun startStopwatchFocusSession(
+        breaksTotal: Int,
+        blockedPackages: Set<String> = emptySet(),
+        notificationsMode: FocusNotificationsMode = FocusNotificationsMode.ALLOW,
+        callsMode: FocusCallsMode = FocusCallsMode.ALLOW,
+        strictModeEnabled: Boolean = false
+    ) {
         startStopwatch()
+        val priorNotificationPolicy = FocusNotificationPolicyManager.captureCurrentState(getApplication())
         _focusOverlay.value = FocusOverlayState(
             breaksTotal = breaksTotal,
             breaksRemaining = breaksTotal,
-            blockedPackages = blockedPackages
+            blockedPackages = blockedPackages,
+            notificationsMode = notificationsMode,
+            callsMode = callsMode,
+            priorNotificationPolicy = priorNotificationPolicy,
+            strictModeEnabled = strictModeEnabled
         )
         repository.setFocusBlockedPackages(blockedPackages)
+        FocusNotificationPolicyManager.applyPolicy(getApplication(), notificationsMode, callsMode)
     }
 
     /** Terminates the Focus session outright - not a completion, so nothing is recorded anywhere
      * (there is no Focus History in this phase). Stops whichever engine (Timer or Stopwatch) the
-     * session is currently riding on. */
+     * session is currently riding on. Callers must not reach this while
+     * [FocusOverlayState.strictModeEnabled] is true and the session hasn't ended naturally - see
+     * TimerPlaceholderScreen's gating of both UI paths that call this. */
     fun stopFocusSession() {
+        val overlay = _focusOverlay.value
         when (_snapshot.value.activeMode) {
             TimerMode.TIMER -> stopTimer()
             TimerMode.STOPWATCH -> stopStopwatch()
@@ -176,6 +215,9 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
         }
         _focusOverlay.value = null
         repository.clearFocusBlocking()
+        overlay?.priorNotificationPolicy?.let {
+            FocusNotificationPolicyManager.restore(getApplication(), it)
+        }
     }
 
     /** Consumes exactly one break (no-op, returns false, if none remain or one is already in
@@ -197,6 +239,9 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
             breakEndAtMillis = breakEndAtMillis
         )
         repository.setFocusBreakEndAtMillis(breakEndAtMillis)
+        overlay.priorNotificationPolicy?.let {
+            FocusNotificationPolicyManager.restore(getApplication(), it)
+        }
         return true
     }
 
@@ -219,5 +264,6 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
         }
         _focusOverlay.value = overlay.copy(breakEndAtMillis = null)
         repository.setFocusBreakEndAtMillis(null)
+        FocusNotificationPolicyManager.applyPolicy(getApplication(), overlay.notificationsMode, overlay.callsMode)
     }
 }
