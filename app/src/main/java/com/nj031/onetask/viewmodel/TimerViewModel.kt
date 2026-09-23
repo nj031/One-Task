@@ -136,19 +136,29 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
     /** Starts a Timer Focus session: an ordinary Timer countdown (same engine, same background
      * survival as a normal running Timer - see the class doc comment) plus the break bookkeeping
      * layered on top. Replaces whatever normal Timer/Stopwatch session (if any) was previously
-     * active, exactly like starting a plain Timer already does. */
-    fun startFocusSession(durationMillis: Long, breaksTotal: Int) {
+     * active, exactly like starting a plain Timer already does. [blockedPackages] is the Block
+     * Distractions selection (see FocusBlockedAppsViewModel.selectedPackages) as of this moment -
+     * carried on the overlay for a later phase to enforce; this call only transports it. */
+    fun startFocusSession(durationMillis: Long, breaksTotal: Int, blockedPackages: Set<String> = emptySet()) {
         selectIdleDuration(durationMillis)
         startTimer()
-        _focusOverlay.value = FocusOverlayState(breaksTotal = breaksTotal, breaksRemaining = breaksTotal)
+        _focusOverlay.value = FocusOverlayState(
+            breaksTotal = breaksTotal,
+            breaksRemaining = breaksTotal,
+            blockedPackages = blockedPackages
+        )
     }
 
     /** Starts a Stopwatch Focus session: an ordinary Stopwatch (counts up from 00:00, no fixed
      * duration or completion point - see the class doc comment) plus the same break bookkeeping
-     * startFocusSession layers onto a Timer. */
-    fun startStopwatchFocusSession(breaksTotal: Int) {
+     * startFocusSession layers onto a Timer. See [startFocusSession] for [blockedPackages]. */
+    fun startStopwatchFocusSession(breaksTotal: Int, blockedPackages: Set<String> = emptySet()) {
         startStopwatch()
-        _focusOverlay.value = FocusOverlayState(breaksTotal = breaksTotal, breaksRemaining = breaksTotal)
+        _focusOverlay.value = FocusOverlayState(
+            breaksTotal = breaksTotal,
+            breaksRemaining = breaksTotal,
+            blockedPackages = blockedPackages
+        )
     }
 
     /** Terminates the Focus session outright - not a completion, so nothing is recorded anywhere

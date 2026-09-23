@@ -25,7 +25,15 @@ data class FocusOverlayState(
     val breaksRemaining: Int,
     /** Non-null only while a manual break is actively counting down (absolute end timestamp) -
      * the underlying Timer is always paused for the exact duration this is non-null. */
-    val breakEndAtMillis: Long? = null
+    val breakEndAtMillis: Long? = null,
+    /** The real Android package names selected in the Block Distractions picker (see
+     * FocusBlockedAppsViewModel.selectedPackages) at the moment this session started - carried
+     * along for whichever later phase actually enforces blocking against a running session.
+     * Phase 6 only transports this value; nothing in this class or TimerViewModel reads it. Set
+     * once at session start and never mutated by pause/resume/break/auto-resume - it shares this
+     * whole class's in-memory, session-scoped lifecycle (cleared only when the overlay itself is,
+     * i.e. on session stop or natural completion). */
+    val blockedPackages: Set<String> = emptySet()
 ) {
     val isOnBreak: Boolean get() = breakEndAtMillis != null
 
