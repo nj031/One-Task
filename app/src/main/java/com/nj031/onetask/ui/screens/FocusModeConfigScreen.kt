@@ -1,5 +1,7 @@
 package com.nj031.onetask.ui.screens
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -44,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -52,6 +55,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.timer.MAX_FOCUS_BREAKS
+import com.nj031.onetask.service.FocusAccessibilityUtil
 import com.nj031.onetask.ui.components.OneTaskDurationPickerDialog
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.ui.theme.OneTaskCardViewIcon
@@ -111,7 +115,26 @@ fun FocusModeConfigScreen(
     var showFocusTimePicker by remember { mutableStateOf(false) }
     var showCustomDurationPicker by remember { mutableStateOf(false) }
     var showBreaksPicker by remember { mutableStateOf(false) }
+    var showEnableBlockingDialog by remember { mutableStateOf(false) }
     val hapticTick = rememberHapticTick()
+    val context = LocalContext.current
+
+    /** Starts whichever Focus session is currently selected - the actual "Save & Start Focus"
+     * action, factored out so both the direct (Accessibility already enabled/not needed) path and
+     * the post-dialog-Allow path (user returns from Settings and taps the button again) call the
+     * exact same logic, never a second copy of it. */
+    fun startSelectedFocusSession() {
+        val blockedPackages = blockedAppsViewModel.selectedPackages.value
+        when (selectedTab) {
+            FocusModeTab.TIMER -> viewModel.startFocusSession(
+                selectedFocusTimeMinutes * 60_000L,
+                selectedBreaksCount,
+                blockedPackages
+            )
+            FocusModeTab.STOPWATCH -> viewModel.startStopwatchFocusSession(selectedBreaksCount, blockedPackages)
+        }
+        onCloseClick()
+    }
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
         Column(
@@ -189,15 +212,13 @@ fun FocusModeConfigScreen(
                 onClick = {
                     hapticTick()
                     val blockedPackages = blockedAppsViewModel.selectedPackages.value
-                    when (selectedTab) {
-                        FocusModeTab.TIMER -> viewModel.startFocusSession(
-                            selectedFocusTimeMinutes * 60_000L,
-                            selectedBreaksCount,
-                            blockedPackages
-                        )
-                        FocusModeTab.STOPWATCH -> viewModel.startStopwatchFocusSession(selectedBreaksCount, blockedPackages)
+                    val blockingNeedsAccessibility = blockedPackages.isNotEmpty() &&
+                        !FocusAccessibilityUtil.isFocusBlockingServiceEnabled(context)
+                    if (blockingNeedsAccessibility) {
+                        showEnableBlockingDialog = true
+                    } else {
+                        startSelectedFocusSession()
                     }
-                    onCloseClick()
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -254,6 +275,16 @@ fun FocusModeConfigScreen(
                 showBreaksPicker = false
             },
             onDismiss = { showBreaksPicker = false }
+        )
+    }
+
+    if (showEnableBlockingDialog) {
+        EnableAppBlockingDialog(
+            onAllow = {
+                showEnableBlockingDialog = false
+                context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            },
+            onDeny = { showEnableBlockingDialog = false }
         )
     }
 }
@@ -807,6 +838,49 @@ private fun BreaksPickerDialog(selectedCount: Int, onConfirm: (Int) -> Unit, onD
                     }
                     TextButton(onClick = { onConfirm(pendingCount) }) {
                         Text(text = stringResource(id = R.string.timer_custom_duration_confirm))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Basic gate dialog shown only when apps are selected to block but
+ * [FocusAccessibilityUtil.isFocusBlockingServiceEnabled] is currently false - see the "Save &
+ * Start Focus" button's onClick. Allow deep-links to system Accessibility settings (Android has
+ * no in-app runtime permission dialog for this) and does NOT itself start Focus: the user enables
+ * the service there, returns, and taps Save & Start Focus again, which re-checks the service's
+ * now-current state fresh (no caching - see this screen's onClick above).
+ * Deny simply closes this dialog without starting Focus. Richer explanation/illustration is
+ * explicitly out of scope for this phase - matches this screen's existing plain dialog shells
+ * (compare BreaksPickerDialog/FocusTimePickerDialog). */
+@Composable
+private fun EnableAppBlockingDialog(onAllow: () -> Unit, onDeny: () -> Unit) {
+    Dialog(onDismissRequest = onDeny) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 6.dp
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+                Text(
+                    text = stringResource(id = R.string.focus_mode_enable_blocking_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Text(
+                    text = stringResource(id = R.string.focus_mode_enable_blocking_message),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(modifier = Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDeny) {
+                        Text(text = stringResource(id = R.string.focus_mode_enable_blocking_deny))
+                    }
+                    TextButton(onClick = onAllow) {
+                        Text(text = stringResource(id = R.string.focus_mode_enable_blocking_allow))
                     }
                 }
             }

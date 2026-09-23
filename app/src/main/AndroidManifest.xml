@@ -58,6 +58,24 @@
                 android:value="Keeps a user-started Timer countdown or Stopwatch counting accurately, with a persistent notification, while the app is backgrounded or the screen is locked." />
         </service>
 
+        <!-- Phase 7 Part 1 foundation: detects foreground-app changes only (see
+             FocusBlockingAccessibilityService/focus_blocking_accessibility_service_config.xml) -
+             takes no blocking action yet. exported="true" is required for the system to bind an
+             accessibility service; android:permission restricts binding to the system itself, the
+             standard safe pattern for this component type. The user must enable this manually in
+             system Accessibility settings - there is no runtime permission prompt for it. -->
+        <service
+            android:name=".service.FocusBlockingAccessibilityService"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/focus_blocking_accessibility_service_config" />
+        </service>
+
         <receiver
             android:name=".data.reminder.ReminderReceiver"
             android:exported="false" />

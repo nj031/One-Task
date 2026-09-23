@@ -526,6 +526,13 @@
     <string name="block_apps_all_other_user_apps">All other user apps</string>
     <string name="block_apps_done_format">Done (%1$d selected)</string>
 
+    <!-- Phase 7 Part 1: Accessibility foundation for blocking selected apps during Focus. -->
+    <string name="focus_blocking_accessibility_service_description">Lets One Task detect when a blocked app is opened during a Focus session, so it can block it while Focus is active.</string>
+    <string name="focus_mode_enable_blocking_title">Enable App Blocking</string>
+    <string name="focus_mode_enable_blocking_message">Blocking the apps you selected during Focus requires turning on One Task\'s Accessibility permission in system Settings.</string>
+    <string name="focus_mode_enable_blocking_allow">Allow</string>
+    <string name="focus_mode_enable_blocking_deny">Deny</string>
+
     <string name="focus_break_confirm_title">Take a break?</string>
     <string name="focus_break_confirm_message_format">%1$d breaks remaining</string>
     <string name="focus_no_breaks_remaining">No breaks remaining</string>

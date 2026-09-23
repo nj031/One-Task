@@ -58,6 +58,21 @@ data class TimerSessionSnapshot(
     }
 }
 
+/** The Focus-blocking state [TimerSessionRepository.focusBlockingSnapshot] mirrors into durable
+ * storage - see that method's own doc comment for why this mirror exists at all. */
+data class FocusBlockingSnapshot(
+    /** Real Android package names to block while a Focus session is active and not on break -
+     * empty means no enforcement, whether because no Focus session is running at all or because
+     * one is running with zero apps selected. */
+    val blockedPackages: Set<String>,
+    /** Non-null only while a manual Focus break is in progress (mirrors
+     * FocusOverlayState.breakEndAtMillis exactly - same absolute end timestamp, not a separately
+     * computed one, so the two never drift apart). */
+    val breakEndAtMillis: Long?
+) {
+    val isOnBreak: Boolean get() = breakEndAtMillis != null
+}
+
 /**
  * Persists the Timer/Stopwatch feature's active session, the same SharedPreferences-backed
  * pattern GeneralSettingsRepository already uses instead of a new Room table: this is a handful
@@ -76,6 +91,15 @@ data class TimerSessionSnapshot(
  * recovers its exact correct state whether the process was merely backgrounded or fully killed
  * and restarted. The file itself is scoped per signed-in account (see [UserScopedPreferences]) -
  * a plain fixed file name would mean every account on this device shared the same running timer.
+ *
+ * Also mirrors a small slice of Focus-specific state (see [focusBlockingSnapshot] and its writer
+ * methods below) for [com.nj031.onetask.service.FocusBlockingAccessibilityService] to read: that
+ * service is a separate Android framework component, independent of whether this app's
+ * Activity/ViewModel is currently alive, so the UI-scoped FocusOverlayState it would otherwise
+ * read from TimerViewModel is not durable enough - see FocusOverlayState's own doc comment on why
+ * it deliberately does NOT survive process death. Written to this same file/class specifically so
+ * it inherits the exact process-death survivability every other field here already has, rather
+ * than introducing a second persistence mechanism.
  */
 class TimerSessionRepository(context: Context) {
     private val prefs = UserScopedPreferences.open(context, PREFS_NAME)
@@ -177,6 +201,48 @@ class TimerSessionRepository(context: Context) {
             .apply()
     }
 
+    /** Reads back the durable Focus-blocking mirror - see [FocusBlockingSnapshot] and this
+     * class's own doc comment for why this exists. Never throws/crashes on a missing/empty value:
+     * a fresh install or an account with no Focus history simply reads as "no enforcement." */
+    fun focusBlockingSnapshot(): FocusBlockingSnapshot = FocusBlockingSnapshot(
+        blockedPackages = prefs.getStringSet(KEY_FOCUS_BLOCKED_PACKAGES, emptySet()) ?: emptySet(),
+        breakEndAtMillis = prefs.getLong(KEY_FOCUS_BREAK_END_AT, -1L).takeIf { it >= 0L }
+    )
+
+    /** Called by TimerViewModel at Focus session start, alongside setting the same value on the
+     * in-memory FocusOverlayState.blockedPackages - see that field's own doc comment. Passing an
+     * empty set (no apps selected) is the normal, expected way enforcement stays off for a Focus
+     * session that has nothing to block. */
+    fun setFocusBlockedPackages(packages: Set<String>) {
+        // SharedPreferences.putStringSet stores by reference if not copied - passing a fresh
+        // HashSet avoids the documented footgun of a caller later mutating the same Set instance
+        // still referenced by a getStringSet() call made before this write.
+        prefs.edit().putStringSet(KEY_FOCUS_BLOCKED_PACKAGES, HashSet(packages)).apply()
+    }
+
+    /** Called by TimerViewModel alongside every FocusOverlayState.breakEndAtMillis mutation
+     * (manual break start, break auto-resume) - [endAtMillis] must be the exact same absolute
+     * timestamp already computed there (or null to clear), never independently recomputed, so the
+     * in-memory overlay and this durable mirror can never drift apart. */
+    fun setFocusBreakEndAtMillis(endAtMillis: Long?) {
+        val editor = prefs.edit()
+        if (endAtMillis != null) {
+            editor.putLong(KEY_FOCUS_BREAK_END_AT, endAtMillis)
+        } else {
+            editor.remove(KEY_FOCUS_BREAK_END_AT)
+        }
+        editor.apply()
+    }
+
+    /** Clears the entire Focus-blocking mirror - called by TimerViewModel alongside every path
+     * that sets FocusOverlayState back to null (explicit Focus stop, natural Timer completion). */
+    fun clearFocusBlocking() {
+        prefs.edit()
+            .remove(KEY_FOCUS_BLOCKED_PACKAGES)
+            .remove(KEY_FOCUS_BREAK_END_AT)
+            .apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "timer_session_prefs"
         private const val KEY_ACTIVE_MODE = "active_mode"
@@ -185,6 +251,8 @@ class TimerSessionRepository(context: Context) {
         private const val KEY_TIMER_TOTAL = "timer_total_duration_millis"
         private const val KEY_STOPWATCH_STARTED_AT = "stopwatch_started_at_millis"
         private const val KEY_STOPWATCH_ACCUMULATED = "stopwatch_accumulated_millis"
+        private const val KEY_FOCUS_BLOCKED_PACKAGES = "focus_blocked_packages"
+        private const val KEY_FOCUS_BREAK_END_AT = "focus_break_end_at_millis"
     }
 }
 
