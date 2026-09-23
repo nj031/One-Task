@@ -1,6 +1,8 @@
 package com.nj031.onetask.data.timer
 
+import android.app.NotificationManager
 import android.content.Context
+import android.media.AudioManager
 import com.nj031.onetask.data.UserScopedPreferences
 
 enum class TimerMode { TIMER, STOPWATCH }
@@ -223,15 +225,86 @@ class TimerSessionRepository(context: Context) {
     /** Called by TimerViewModel alongside every FocusOverlayState.breakEndAtMillis mutation
      * (manual break start, break auto-resume) - [endAtMillis] must be the exact same absolute
      * timestamp already computed there (or null to clear), never independently recomputed, so the
-     * in-memory overlay and this durable mirror can never drift apart. */
-    fun setFocusBreakEndAtMillis(endAtMillis: Long?) {
+     * in-memory overlay and this durable mirror can never drift apart. [breaksRemaining], when
+     * given, updates the durable breaks-remaining count in the same write - only takeFocusBreak()
+     * actually changes it, so every other caller omits it and leaves the persisted value alone. */
+    fun setFocusBreakEndAtMillis(endAtMillis: Long?, breaksRemaining: Int? = null) {
         val editor = prefs.edit()
         if (endAtMillis != null) {
             editor.putLong(KEY_FOCUS_BREAK_END_AT, endAtMillis)
         } else {
             editor.remove(KEY_FOCUS_BREAK_END_AT)
         }
+        if (breaksRemaining != null) {
+            editor.putInt(KEY_FOCUS_BREAKS_REMAINING, breaksRemaining)
+        }
         editor.apply()
+    }
+
+    /** Called once by TimerViewModel at Focus session start (alongside [setFocusBlockedPackages]),
+     * persisting the rest of FocusOverlayState's fields - everything [restoreFocusOverlayState]
+     * needs to reconstruct an equivalent instance after TimerViewModel is recreated (app
+     * backgrounded/killed and reopened) while the session is still active. These fields are all
+     * set once at start and never mutated afterward on the in-memory overlay either (only
+     * breaksRemaining/breakEndAtMillis change over a session's lifetime - see
+     * [setFocusBreakEndAtMillis]), so a single write here is enough. [breaksRemaining] starts
+     * equal to [breaksTotal] - no break has been taken yet. */
+    fun setFocusSessionConfig(
+        breaksTotal: Int,
+        notificationsMode: FocusNotificationsMode,
+        callsMode: FocusCallsMode,
+        strictModeEnabled: Boolean,
+        priorNotificationPolicy: FocusNotificationPolicySnapshot
+    ) {
+        prefs.edit()
+            .putBoolean(KEY_FOCUS_ACTIVE, true)
+            .putInt(KEY_FOCUS_BREAKS_TOTAL, breaksTotal)
+            .putInt(KEY_FOCUS_BREAKS_REMAINING, breaksTotal)
+            .putString(KEY_FOCUS_NOTIFICATIONS_MODE, notificationsMode.name)
+            .putString(KEY_FOCUS_CALLS_MODE, callsMode.name)
+            .putBoolean(KEY_FOCUS_STRICT_MODE_ENABLED, strictModeEnabled)
+            .putInt(KEY_FOCUS_PRIOR_INTERRUPTION_FILTER, priorNotificationPolicy.interruptionFilter)
+            .putInt(KEY_FOCUS_PRIOR_RINGER_MODE, priorNotificationPolicy.ringerMode)
+            .apply()
+    }
+
+    /** Reconstructs a FocusOverlayState equivalent to the one TimerViewModel lost when it was
+     * recreated (app backgrounded/killed and reopened, or any other ViewModel recreation) while a
+     * Focus session was still active - see TimerViewModel.init, the only caller. Returns null
+     * whenever no Focus session is actually active, which [KEY_FOCUS_ACTIVE] - set only by
+     * [setFocusSessionConfig], cleared only by [clearFocusBlocking] - tracks explicitly rather
+     * than being inferred from [KEY_FOCUS_BLOCKED_PACKAGES] being non-empty: a Focus session with
+     * zero blocked apps selected is completely normal and must not read back as "no session".
+     *
+     * Defensively clears the mirror and returns null if the underlying Timer/Stopwatch session has
+     * already ended (activeMode == null) despite the Focus flag still being set - this should never
+     * happen given every path that ends a Focus session already calls [clearFocusBlocking], but
+     * never resurrects a phantom overlay for a session that no longer exists either way. */
+    fun restoreFocusOverlayState(): FocusOverlayState? {
+        if (!prefs.getBoolean(KEY_FOCUS_ACTIVE, false)) return null
+        if (snapshot().activeMode == null) {
+            clearFocusBlocking()
+            return null
+        }
+        val notificationsMode = prefs.getString(KEY_FOCUS_NOTIFICATIONS_MODE, null)
+            ?.let { runCatching { FocusNotificationsMode.valueOf(it) }.getOrNull() }
+            ?: FocusNotificationsMode.ALLOW
+        val callsMode = prefs.getString(KEY_FOCUS_CALLS_MODE, null)
+            ?.let { runCatching { FocusCallsMode.valueOf(it) }.getOrNull() }
+            ?: FocusCallsMode.ALLOW
+        return FocusOverlayState(
+            breaksTotal = prefs.getInt(KEY_FOCUS_BREAKS_TOTAL, 0),
+            breaksRemaining = prefs.getInt(KEY_FOCUS_BREAKS_REMAINING, 0),
+            breakEndAtMillis = prefs.getLong(KEY_FOCUS_BREAK_END_AT, -1L).takeIf { it >= 0L },
+            blockedPackages = prefs.getStringSet(KEY_FOCUS_BLOCKED_PACKAGES, emptySet()) ?: emptySet(),
+            notificationsMode = notificationsMode,
+            callsMode = callsMode,
+            priorNotificationPolicy = FocusNotificationPolicySnapshot(
+                interruptionFilter = prefs.getInt(KEY_FOCUS_PRIOR_INTERRUPTION_FILTER, NotificationManager.INTERRUPTION_FILTER_ALL),
+                ringerMode = prefs.getInt(KEY_FOCUS_PRIOR_RINGER_MODE, AudioManager.RINGER_MODE_NORMAL)
+            ),
+            strictModeEnabled = prefs.getBoolean(KEY_FOCUS_STRICT_MODE_ENABLED, false)
+        )
     }
 
     /** Clears the entire Focus-blocking mirror - called by TimerViewModel alongside every path
@@ -240,6 +313,14 @@ class TimerSessionRepository(context: Context) {
         prefs.edit()
             .remove(KEY_FOCUS_BLOCKED_PACKAGES)
             .remove(KEY_FOCUS_BREAK_END_AT)
+            .remove(KEY_FOCUS_ACTIVE)
+            .remove(KEY_FOCUS_BREAKS_TOTAL)
+            .remove(KEY_FOCUS_BREAKS_REMAINING)
+            .remove(KEY_FOCUS_NOTIFICATIONS_MODE)
+            .remove(KEY_FOCUS_CALLS_MODE)
+            .remove(KEY_FOCUS_STRICT_MODE_ENABLED)
+            .remove(KEY_FOCUS_PRIOR_INTERRUPTION_FILTER)
+            .remove(KEY_FOCUS_PRIOR_RINGER_MODE)
             .apply()
     }
 
@@ -253,6 +334,14 @@ class TimerSessionRepository(context: Context) {
         private const val KEY_STOPWATCH_ACCUMULATED = "stopwatch_accumulated_millis"
         private const val KEY_FOCUS_BLOCKED_PACKAGES = "focus_blocked_packages"
         private const val KEY_FOCUS_BREAK_END_AT = "focus_break_end_at_millis"
+        private const val KEY_FOCUS_ACTIVE = "focus_active"
+        private const val KEY_FOCUS_BREAKS_TOTAL = "focus_breaks_total"
+        private const val KEY_FOCUS_BREAKS_REMAINING = "focus_breaks_remaining"
+        private const val KEY_FOCUS_NOTIFICATIONS_MODE = "focus_notifications_mode"
+        private const val KEY_FOCUS_CALLS_MODE = "focus_calls_mode"
+        private const val KEY_FOCUS_STRICT_MODE_ENABLED = "focus_strict_mode_enabled"
+        private const val KEY_FOCUS_PRIOR_INTERRUPTION_FILTER = "focus_prior_interruption_filter"
+        private const val KEY_FOCUS_PRIOR_RINGER_MODE = "focus_prior_ringer_mode"
     }
 }
 
