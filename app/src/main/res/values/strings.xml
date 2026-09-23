@@ -490,9 +490,8 @@
     <string name="focus_mode_config_title">Focus mode</string>
     <string name="focus_mode_config_close">Close</string>
     <string name="focus_mode_config_focus_time">Focus Time</string>
-    <string name="focus_mode_config_focus_time_value">5 mins</string>
     <string name="focus_mode_config_breaks">Breaks</string>
-    <string name="focus_mode_config_breaks_value_timer">8 breaks</string>
+    <string name="focus_mode_config_breaks_count_format">%1$d breaks</string>
     <string name="focus_mode_config_breaks_value_stopwatch">1 break</string>
     <string name="focus_mode_config_total_duration">Total duration</string>
     <string name="focus_mode_config_total_duration_value">0 → ∞</string>
@@ -510,8 +509,18 @@
     <string name="focus_mode_config_more_apps_format">+%1$d</string>
     <string name="focus_mode_config_notifications_calls_title">Notifications &amp; Calls</string>
     <string name="focus_mode_config_notifications_calls_subtitle">Mute notifications and/or block incoming calls during focus.</string>
-    <string name="focus_mode_config_automatic_start_title">Automatic Start, if approved</string>
     <string name="focus_mode_config_save_and_start">Save &amp; Start Focus</string>
+
+    <string name="focus_break_confirm_title">Take a break?</string>
+    <string name="focus_break_confirm_message_format">%1$d breaks remaining</string>
+    <string name="focus_no_breaks_remaining">No breaks remaining</string>
+    <string name="focus_on_break_message">On a break — resumes automatically</string>
+    <string name="focus_stop_confirm_title">Stop Focus?</string>
+    <string name="focus_stop_confirm_message">Are you sure you want to stop this focus session?</string>
+    <string name="focus_action_menu_take_break">Take a break</string>
+    <string name="focus_action_menu_stop_focusing">Stop focusing</string>
+    <string name="focus_timer_running_warning_title">Timer is already running</string>
+    <string name="focus_timer_running_warning_message">Starting Focus Mode will stop the current timer.</string>
 
     <string name="pause">Pause</string>
     <string name="resume">Resume</string>

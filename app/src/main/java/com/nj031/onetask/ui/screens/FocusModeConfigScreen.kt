@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,8 +31,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,34 +45,41 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
+import com.nj031.onetask.data.timer.MAX_FOCUS_BREAKS
+import com.nj031.onetask.ui.components.OneTaskDurationPickerDialog
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.ui.theme.OneTaskCardViewIcon
 import com.nj031.onetask.ui.theme.OneTaskClockIcon
 import com.nj031.onetask.ui.theme.OneTaskLeafIcon
 import com.nj031.onetask.ui.theme.OneTaskLockIcon
 import com.nj031.onetask.ui.theme.OneTaskPhoneIcon
-import com.nj031.onetask.ui.theme.OneTaskPlayIcon
 import com.nj031.onetask.ui.theme.OneTaskStopwatchIcon
 import com.nj031.onetask.ui.theme.OneTaskTargetIcon
+import com.nj031.onetask.viewmodel.TimerViewModel
 
 private enum class FocusModeTab { TIMER, STOPWATCH }
 private enum class FocusLevel { LIGHT, DEEP, STRICT }
 
+/** The Timer tab's own existing Focus Time presets, reused as-is (see TimerPlaceholderScreen's
+ * own TIMER_PRESET_MINUTES) rather than inventing separate Focus Mode values. */
+private val FOCUS_TIME_PRESET_MINUTES = listOf(5, 25, 45, 60)
+private const val DEFAULT_FOCUS_TIME_MINUTES = 5
+
 /**
- * Fixed accents for Block Distractions (green) and Automatic Start (purple), matching the
- * reference design's per-section color differentiation exactly - independent of the user's
- * selected app-wide color theme, since neither green nor purple is a semantic slot in One Task's
- * theme system (see Color.kt's own "Purple is not one of this app's theme options" note). Focus
- * Level and Notifications & Calls instead reuse the app's own dynamic MaterialTheme.colorScheme
- * primary/secondaryContainer tokens, matching the reference's blue in this app's default theme
- * while staying theme-adaptive like every other screen.
+ * Fixed accent for Block Distractions (green), matching the reference design's per-section color
+ * differentiation - independent of the user's selected app-wide color theme, since green is not a
+ * semantic slot in One Task's theme system. Focus Level and Notifications & Calls instead reuse
+ * the app's own dynamic MaterialTheme.colorScheme primary/secondaryContainer tokens, matching the
+ * reference's blue in this app's default theme while staying theme-adaptive like every other
+ * screen.
  */
 private val BlockDistractionsAccent = Color(0xFF22B455)
 private val BlockDistractionsAccentBackground = Color(0xFFE8F8EE)
-private val AutomaticStartAccent = Color(0xFF7C5CFC)
-private val AutomaticStartAccentBackground = Color(0xFFF1ECFF)
 
 /** Static placeholder tile colors for the Block Distractions app-preview row - plain color
  * swatches, not real app icons/logos, since Phase 1 has no actual app selection to preview. */
@@ -82,23 +91,31 @@ private val AppPreviewColors = listOf(
 )
 
 /**
- * Phase 1 (UI-only) build of the new distraction-blocking-style "Focus mode" configuration
- * screen, reached by tapping the Timer tab's own Focus mode button (see TimerPlaceholderScreen).
- * Only the Timer/Stopwatch selector below is functional, purely so both of its reference UI
- * states are reachable - every other row/card/toggle here is a visual placeholder. App blocking,
- * notification/call muting, Focus Level restrictions, Automatic Start, real Focus Time/Break
- * durations, and the actual "Save & Start Focus" running session are all deliberately
- * unimplemented and land in a later phase. This screen is entirely separate from, and does not
- * touch, the existing task-timer Focus Mode feature (FocusTimerScreen/TimerForegroundService).
+ * Phase 2 build of the new distraction-blocking-style "Focus mode" configuration screen, reached
+ * by tapping the Timer tab's own Focus mode button (see TimerPlaceholderScreen). Functional now:
+ * the Timer/Stopwatch selector, Focus Time selection (presets + the existing shared Custom
+ * Duration picker), Breaks count, and Save & Start Focus (which starts the session on the shared
+ * TimerViewModel and returns to the Timer tab - see NavGraph's viewModelStoreOwner wiring for why
+ * this screen shares that instance rather than getting its own).
+ *
+ * Still UI-only, per spec: Focus Level, Block Distractions, and Notifications & Calls have no
+ * behavioral effect this phase, and Stopwatch Focus Mode isn't implemented (only its UI state is
+ * reachable via the selector - Save & Start Focus is disabled while it's selected). This screen
+ * is entirely separate from, and does not touch, the existing task-timer Focus Mode feature
+ * (FocusTimerScreen/TimerForegroundService).
  */
 @Composable
 fun FocusModeConfigScreen(
-    onCloseClick: () -> Unit,
-    onSaveAndStartClick: () -> Unit = {}
+    viewModel: TimerViewModel = viewModel(),
+    onCloseClick: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(FocusModeTab.TIMER) }
     var selectedLevel by remember { mutableStateOf(FocusLevel.DEEP) }
-    var automaticStartEnabled by remember { mutableStateOf(true) }
+    var selectedFocusTimeMinutes by remember { mutableStateOf(DEFAULT_FOCUS_TIME_MINUTES) }
+    var selectedBreaksCount by remember { mutableStateOf(MAX_FOCUS_BREAKS) }
+    var showFocusTimePicker by remember { mutableStateOf(false) }
+    var showCustomDurationPicker by remember { mutableStateOf(false) }
+    var showBreaksPicker by remember { mutableStateOf(false) }
     val hapticTick = rememberHapticTick()
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
@@ -120,6 +137,10 @@ fun FocusModeConfigScreen(
 
             FocusModeDurationCard(
                 selectedTab = selectedTab,
+                selectedFocusTimeMinutes = selectedFocusTimeMinutes,
+                selectedBreaksCount = selectedBreaksCount,
+                onFocusTimeClick = { hapticTick(); showFocusTimePicker = true },
+                onBreaksClick = { hapticTick(); showBreaksPicker = true },
                 modifier = Modifier.padding(top = 16.dp)
             )
 
@@ -165,14 +186,16 @@ fun FocusModeConfigScreen(
 
             NotificationsCallsCard(modifier = Modifier.padding(top = 16.dp))
 
-            AutomaticStartCard(
-                enabled = automaticStartEnabled,
-                onEnabledChange = { hapticTick(); automaticStartEnabled = it },
-                modifier = Modifier.padding(top = 16.dp)
-            )
-
+            val canStartFocus = selectedTab == FocusModeTab.TIMER
             Button(
-                onClick = { hapticTick(); onSaveAndStartClick() },
+                onClick = {
+                    if (canStartFocus) {
+                        hapticTick()
+                        viewModel.startFocusSession(selectedFocusTimeMinutes * 60_000L, selectedBreaksCount)
+                        onCloseClick()
+                    }
+                },
+                enabled = canStartFocus,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 28.dp, bottom = 8.dp)
@@ -180,19 +203,57 @@ fun FocusModeConfigScreen(
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White
+                    contentColor = Color.White,
+                    disabledContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             ) {
-                Icon(imageVector = Icons.Filled.Check, contentDescription = null, tint = Color.White)
+                Icon(imageVector = Icons.Filled.Check, contentDescription = null)
                 Text(
                     text = stringResource(id = R.string.focus_mode_config_save_and_start),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
                     modifier = Modifier.padding(start = 8.dp)
                 )
             }
         }
+    }
+
+    if (showFocusTimePicker) {
+        FocusTimePickerDialog(
+            selectedMinutes = selectedFocusTimeMinutes,
+            onSelectPreset = { minutes ->
+                selectedFocusTimeMinutes = minutes
+                showFocusTimePicker = false
+            },
+            onOpenCustomPicker = {
+                showFocusTimePicker = false
+                showCustomDurationPicker = true
+            },
+            onDismiss = { showFocusTimePicker = false }
+        )
+    }
+
+    if (showCustomDurationPicker) {
+        OneTaskDurationPickerDialog(
+            initialMillis = selectedFocusTimeMinutes * 60_000L,
+            onDismiss = { showCustomDurationPicker = false },
+            onConfirm = { millis ->
+                selectedFocusTimeMinutes = (millis / 60_000L).toInt().coerceAtLeast(1)
+                showCustomDurationPicker = false
+            }
+        )
+    }
+
+    if (showBreaksPicker) {
+        BreaksPickerDialog(
+            selectedCount = selectedBreaksCount,
+            onConfirm = { count ->
+                selectedBreaksCount = count
+                showBreaksPicker = false
+            },
+            onDismiss = { showBreaksPicker = false }
+        )
     }
 }
 
@@ -216,9 +277,9 @@ private fun FocusModeHeader(onCloseClick: () -> Unit) {
     }
 }
 
-/** Mirrors the reference's plain two-segment pill (no extra outer border) - the ONE functional
- * interaction in this Phase 1 screen, purely to switch which UI state below is shown; it does not
- * connect to real Timer/Stopwatch state. */
+/** Mirrors the reference's plain two-segment pill (no extra outer border). Switches which UI
+ * state below is shown; it does not connect to real Timer/Stopwatch state - only Save & Start
+ * Focus (Timer only, this phase) actually starts anything. */
 @Composable
 private fun FocusModeSegmentedControl(
     selectedTab: FocusModeTab,
@@ -279,11 +340,18 @@ private fun FocusModeSegmentedTab(
     }
 }
 
-/** Focus Time/Breaks (Timer state) or Total duration/Breaks (Stopwatch state) - reference-style
- * value+chevron rows. Values shown are the reference's own static placeholders; real Focus
- * Time/Break logic and Stopwatch Focus logic are both out of scope for this UI-only phase. */
+/** Focus Time/Breaks (Timer state, both functional - tapping opens a picker) or Total
+ * duration/Breaks (Stopwatch state, still the reference's own static placeholders - Stopwatch
+ * Focus Mode logic is out of scope for this phase). */
 @Composable
-private fun FocusModeDurationCard(selectedTab: FocusModeTab, modifier: Modifier = Modifier) {
+private fun FocusModeDurationCard(
+    selectedTab: FocusModeTab,
+    selectedFocusTimeMinutes: Int,
+    selectedBreaksCount: Int,
+    onFocusTimeClick: () -> Unit,
+    onBreaksClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -294,12 +362,14 @@ private fun FocusModeDurationCard(selectedTab: FocusModeTab, modifier: Modifier 
                 FocusModeTab.TIMER -> {
                     FocusModeValueRow(
                         title = stringResource(id = R.string.focus_mode_config_focus_time),
-                        value = stringResource(id = R.string.focus_mode_config_focus_time_value)
+                        value = stringResource(id = R.string.timer_minutes_format, selectedFocusTimeMinutes),
+                        onClick = onFocusTimeClick
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                     FocusModeValueRow(
                         title = stringResource(id = R.string.focus_mode_config_breaks),
-                        value = stringResource(id = R.string.focus_mode_config_breaks_value_timer)
+                        value = stringResource(id = R.string.focus_mode_config_breaks_count_format, selectedBreaksCount),
+                        onClick = onBreaksClick
                     )
                 }
                 FocusModeTab.STOPWATCH -> {
@@ -319,10 +389,11 @@ private fun FocusModeDurationCard(selectedTab: FocusModeTab, modifier: Modifier 
 }
 
 @Composable
-private fun FocusModeValueRow(title: String, value: String) {
+private fun FocusModeValueRow(title: String, value: String, onClick: (() -> Unit)? = null) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -601,38 +672,149 @@ private fun NotificationsCallsCard(modifier: Modifier = Modifier) {
     }
 }
 
-/** Toggle is visually present and locally togglable, but per spec does not implement any actual
- * automatic-start behavior in this phase. */
+/** Focus Time's picker: the Timer tab's own existing presets (5/25/45/60) as pills, matching
+ * TimerPlaceholderScreen's TimerPresetRow/TimerPresetPill visual style, plus a Custom pill that
+ * hands off to the shared OneTaskDurationPickerDialog - never a new duration-picking design. */
 @Composable
-private fun AutomaticStartCard(
-    enabled: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+private fun FocusTimePickerDialog(
+    selectedMinutes: Int,
+    onSelectPreset: (Int) -> Unit,
+    onOpenCustomPicker: () -> Unit,
+    onDismiss: () -> Unit
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(AutomaticStartAccentBackground),
-            contentAlignment = Alignment.Center
+    val isCustomSelected = selectedMinutes !in FOCUS_TIME_PRESET_MINUTES
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 6.dp
         ) {
-            OneTaskPlayIcon(tint = AutomaticStartAccent, size = 18.dp)
+            Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+                Text(
+                    text = stringResource(id = R.string.focus_mode_config_focus_time),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FOCUS_TIME_PRESET_MINUTES.forEach { minutes ->
+                        FocusTimePresetPill(
+                            label = stringResource(id = R.string.timer_minutes_format, minutes),
+                            selected = !isCustomSelected && selectedMinutes == minutes,
+                            onClick = { onSelectPreset(minutes) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                Row(modifier = Modifier.padding(top = 8.dp)) {
+                    FocusTimePresetPill(
+                        label = stringResource(id = R.string.timer_preset_custom),
+                        selected = isCustomSelected,
+                        onClick = onOpenCustomPicker,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun FocusTimePresetPill(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.background)
+            .border(
+                width = 1.dp,
+                color = if (selected) Color.Transparent else MaterialTheme.colorScheme.outline,
+                shape = RoundedCornerShape(50)
+            )
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
         Text(
-            text = stringResource(id = R.string.focus_mode_config_automatic_start_title),
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.weight(1f).padding(start = 14.dp)
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Switch(checked = enabled, onCheckedChange = onEnabledChange)
+    }
+}
+
+/** Breaks count picker: a plain 0-[MAX_FOCUS_BREAKS] stepper - there's no existing "pick a small
+ * number" control anywhere else in the app to reuse, so this is new but intentionally minimal,
+ * matching the app's existing dialog shell/typography/color conventions. */
+@Composable
+private fun BreaksPickerDialog(selectedCount: Int, onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
+    var pendingCount by remember(selectedCount) { mutableStateOf(selectedCount) }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = stringResource(id = R.string.focus_mode_config_breaks),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    BreaksStepperButton(
+                        label = "-",
+                        enabled = pendingCount > 0,
+                        onClick = { pendingCount = (pendingCount - 1).coerceAtLeast(0) }
+                    )
+                    Text(
+                        text = pendingCount.toString(),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.widthIn(min = 40.dp),
+                        textAlign = TextAlign.Center
+                    )
+                    BreaksStepperButton(
+                        label = "+",
+                        enabled = pendingCount < MAX_FOCUS_BREAKS,
+                        onClick = { pendingCount = (pendingCount + 1).coerceAtMost(MAX_FOCUS_BREAKS) }
+                    )
+                }
+                Row(modifier = Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) {
+                        Text(text = stringResource(id = R.string.cancel))
+                    }
+                    TextButton(onClick = { onConfirm(pendingCount) }) {
+                        Text(text = stringResource(id = R.string.timer_custom_duration_confirm))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BreaksStepperButton(label: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(if (enabled) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.background)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+        )
     }
 }

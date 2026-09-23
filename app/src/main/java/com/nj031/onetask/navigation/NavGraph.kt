@@ -76,6 +76,7 @@ import com.nj031.onetask.viewmodel.GeneralSettingsViewModel
 import com.nj031.onetask.viewmodel.HomeViewModel
 import com.nj031.onetask.viewmodel.JournalViewModel
 import com.nj031.onetask.viewmodel.ProfileViewModel
+import com.nj031.onetask.viewmodel.TimerViewModel
 import kotlinx.coroutines.launch
 
 /**
@@ -457,7 +458,15 @@ fun OneTaskNavHost(
             )
         }
         composable(Screen.FocusModeConfig.route) {
+            // Shares the Timer tab's own TimerViewModel instance (rather than a fresh one scoped
+            // to this route) so a Focus session started here is immediately visible back on the
+            // Timer tab - the in-memory focusOverlay state (see TimerViewModel) has nowhere else
+            // to live since it's deliberately not persisted to TimerSessionRepository. Safe to
+            // assume Screen.TimerPlaceholder is already on the back stack: this screen's only
+            // entry point is that very screen's own Focus mode button.
+            val timerBackStackEntry = remember { navController.getBackStackEntry(Screen.TimerPlaceholder.route) }
             FocusModeConfigScreen(
+                viewModel = viewModel(viewModelStoreOwner = timerBackStackEntry),
                 onCloseClick = { navController.popBackStack() }
             )
         }
