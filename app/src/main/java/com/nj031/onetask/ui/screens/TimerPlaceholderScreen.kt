@@ -100,6 +100,7 @@ fun TimerPlaceholderScreen(
     onTimerSettingsClick: () -> Unit = {},
     onCustomDurationSettingsClick: () -> Unit = {},
     onTimerHistoryClick: () -> Unit = {},
+    onFocusModeClick: () -> Unit = {},
     wallpaper: Wallpaper = Wallpaper.NONE,
     darkTheme: Boolean = false
 ) {
@@ -199,6 +200,7 @@ fun TimerPlaceholderScreen(
                         onPause = viewModel::pauseTimer,
                         onResume = viewModel::resumeTimer,
                         onStop = viewModel::stopTimer,
+                        onFocusModeClick = onFocusModeClick,
                         wallpaper = wallpaper
                     )
                     TimerTab.STOPWATCH -> StopwatchModeContent(
@@ -386,6 +388,7 @@ private fun TimerModeContent(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onStop: () -> Unit,
+    onFocusModeClick: () -> Unit = {},
     wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val hapticTick = rememberHapticTick()
@@ -442,7 +445,7 @@ private fun TimerModeContent(
         }
     }
 
-    FocusModePlaceholderButton()
+    FocusModeButton(onClick = onFocusModeClick)
 }
 
 @Composable
@@ -744,16 +747,19 @@ private fun TimerSecondaryStopButton(onClick: () -> Unit) {
     }
 }
 
-/** A purely decorative placeholder - deliberately has no click handler at all, so it can never
- * navigate anywhere or connect to Focus Mode functionality, per spec. */
+/** Opens the new Focus Mode Configuration screen (UI-only Phase 1 - see FocusModeConfigScreen).
+ * Does not itself start or touch anything about the actual, separate FocusTimerScreen/
+ * TimerForegroundService feature. */
 @Composable
-private fun FocusModePlaceholderButton() {
+private fun FocusModeButton(onClick: () -> Unit) {
+    val hapticTick = rememberHapticTick()
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 10.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.secondaryContainer)
+            .clickable { hapticTick(); onClick() }
             .padding(vertical = 14.dp),
         contentAlignment = Alignment.Center
     ) {
