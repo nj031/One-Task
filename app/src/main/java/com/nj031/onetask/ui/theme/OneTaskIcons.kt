@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.cos
@@ -1103,5 +1104,138 @@ fun OneTaskWallpaperPlaceholderIcon(
             color = tint,
             style = Stroke(width = strokeWidth * 0.85f, cap = StrokeCap.Round, join = StrokeJoin.Round)
         )
+    }
+}
+
+/** A single leaf (almond outline + center vein) - Focus Mode's "Light" focus level option. */
+@Composable
+fun OneTaskLeafIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.08f
+        val tipX = this.size.width * 0.8f
+        val tipY = this.size.height * 0.2f
+        val baseX = this.size.width * 0.2f
+        val baseY = this.size.height * 0.8f
+        val topControlX = this.size.width * 0.2f
+        val topControlY = this.size.height * 0.32f
+        val bottomControlX = this.size.width * 0.68f
+        val bottomControlY = this.size.height * 0.8f
+
+        val leafPath = Path().apply {
+            moveTo(baseX, baseY)
+            quadraticBezierTo(topControlX, topControlY, tipX, tipY)
+            quadraticBezierTo(bottomControlX, bottomControlY, baseX, baseY)
+            close()
+        }
+        drawPath(leafPath, color = tint, style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawLine(
+            color = tint,
+            start = Offset(baseX, baseY),
+            end = Offset(tipX, tipY),
+            strokeWidth = strokeWidth * 0.7f,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+/** A bullseye/target glyph (two concentric rings + a center dot) - Focus Mode's "Focus level"
+ * section icon and its "Deep" focus level option. */
+@Composable
+fun OneTaskTargetIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.08f
+        val center = Offset(this.size.width / 2f, this.size.height / 2f)
+        drawCircle(color = tint, radius = this.size.minDimension * 0.42f, center = center, style = Stroke(width = strokeWidth))
+        drawCircle(color = tint, radius = this.size.minDimension * 0.24f, center = center, style = Stroke(width = strokeWidth))
+        drawCircle(color = tint, radius = this.size.minDimension * 0.07f, center = center)
+    }
+}
+
+/** A padlock glyph (shackle arc + rounded body) - Focus Mode's "Strict" focus level option. */
+@Composable
+fun OneTaskLockIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.09f
+        val bodyLeft = this.size.width * 0.2f
+        val bodyRight = this.size.width * 0.8f
+        val bodyTop = this.size.height * 0.46f
+        val bodyBottom = this.size.height * 0.86f
+        val shackleCenterX = this.size.width / 2f
+        val shackleTop = this.size.height * 0.14f
+        val shackleRadius = this.size.width * 0.22f
+
+        drawArc(
+            color = tint,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(shackleCenterX - shackleRadius, shackleTop),
+            size = Size(shackleRadius * 2f, shackleRadius * 2f),
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+        )
+        drawLine(
+            color = tint,
+            start = Offset(shackleCenterX - shackleRadius, shackleTop + shackleRadius),
+            end = Offset(shackleCenterX - shackleRadius, bodyTop),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = tint,
+            start = Offset(shackleCenterX + shackleRadius, shackleTop + shackleRadius),
+            end = Offset(shackleCenterX + shackleRadius, bodyTop),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(bodyLeft, bodyTop),
+            size = Size(bodyRight - bodyLeft, bodyBottom - bodyTop),
+            cornerRadius = CornerRadius(this.size.minDimension * 0.1f),
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+        drawCircle(
+            color = tint,
+            radius = this.size.minDimension * 0.05f,
+            center = Offset(shackleCenterX, bodyTop + (bodyBottom - bodyTop) * 0.38f)
+        )
+    }
+}
+
+/** A simplified phone-handset glyph (a rotated rounded-pill outline) - Focus Mode's "Notifications
+ * & Calls" row, shown alongside a bell icon. */
+@Composable
+fun OneTaskPhoneIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.09f
+        rotate(degrees = -45f) {
+            val bodyWidth = this.size.width * 0.34f
+            val bodyHeight = this.size.height * 0.78f
+            val left = (this.size.width - bodyWidth) / 2f
+            val top = (this.size.height - bodyHeight) / 2f
+            drawRoundRect(
+                color = tint,
+                topLeft = Offset(left, top),
+                size = Size(bodyWidth, bodyHeight),
+                cornerRadius = CornerRadius(bodyWidth * 0.5f),
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            )
+        }
     }
 }

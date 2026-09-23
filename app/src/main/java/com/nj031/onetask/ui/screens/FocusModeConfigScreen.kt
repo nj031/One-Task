@@ -3,16 +3,15 @@ package com.nj031.onetask.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -49,14 +48,38 @@ import com.nj031.onetask.R
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.ui.theme.OneTaskCardViewIcon
 import com.nj031.onetask.ui.theme.OneTaskClockIcon
-import com.nj031.onetask.ui.theme.OneTaskMoonIcon
+import com.nj031.onetask.ui.theme.OneTaskLeafIcon
+import com.nj031.onetask.ui.theme.OneTaskLockIcon
+import com.nj031.onetask.ui.theme.OneTaskPhoneIcon
 import com.nj031.onetask.ui.theme.OneTaskPlayIcon
-import com.nj031.onetask.ui.theme.OneTaskShieldIcon
 import com.nj031.onetask.ui.theme.OneTaskStopwatchIcon
-import com.nj031.onetask.ui.theme.OneTaskSunIcon
+import com.nj031.onetask.ui.theme.OneTaskTargetIcon
 
 private enum class FocusModeTab { TIMER, STOPWATCH }
 private enum class FocusLevel { LIGHT, DEEP, STRICT }
+
+/**
+ * Fixed accents for Block Distractions (green) and Automatic Start (purple), matching the
+ * reference design's per-section color differentiation exactly - independent of the user's
+ * selected app-wide color theme, since neither green nor purple is a semantic slot in One Task's
+ * theme system (see Color.kt's own "Purple is not one of this app's theme options" note). Focus
+ * Level and Notifications & Calls instead reuse the app's own dynamic MaterialTheme.colorScheme
+ * primary/secondaryContainer tokens, matching the reference's blue in this app's default theme
+ * while staying theme-adaptive like every other screen.
+ */
+private val BlockDistractionsAccent = Color(0xFF22B455)
+private val BlockDistractionsAccentBackground = Color(0xFFE8F8EE)
+private val AutomaticStartAccent = Color(0xFF7C5CFC)
+private val AutomaticStartAccentBackground = Color(0xFFF1ECFF)
+
+/** Static placeholder tile colors for the Block Distractions app-preview row - plain color
+ * swatches, not real app icons/logos, since Phase 1 has no actual app selection to preview. */
+private val AppPreviewColors = listOf(
+    Color(0xFFFF4D4D),
+    Color(0xFFD62E7A),
+    Color(0xFFFF7A1A),
+    Color(0xFF5865F2)
+)
 
 /**
  * Phase 1 (UI-only) build of the new distraction-blocking-style "Focus mode" configuration
@@ -75,7 +98,7 @@ fun FocusModeConfigScreen(
 ) {
     var selectedTab by remember { mutableStateOf(FocusModeTab.TIMER) }
     var selectedLevel by remember { mutableStateOf(FocusLevel.DEEP) }
-    var automaticStartEnabled by remember { mutableStateOf(false) }
+    var automaticStartEnabled by remember { mutableStateOf(true) }
     val hapticTick = rememberHapticTick()
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
@@ -101,35 +124,44 @@ fun FocusModeConfigScreen(
             )
 
             FocusModeSectionLabel(
+                icon = { tint -> OneTaskTargetIcon(tint = tint, size = 18.dp) },
+                iconTint = MaterialTheme.colorScheme.primary,
+                iconBackground = MaterialTheme.colorScheme.secondaryContainer,
                 title = stringResource(id = R.string.focus_mode_config_level_title),
                 subtitle = stringResource(id = R.string.focus_mode_config_level_subtitle),
                 modifier = Modifier.padding(top = 28.dp)
             )
-            FocusLevelCard(
-                icon = { tint -> OneTaskSunIcon(tint = tint, size = 22.dp) },
-                title = stringResource(id = R.string.focus_mode_config_level_light),
-                description = stringResource(id = R.string.focus_mode_config_level_light_description),
-                selected = selectedLevel == FocusLevel.LIGHT,
-                onClick = { hapticTick(); selectedLevel = FocusLevel.LIGHT }
-            )
-            FocusLevelCard(
-                icon = { tint -> OneTaskMoonIcon(tint = tint, size = 22.dp) },
-                title = stringResource(id = R.string.focus_mode_config_level_deep),
-                description = stringResource(id = R.string.focus_mode_config_level_deep_description),
-                selected = selectedLevel == FocusLevel.DEEP,
-                onClick = { hapticTick(); selectedLevel = FocusLevel.DEEP },
-                modifier = Modifier.padding(top = 10.dp)
-            )
-            FocusLevelCard(
-                icon = { tint -> OneTaskShieldIcon(tint = tint, size = 22.dp) },
-                title = stringResource(id = R.string.focus_mode_config_level_strict),
-                description = stringResource(id = R.string.focus_mode_config_level_strict_description),
-                selected = selectedLevel == FocusLevel.STRICT,
-                onClick = { hapticTick(); selectedLevel = FocusLevel.STRICT },
-                modifier = Modifier.padding(top = 10.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FocusLevelCard(
+                    icon = { tint -> OneTaskLeafIcon(tint = tint, size = 18.dp) },
+                    title = stringResource(id = R.string.focus_mode_config_level_light),
+                    description = stringResource(id = R.string.focus_mode_config_level_light_description),
+                    selected = selectedLevel == FocusLevel.LIGHT,
+                    onClick = { hapticTick(); selectedLevel = FocusLevel.LIGHT },
+                    modifier = Modifier.weight(1f)
+                )
+                FocusLevelCard(
+                    icon = { tint -> OneTaskTargetIcon(tint = tint, size = 18.dp) },
+                    title = stringResource(id = R.string.focus_mode_config_level_deep),
+                    description = stringResource(id = R.string.focus_mode_config_level_deep_description),
+                    selected = selectedLevel == FocusLevel.DEEP,
+                    onClick = { hapticTick(); selectedLevel = FocusLevel.DEEP },
+                    modifier = Modifier.weight(1f)
+                )
+                FocusLevelCard(
+                    icon = { tint -> OneTaskLockIcon(tint = tint, size = 18.dp) },
+                    title = stringResource(id = R.string.focus_mode_config_level_strict),
+                    description = stringResource(id = R.string.focus_mode_config_level_strict_description),
+                    selected = selectedLevel == FocusLevel.STRICT,
+                    onClick = { hapticTick(); selectedLevel = FocusLevel.STRICT },
+                    modifier = Modifier.weight(1f)
+                )
+            }
 
-            BlockDistractionsCard(modifier = Modifier.padding(top = 28.dp))
+            BlockDistractionsCard(modifier = Modifier.padding(top = 24.dp))
 
             NotificationsCallsCard(modifier = Modifier.padding(top = 16.dp))
 
@@ -184,9 +216,9 @@ private fun FocusModeHeader(onCloseClick: () -> Unit) {
     }
 }
 
-/** Mirrors TimerPlaceholderScreen's own TimerStopwatchSegmentedControl visual pattern (blue
- * selected / neutral unselected) - the ONE functional interaction in this Phase 1 screen, purely
- * to switch which UI state below is shown; it does not connect to real Timer/Stopwatch state. */
+/** Mirrors the reference's plain two-segment pill (no extra outer border) - the ONE functional
+ * interaction in this Phase 1 screen, purely to switch which UI state below is shown; it does not
+ * connect to real Timer/Stopwatch state. */
 @Composable
 private fun FocusModeSegmentedControl(
     selectedTab: FocusModeTab,
@@ -198,7 +230,7 @@ private fun FocusModeSegmentedControl(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(4.dp)
     ) {
         FocusModeSegmentedTab(
@@ -226,14 +258,15 @@ private fun FocusModeSegmentedTab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Column(
+    val tint = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         icon(tint)
         Text(
@@ -241,14 +274,14 @@ private fun FocusModeSegmentedTab(
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = tint,
-            modifier = Modifier.padding(top = 4.dp)
+            modifier = Modifier.padding(start = 8.dp)
         )
     }
 }
 
 /** Focus Time/Breaks (Timer state) or Total duration/Breaks (Stopwatch state) - reference-style
- * value+chevron rows. Values shown are static placeholders; real Focus Time/Break logic and
- * Stopwatch Focus logic are both out of scope for this UI-only phase. */
+ * value+chevron rows. Values shown are the reference's own static placeholders; real Focus
+ * Time/Break logic and Stopwatch Focus logic are both out of scope for this UI-only phase. */
 @Composable
 private fun FocusModeDurationCard(selectedTab: FocusModeTab, modifier: Modifier = Modifier) {
     Card(
@@ -261,23 +294,23 @@ private fun FocusModeDurationCard(selectedTab: FocusModeTab, modifier: Modifier 
                 FocusModeTab.TIMER -> {
                     FocusModeValueRow(
                         title = stringResource(id = R.string.focus_mode_config_focus_time),
-                        value = stringResource(id = R.string.timer_minutes_format, 25)
+                        value = stringResource(id = R.string.focus_mode_config_focus_time_value)
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                     FocusModeValueRow(
                         title = stringResource(id = R.string.focus_mode_config_breaks),
-                        value = stringResource(id = R.string.timer_minutes_format, 5)
+                        value = stringResource(id = R.string.focus_mode_config_breaks_value_timer)
                     )
                 }
                 FocusModeTab.STOPWATCH -> {
                     FocusModeValueRow(
                         title = stringResource(id = R.string.focus_mode_config_total_duration),
-                        value = stringResource(id = R.string.timer_minutes_format, 60)
+                        value = stringResource(id = R.string.focus_mode_config_total_duration_value)
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                     FocusModeValueRow(
                         title = stringResource(id = R.string.focus_mode_config_breaks),
-                        value = stringResource(id = R.string.timer_minutes_format, 5)
+                        value = stringResource(id = R.string.focus_mode_config_breaks_value_stopwatch)
                     )
                 }
             }
@@ -315,26 +348,44 @@ private fun FocusModeValueRow(title: String, value: String) {
 }
 
 @Composable
-private fun FocusModeSectionLabel(title: String, subtitle: String, modifier: Modifier = Modifier) {
-    Column(modifier = modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 2.dp)
-        )
+private fun FocusModeSectionLabel(
+    icon: @Composable (tint: Color) -> Unit,
+    iconTint: Color,
+    iconBackground: Color,
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier
+) {
+    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(iconBackground),
+            contentAlignment = Alignment.Center
+        ) {
+            icon(iconTint)
+        }
+        Column(modifier = Modifier.padding(start = 12.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
     }
 }
 
-/** One Focus Level option (Light/Deep/Strict) - a selectable, reference-style card with icon,
- * title, description and a trailing checkmark when selected. UI-only: no restrictions are
- * actually applied for whichever level is highlighted here in this phase. */
+/** One Focus Level option (Light/Deep/Strict) - a compact, selectable reference-style card:
+ * icon top-left in a neutral circle, a radio indicator top-right, title and description below.
+ * UI-only: no restrictions are actually applied for whichever level is highlighted here. */
 @Composable
 private fun FocusLevelCard(
     icon: @Composable (tint: Color) -> Unit,
@@ -344,10 +395,8 @@ private fun FocusLevelCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Row(
+    Column(
         modifier = modifier
-            .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface)
             .border(
@@ -356,40 +405,65 @@ private fun FocusLevelCard(
                 shape = RoundedCornerShape(16.dp)
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(12.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.background),
-            contentAlignment = Alignment.Center
-        ) {
-            icon(tint)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                icon(MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            FocusLevelRadioIndicator(selected = selected)
         }
-        Column(modifier = Modifier.weight(1f).padding(start = 14.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
-            )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp)
-            )
-        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.padding(top = 10.dp)
+        )
+        Text(
+            text = description,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp)
+        )
+    }
+}
+
+/** A plain radio button (outline ring, filled with a blue dot when selected) - the reference's
+ * own selection indicator for a Focus Level card, deliberately not a checkmark. */
+@Composable
+private fun FocusLevelRadioIndicator(selected: Boolean, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(20.dp)
+            .clip(CircleShape)
+            .border(
+                width = 2.dp,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                shape = CircleShape
+            ),
+        contentAlignment = Alignment.Center
+    ) {
         if (selected) {
-            Icon(imageVector = Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+            )
         }
     }
 }
 
-/** Section icon + title/subtitle + chevron, plus a small selected-app preview row (placeholder
- * circles + a count string) below - reference's "app-selection preview area". UI-only: tapping
+/** Section icon + title/subtitle + chevron, plus a small selected-app preview row below (static
+ * color-swatch placeholders standing in for real app icons - Phase 1 has no actual app selection,
+ * so these are not real app logos) - reference's "app-selection preview area". UI-only: tapping
  * this card does nothing yet, and no app-blocking permission is requested in this phase. */
 @Composable
 private fun BlockDistractionsCard(modifier: Modifier = Modifier) {
@@ -404,10 +478,10 @@ private fun BlockDistractionsCard(modifier: Modifier = Modifier) {
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.secondaryContainer),
+                        .background(BlockDistractionsAccentBackground),
                     contentAlignment = Alignment.Center
                 ) {
-                    OneTaskCardViewIcon(tint = MaterialTheme.colorScheme.primary, size = 20.dp)
+                    OneTaskCardViewIcon(tint = BlockDistractionsAccent, size = 20.dp)
                 }
                 Column(modifier = Modifier.weight(1f).padding(start = 14.dp)) {
                     Text(
@@ -430,24 +504,46 @@ private fun BlockDistractionsCard(modifier: Modifier = Modifier) {
                 )
             }
             Row(modifier = Modifier.padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                repeat(3) { index ->
-                    if (index > 0) Spacer(modifier = Modifier.width(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.background)
-                            .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                    )
+                AppPreviewColors.forEach { color ->
+                    AppPreviewTile(color = color, modifier = Modifier.padding(end = 8.dp))
                 }
-                Text(
-                    text = stringResource(id = R.string.focus_mode_config_no_apps_selected),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 12.dp)
-                )
+                MoreAppsChip(count = 3)
             }
+            Text(
+                text = stringResource(id = R.string.focus_mode_config_apps_selected_format, 4),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp)
+            )
         }
+    }
+}
+
+@Composable
+private fun AppPreviewTile(color: Color, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(9.dp))
+            .background(color)
+    )
+}
+
+@Composable
+private fun MoreAppsChip(count: Int, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(9.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = stringResource(id = R.string.focus_mode_config_more_apps_format, count),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
     }
 }
 
@@ -469,11 +565,19 @@ private fun NotificationsCallsCard(modifier: Modifier = Modifier) {
                 .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Filled.Notifications,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.Notifications,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                OneTaskPhoneIcon(
+                    tint = MaterialTheme.colorScheme.primary,
+                    size = 16.dp,
+                    modifier = Modifier.padding(start = 2.dp)
+                )
+            }
         }
         Column(modifier = Modifier.weight(1f).padding(start = 14.dp)) {
             Text(
@@ -517,25 +621,18 @@ private fun AutomaticStartCard(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.secondaryContainer),
+                .background(AutomaticStartAccentBackground),
             contentAlignment = Alignment.Center
         ) {
-            OneTaskPlayIcon(tint = MaterialTheme.colorScheme.primary, size = 18.dp)
+            OneTaskPlayIcon(tint = AutomaticStartAccent, size = 18.dp)
         }
-        Column(modifier = Modifier.weight(1f).padding(start = 14.dp)) {
-            Text(
-                text = stringResource(id = R.string.focus_mode_config_automatic_start_title),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Text(
-                text = stringResource(id = R.string.focus_mode_config_automatic_start_subtitle),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp)
-            )
-        }
+        Text(
+            text = stringResource(id = R.string.focus_mode_config_automatic_start_title),
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.weight(1f).padding(start = 14.dp)
+        )
         Switch(checked = enabled, onCheckedChange = onEnabledChange)
     }
 }
