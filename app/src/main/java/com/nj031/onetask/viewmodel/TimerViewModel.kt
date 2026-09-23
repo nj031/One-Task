@@ -199,4 +199,25 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
         repository.setFocusBreakEndAtMillis(breakEndAtMillis)
         return true
     }
+
+    /** Ends the current manual Focus break immediately, before its 10-minute countdown elapses -
+     * resumes whichever engine (Timer or Stopwatch) the Focus session is riding on from its exact
+     * frozen remaining/elapsed time (the same resumeTimer()/resumeStopwatch() calls the natural
+     * break-timeout path in the init tick loop already uses), and clears breakEndAtMillis both
+     * in-memory and in the durable mirror FocusBlockingAccessibilityService reads - blocking
+     * resumes as soon as that clear is observed, with no further wiring needed here. Deliberately
+     * never touches breaksRemaining: the break was already consumed the moment it started (see
+     * takeFocusBreak above), so ending it early must not return it, and must not consume a second
+     * one either. No-op if no break is currently in progress. */
+    fun endFocusBreak() {
+        val overlay = _focusOverlay.value ?: return
+        if (!overlay.isOnBreak) return
+        when (_snapshot.value.activeMode) {
+            TimerMode.TIMER -> resumeTimer()
+            TimerMode.STOPWATCH -> resumeStopwatch()
+            null -> return
+        }
+        _focusOverlay.value = overlay.copy(breakEndAtMillis = null)
+        repository.setFocusBreakEndAtMillis(null)
+    }
 }
