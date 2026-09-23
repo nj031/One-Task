@@ -492,7 +492,6 @@
     <string name="focus_mode_config_focus_time">Focus Time</string>
     <string name="focus_mode_config_breaks">Breaks</string>
     <string name="focus_mode_config_breaks_count_format">%1$d breaks</string>
-    <string name="focus_mode_config_breaks_value_stopwatch">1 break</string>
     <string name="focus_mode_config_total_duration">Total duration</string>
     <string name="focus_mode_config_total_duration_value">0 → ∞</string>
     <string name="focus_mode_config_level_title">Focus level</string>
