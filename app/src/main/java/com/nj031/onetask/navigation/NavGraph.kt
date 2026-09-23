@@ -41,6 +41,7 @@ import com.nj031.onetask.ui.screens.DataPrivacyScreen
 import com.nj031.onetask.ui.screens.DefaultTaskSettingsScreen
 import com.nj031.onetask.ui.screens.EditProfileScreen
 import com.nj031.onetask.ui.screens.FeedbackFormScreen
+import com.nj031.onetask.ui.screens.FocusModeConfigScreen
 import com.nj031.onetask.ui.screens.FocusTimerScreen
 import com.nj031.onetask.ui.screens.ForgotPasswordScreen
 import com.nj031.onetask.ui.screens.GeneralSettingsScreen
@@ -450,8 +451,14 @@ fun OneTaskNavHost(
                 onTimerSettingsClick = { navController.navigate(Screen.TimerSettings.route) },
                 onCustomDurationSettingsClick = { navController.navigate(Screen.TimerCustomDurationSettings.route) },
                 onTimerHistoryClick = { navController.navigate(Screen.TimerHistory.route) },
+                onFocusModeClick = { navController.navigate(Screen.FocusModeConfig.route) },
                 wallpaper = wallpaper,
                 darkTheme = darkTheme
+            )
+        }
+        composable(Screen.FocusModeConfig.route) {
+            FocusModeConfigScreen(
+                onCloseClick = { navController.popBackStack() }
             )
         }
         composable(Screen.TimerSettings.route) {

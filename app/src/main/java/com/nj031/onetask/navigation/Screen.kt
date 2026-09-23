@@ -18,6 +18,11 @@ sealed class Screen(val route: String) {
     data object TimerSettings : Screen("timer_settings")
     data object TimerCustomDurationSettings : Screen("timer_custom_duration_settings")
     data object TimerHistory : Screen("timer_history")
+    /** The distraction-blocking-style "Focus mode" configuration screen reached from the Timer
+     * tab's Focus mode button - a UI-only Phase 1 build (see FocusModeConfigScreen). Deliberately
+     * named/routed apart from [FocusTimer], the separate, already-built task-timer Focus Mode
+     * feature this does not touch or replace. */
+    data object FocusModeConfig : Screen("focus_mode_config")
     data object Archive : Screen("archive")
     data object RecycleBin : Screen("recycle_bin")
     data object Labels : Screen("labels")

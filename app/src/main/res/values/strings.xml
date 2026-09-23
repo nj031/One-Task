@@ -487,6 +487,28 @@
     <string name="timer_notification_channel_name">Timer</string>
     <string name="timer_notification_complete_channel_name">Timer complete</string>
 
+    <string name="focus_mode_config_title">Focus mode</string>
+    <string name="focus_mode_config_close">Close</string>
+    <string name="focus_mode_config_focus_time">Focus Time</string>
+    <string name="focus_mode_config_breaks">Breaks</string>
+    <string name="focus_mode_config_total_duration">Total duration</string>
+    <string name="focus_mode_config_level_title">Focus level</string>
+    <string name="focus_mode_config_level_subtitle">Choose how strictly to block distractions.</string>
+    <string name="focus_mode_config_level_light">Light</string>
+    <string name="focus_mode_config_level_light_description">Gentle reminders, nothing blocked.</string>
+    <string name="focus_mode_config_level_deep">Deep</string>
+    <string name="focus_mode_config_level_deep_description">Most distractions blocked.</string>
+    <string name="focus_mode_config_level_strict">Strict</string>
+    <string name="focus_mode_config_level_strict_description">Everything blocked until you finish.</string>
+    <string name="focus_mode_config_block_distractions_title">Block distractions</string>
+    <string name="focus_mode_config_block_distractions_subtitle">Block selected apps during focus.</string>
+    <string name="focus_mode_config_no_apps_selected">No apps selected</string>
+    <string name="focus_mode_config_notifications_calls_title">Notifications &amp; Calls</string>
+    <string name="focus_mode_config_notifications_calls_subtitle">Mute notifications and/or block incoming calls during focus.</string>
+    <string name="focus_mode_config_automatic_start_title">Automatic Start</string>
+    <string name="focus_mode_config_automatic_start_subtitle">Start focus automatically at a scheduled time.</string>
+    <string name="focus_mode_config_save_and_start">Save &amp; Start Focus</string>
+
     <string name="pause">Pause</string>
     <string name="resume">Resume</string>
     <string name="reset">Reset</string>
