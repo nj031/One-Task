@@ -68,6 +68,7 @@ import com.nj031.onetask.ui.screens.UpgradeToProScreen
 import com.nj031.onetask.ui.screens.VerifyEmailScreen
 import com.nj031.onetask.service.StandaloneTimerForegroundService
 import com.nj031.onetask.service.TimerForegroundService
+import com.nj031.onetask.ui.screens.WallpaperScreen
 import com.nj031.onetask.ui.screens.WeekStartsOnSettingScreen
 import com.nj031.onetask.ui.theme.WallpaperSettingsTheme
 import com.nj031.onetask.viewmodel.AddTaskDraftViewModel
@@ -698,10 +699,19 @@ fun OneTaskNavHost(
                     displayMode = displayMode,
                     colorTheme = colorTheme,
                     wallpaper = currentWallpaper,
-                    darkTheme = darkTheme,
                     onSelectDisplayMode = appearanceSettingsViewModel::setDisplayMode,
                     onSelectColorTheme = appearanceSettingsViewModel::setColorTheme,
-                    onSelectWallpaper = appearanceSettingsViewModel::setWallpaper,
+                    onWallpaperClick = { navController.navigate(Screen.WallpaperSettings.route) },
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+        }
+        composable(Screen.WallpaperSettings.route) {
+            val currentWallpaper by appearanceSettingsViewModel.wallpaper.collectAsState()
+            WallpaperSettingsTheme(wallpaper = currentWallpaper, darkTheme = darkTheme) {
+                WallpaperScreen(
+                    selected = currentWallpaper,
+                    onSelect = appearanceSettingsViewModel::setWallpaper,
                     onBackClick = { navController.popBackStack() }
                 )
             }

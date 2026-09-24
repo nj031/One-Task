@@ -60,6 +60,11 @@ sealed class Screen(val route: String) {
     }
     data object GeneralSettings : Screen("general_settings")
     data object AppearanceSettings : Screen("appearance_settings")
+    /** The dedicated Wallpaper picker, reached from AppearanceSettingsScreen's own "Wallpaper"
+     * navigation row - see WallpaperScreen. Shares AppearanceSettingsViewModel's own wallpaper
+     * state/setter with the Appearance screen, so a selection made here is immediately reflected
+     * there (and everywhere else the app reads the active wallpaper). */
+    data object WallpaperSettings : Screen("wallpaper_settings")
     data object StartScreenSettings : Screen("start_screen_settings")
     data object CategoriesSettings : Screen("categories_settings")
     data object DefaultTaskSettings : Screen("default_task_settings")
