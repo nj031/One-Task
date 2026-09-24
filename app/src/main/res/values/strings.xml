@@ -40,7 +40,6 @@
     <string name="home_title">One Task at a Time</string>
     <string name="home_tagline">Less clutter. More life.</string>
     <string name="home_empty_title">A calmer day starts here</string>
-    <string name="home_empty_subtitle">Tap the + button to add a task or write in your journal.</string>
     <string name="nav_journal">Notes</string>
     <string name="nav_tasks">Tasks</string>
     <string name="nav_profile">Profile</string>
@@ -53,7 +52,7 @@
     <string name="next_day">Next day</string>
     <string name="tasks_completed">%1$d / %2$d tasks completed</string>
     <string name="tab_all">All</string>
-    <string name="task_filter_basic">Basic</string>
+    <string name="task_filter_basic">No Timer</string>
     <string name="task_filter_timer">Timer</string>
     <string name="task_filter_category">Category</string>
     <string name="status_not_started">Not Started</string>
