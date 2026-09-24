@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -35,6 +37,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -90,6 +93,10 @@ import com.nj031.onetask.ui.components.ProfileAvatar
 import com.nj031.onetask.ui.components.WallpaperBackdrop
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.ui.theme.OneTaskCalendarIcon
+import com.nj031.onetask.ui.theme.OneTaskJournalIcon
+import com.nj031.onetask.ui.theme.OneTaskLabelIcon
+import com.nj031.onetask.ui.theme.OneTaskListViewIcon
+import com.nj031.onetask.ui.theme.OneTaskStopwatchIcon
 import com.nj031.onetask.ui.theme.OneTaskTasksIcon
 import com.nj031.onetask.ui.theme.OneTaskTheme
 import com.nj031.onetask.ui.theme.OneTaskWallpapers
@@ -329,7 +336,8 @@ fun HomeScreen(
                     wallpaper = wallpaper
                 )
             }
-        }
+        },
+        floatingActionButtonPosition = FabPosition.Center
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -480,11 +488,10 @@ fun HomeScreen(
 }
 
 /**
- * The Tasks screen's compact header: profile avatar, previous-day, the selected date, next-day,
- * and the calendar entry point, all in one row - replacing the old two-row header (branding
- * title/tagline centered above a separate date-navigation row) per the UI revamp. Every callback
- * here is the exact same one the old two-row layout already called; only the arrangement changed
- * - date-navigation and calendar/profile access all still work exactly as before.
+ * The Tasks screen's header: a title row (profile avatar, centered "Tasks" title, calendar entry
+ * point) above a date-navigation row (previous-day, the selected date, next-day). Every callback
+ * here is the exact same one the previous single-row layout already called; only the arrangement
+ * changed - date-navigation and calendar/profile access all still work exactly as before.
  */
 @Composable
 private fun TaskScreenHeader(
@@ -510,14 +517,14 @@ private fun TaskScreenHeader(
         selectedDate.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault()))
     }
 
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            // Only while a wallpaper is active: gives this row's avatar/date/nav icons the same
-            // translucent-surface-plus-border treatment as Cards elsewhere on this screen, since
-            // (unlike a Card) this header previously rendered directly over the wallpaper image
-            // with nothing behind it - reusing the existing Verdant border/surface tokens, not a
-            // new color. Non-wallpaper themes are unaffected.
+            // Only while a wallpaper is active: gives this header's avatar/title/date/nav icons
+            // the same translucent-surface-plus-border treatment as Cards elsewhere on this
+            // screen, since (unlike a Card) this header previously rendered directly over the
+            // wallpaper image with nothing behind it - reusing the existing Verdant border/surface
+            // tokens, not a new color. Non-wallpaper themes are unaffected.
             .then(
                 if (wallpaper != Wallpaper.NONE) {
                     Modifier
@@ -528,57 +535,73 @@ private fun TaskScreenHeader(
                 } else {
                     Modifier
                 }
-            ),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(
-            onClick = onAvatarClick,
-            modifier = Modifier.semantics { contentDescription = profileDescription }
-        ) {
-            ProfileAvatar(photoPath = profilePhotoPath, size = 32.dp)
-        }
-
-        IconButton(onClick = onPreviousDay) {
-            Icon(
-                imageVector = Icons.Filled.KeyboardArrowLeft,
-                contentDescription = stringResource(id = R.string.previous_day),
-                tint = MaterialTheme.colorScheme.primary
             )
-        }
-
-        Column(
-            modifier = Modifier.weight(1f),
-            horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            IconButton(
+                onClick = onAvatarClick,
+                modifier = Modifier.semantics { contentDescription = profileDescription }
+            ) {
+                ProfileAvatar(photoPath = profilePhotoPath, size = 32.dp)
+            }
+
             Text(
-                text = relativeLabel,
-                style = MaterialTheme.typography.titleMedium,
+                text = stringResource(id = R.string.nav_tasks),
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1f)
             )
-            Text(
-                text = formattedDate,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
+
+            IconButton(
+                onClick = onCalendarClick,
+                modifier = Modifier.semantics { contentDescription = calendarDescription }
+            ) {
+                OneTaskCalendarIcon(tint = MaterialTheme.colorScheme.primary)
+            }
         }
 
-        IconButton(onClick = onNextDay) {
-            Icon(
-                imageVector = Icons.Filled.KeyboardArrowRight,
-                contentDescription = stringResource(id = R.string.next_day),
-                tint = MaterialTheme.colorScheme.primary
-            )
-        }
-
-        IconButton(
-            onClick = onCalendarClick,
-            modifier = Modifier.semantics { contentDescription = calendarDescription }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            OneTaskCalendarIcon(tint = MaterialTheme.colorScheme.primary)
+            IconButton(onClick = onPreviousDay) {
+                Icon(
+                    imageVector = Icons.Filled.KeyboardArrowLeft,
+                    contentDescription = stringResource(id = R.string.previous_day),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = relativeLabel,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = formattedDate,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            IconButton(onClick = onNextDay) {
+                Icon(
+                    imageVector = Icons.Filled.KeyboardArrowRight,
+                    contentDescription = stringResource(id = R.string.next_day),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }
@@ -599,52 +622,73 @@ private fun TaskFilterStrip(
     onCategoryFilterClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val filters = listOf(
-        TaskListFilter.ALL to stringResource(id = R.string.tab_all),
-        TaskListFilter.BASIC to stringResource(id = R.string.task_filter_basic),
-        TaskListFilter.TIMER to stringResource(id = R.string.task_filter_timer)
-    )
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        filters.forEach { (filter, label) ->
-            FilterPill(
-                text = label,
-                selected = filter == selectedFilter,
-                onClick = { onFilterSelected(filter) }
-            )
-        }
+        FilterPill(
+            text = stringResource(id = R.string.tab_all),
+            selected = selectedFilter == TaskListFilter.ALL,
+            onClick = { onFilterSelected(TaskListFilter.ALL) },
+            icon = { tint -> OneTaskListViewIcon(tint = tint, size = 16.dp) }
+        )
+        FilterPill(
+            text = stringResource(id = R.string.task_filter_basic),
+            selected = selectedFilter == TaskListFilter.BASIC,
+            onClick = { onFilterSelected(TaskListFilter.BASIC) },
+            icon = { tint -> OneTaskJournalIcon(tint = tint, size = 16.dp) }
+        )
+        FilterPill(
+            text = stringResource(id = R.string.task_filter_timer),
+            selected = selectedFilter == TaskListFilter.TIMER,
+            onClick = { onFilterSelected(TaskListFilter.TIMER) },
+            icon = { tint -> OneTaskStopwatchIcon(tint = tint, size = 16.dp) }
+        )
         FilterPill(
             text = stringResource(id = R.string.task_filter_category),
             selected = selectedFilter is TaskListFilter.CATEGORY,
-            onClick = onCategoryFilterClick
+            onClick = onCategoryFilterClick,
+            icon = { tint -> OneTaskLabelIcon(tint = tint, size = 16.dp) }
         )
     }
 }
 
 @Composable
-private fun FilterPill(text: String, selected: Boolean, onClick: () -> Unit) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.Bold,
-        color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
+private fun FilterPill(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    icon: @Composable (Color) -> Unit
+) {
+    val contentColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp)
-    )
+    ) {
+        icon(contentColor)
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = contentColor,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(start = 6.dp)
+        )
+    }
 }
 
 /**
  * Centered, calm empty state - the existing Tasks-tab glyph ([OneTaskTasksIcon], reused rather
- * than a new illustration asset) on a soft tonal backdrop, plus the same title/subtitle text this
- * screen already used. Shown identically whether the whole day has no tasks or the current
- * All/Basic/Timer filter simply has no matches within an otherwise non-empty day - no task data
- * is ever fabricated to avoid this state.
+ * than a new illustration asset) on a soft tonal backdrop, plus the same title text this screen
+ * already used (no secondary/subtitle line, per the UI revamp). Shown identically whether the
+ * whole day has no tasks or the current All/Basic/Timer filter simply has no matches within an
+ * otherwise non-empty day - no task data is ever fabricated to avoid this state.
  */
 @Composable
 private fun HomeEmptyState(modifier: Modifier = Modifier) {
@@ -652,12 +696,12 @@ private fun HomeEmptyState(modifier: Modifier = Modifier) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
                 modifier = Modifier
-                    .size(96.dp)
+                    .size(112.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.secondaryContainer),
                 contentAlignment = Alignment.Center
             ) {
-                OneTaskTasksIcon(active = false, size = 48.dp)
+                OneTaskTasksIcon(active = false, size = 52.dp)
             }
             Text(
                 text = stringResource(id = R.string.home_empty_title),
@@ -665,14 +709,7 @@ private fun HomeEmptyState(modifier: Modifier = Modifier) {
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 20.dp)
-            )
-            Text(
-                text = stringResource(id = R.string.home_empty_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 24.dp)
             )
         }
     }
