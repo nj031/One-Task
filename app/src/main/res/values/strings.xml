@@ -253,7 +253,6 @@
     <string name="appearance_wallpaper_title">Wallpaper</string>
     <string name="appearance_wallpaper_description">Give the app a fresh look with a beautiful background.</string>
     <string name="appearance_wallpaper_none">No Wallpaper</string>
-    <string name="appearance_wallpaper_verdant">Verdant</string>
     <string name="appearance_wallpaper_option_format">Wallpaper %1$d</string>
     <string name="appearance_wallpaper_info">A wallpaper replaces your selected Theme Color with its own palette. Display Mode still works as usual, and your Theme Color is saved for whenever you switch back to No Wallpaper.</string>
 

@@ -20,6 +20,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -101,16 +103,23 @@ fun CategoriesScreen(
             // no "pick which one seeds new tasks" selection to make, and they can never be
             // renamed or deleted.
             CategorySectionLabel(text = stringResource(id = R.string.default_category_section), topPadding = 20.dp)
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                DefaultCategory.values().forEach { category ->
-                    CategoryChip(
-                        text = categoryDisplayName(category.id, emptyList()),
-                        selected = false,
-                        onClick = {}
-                    )
+                FlowRow(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DefaultCategory.values().forEach { category ->
+                        CategoryChip(
+                            text = categoryDisplayName(category.id, emptyList()),
+                            selected = false,
+                            onClick = {}
+                        )
+                    }
                 }
             }
 
@@ -121,15 +130,21 @@ fun CategoriesScreen(
                 text = stringResource(id = R.string.custom_categories_section),
                 topPadding = 24.dp
             )
-            Column {
-                customCategories.forEach { category ->
-                    CustomCategoryRow(
-                        category = category,
-                        onRenameClick = { categoryPendingRename = category },
-                        onDeleteClick = { categoryPendingDeletion = category }
-                    )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    customCategories.forEach { category ->
+                        CustomCategoryRow(
+                            category = category,
+                            onRenameClick = { categoryPendingRename = category },
+                            onDeleteClick = { categoryPendingDeletion = category }
+                        )
+                    }
+                    AddCustomCategoryButton(onClick = { showAddCustomCategoryDialog = true })
                 }
-                AddCustomCategoryButton(onClick = { showAddCustomCategoryDialog = true })
             }
         }
     }

@@ -13,6 +13,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -103,51 +105,66 @@ fun DefaultTaskSettingsScreen(
 
             DefaultSettingSectionLabel(text = stringResource(id = R.string.default_timer_section))
             val isCustomTimerSelected = defaultTimerMinutes != null && defaultTimerMinutes !in TIMER_PRESETS
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                DefaultSettingChip(
-                    text = stringResource(id = R.string.option_no_timer),
-                    selected = !isCustomTimerSelected && defaultTimerMinutes == null,
-                    onClick = { onDefaultTimerMinutesChange(null) }
-                )
-                TIMER_PRESETS.forEach { minutes ->
+                FlowRow(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     DefaultSettingChip(
-                        text = minutes.toString(),
-                        selected = !isCustomTimerSelected && defaultTimerMinutes == minutes,
-                        onClick = { onDefaultTimerMinutesChange(minutes) }
+                        text = stringResource(id = R.string.option_no_timer),
+                        selected = !isCustomTimerSelected && defaultTimerMinutes == null,
+                        onClick = { onDefaultTimerMinutesChange(null) }
+                    )
+                    TIMER_PRESETS.forEach { minutes ->
+                        DefaultSettingChip(
+                            text = minutes.toString(),
+                            selected = !isCustomTimerSelected && defaultTimerMinutes == minutes,
+                            onClick = { onDefaultTimerMinutesChange(minutes) }
+                        )
+                    }
+                    DefaultSettingChip(
+                        text = stringResource(id = R.string.option_custom),
+                        selected = isCustomTimerSelected,
+                        onClick = { showCustomDurationPicker = true }
                     )
                 }
-                DefaultSettingChip(
-                    text = stringResource(id = R.string.option_custom),
-                    selected = isCustomTimerSelected,
-                    onClick = { showCustomDurationPicker = true }
-                )
             }
 
             DefaultSettingSectionLabel(
                 text = stringResource(id = R.string.default_pending_task_section),
                 topPadding = 24.dp
             )
-            Row(
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                Text(
-                    text = stringResource(id = R.string.pending_task_description),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f).padding(end = 12.dp)
-                )
-                Switch(
-                    checked = defaultPostponeIfIncomplete,
-                    onCheckedChange = {
-                        hapticTick()
-                        onDefaultPostponeIfIncompleteChange(it)
-                    }
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.pending_task_description),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f).padding(end = 12.dp)
+                    )
+                    Switch(
+                        checked = defaultPostponeIfIncomplete,
+                        onCheckedChange = {
+                            hapticTick()
+                            onDefaultPostponeIfIncompleteChange(it)
+                        }
+                    )
+                }
             }
         }
     }
