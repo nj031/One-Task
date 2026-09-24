@@ -10,12 +10,14 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,17 +26,19 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FabPosition
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +58,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -75,6 +81,7 @@ import com.nj031.onetask.ui.components.ProfileAvatar
 import com.nj031.onetask.ui.components.WallpaperBackdrop
 import com.nj031.onetask.ui.theme.OneTaskArchiveIcon
 import com.nj031.onetask.ui.theme.OneTaskCardViewIcon
+import com.nj031.onetask.ui.theme.OneTaskJournalIcon
 import com.nj031.onetask.ui.theme.OneTaskLabelIcon
 import com.nj031.onetask.ui.theme.OneTaskListViewIcon
 import com.nj031.onetask.ui.theme.OneTaskRecycleBinIcon
@@ -86,6 +93,17 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.launch
+
+// The note list/grid's bottom content padding needs to clear the floating "+ Add" button, which
+// Scaffold positions above/independent of the list (its own height is never reflected in the
+// Scaffold content lambda's innerPadding). NOTES_FAB_SCAFFOLD_END_MARGIN_DP is Material3
+// Scaffold's own spacing between a FAB and the surrounding edges/bottom bar - not a guess at this
+// screen's layout. The FAB's own height is measured live (see fabHeight below) rather than
+// hardcoded, so this stays correct even if the FAB's size ever changes.
+// NOTES_FAB_SAFETY_GAP_DP is the small extra breathing room so the last card never visually
+// touches the button.
+private const val NOTES_FAB_SCAFFOLD_END_MARGIN_DP = 16
+private const val NOTES_FAB_SAFETY_GAP_DP = 8
 
 @Composable
 fun NotesScreen(
@@ -107,6 +125,9 @@ fun NotesScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     var actionMenuNote by remember { mutableStateOf<JournalNoteEntity?>(null) }
+    // The FAB's real, measured height - see NOTES_FAB_SCAFFOLD_END_MARGIN_DP's own comment for why
+    // this (rather than a hardcoded size) drives the note list/grid's bottom content padding.
+    var fabHeight by remember { mutableStateOf(0.dp) }
 
     BackHandler(enabled = actionMenuNote != null) {
         actionMenuNote = null
@@ -130,7 +151,45 @@ fun NotesScreen(
                 } ?: MaterialTheme.colorScheme.surface,
                 elevated = wallpaper != Wallpaper.NONE
             )
-        }
+        },
+        floatingActionButton = {
+            val fabDensity = LocalDensity.current
+            Box(
+                modifier = Modifier.onGloballyPositioned { coordinates ->
+                    fabHeight = with(fabDensity) { coordinates.size.height.toDp() }
+                }
+            ) {
+                ExtendedFloatingActionButton(
+                    onClick = { onAddNoteClick(JournalNoteType.TEXT) },
+                    modifier = Modifier
+                        // Only while a wallpaper is active: gives this CTA a defined edge against
+                        // whatever wallpaper pixels happen to sit behind it - the same border
+                        // token/technique Cards elsewhere already use, without changing
+                        // containerColor's own existing opacity. Non-wallpaper themes are
+                        // unaffected.
+                        .then(
+                            if (wallpaper != Wallpaper.NONE) {
+                                Modifier.border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                            } else {
+                                Modifier
+                            }
+                        ),
+                    shape = CircleShape,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
+                ) {
+                    Icon(imageVector = Icons.Filled.Add, contentDescription = null, tint = Color.White)
+                    Text(
+                        text = stringResource(id = R.string.notes_add_button),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+            }
+        },
+        floatingActionButtonPosition = FabPosition.Center
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -156,7 +215,7 @@ fun NotesScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 20.dp),
+                        .padding(top = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     NotesSearchField(
@@ -172,53 +231,8 @@ fun NotesScreen(
                     )
                 }
 
-                Button(
-                    onClick = { onAddNoteClick(JournalNoteType.TEXT) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp)
-                        .height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = Color.White
-                    ),
-                    // Only while a wallpaper is active: gives this CTA a defined edge against
-                    // whatever wallpaper pixels happen to sit behind it - the same border token/
-                    // technique Cards elsewhere already use - without changing containerColor's
-                    // own existing opacity. Non-wallpaper themes are unaffected.
-                    border = if (wallpaper != Wallpaper.NONE) {
-                        BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                    } else {
-                        null
-                    }
-                ) {
-                    Icon(imageVector = Icons.Filled.Add, contentDescription = null, tint = Color.White)
-                    Text(
-                        text = stringResource(id = R.string.notes_add_button),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                }
-
                 if (notes.isEmpty()) {
-                    Text(
-                        text = stringResource(id = R.string.notes_list_heading),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.padding(top = 24.dp, bottom = 12.dp)
-                    )
-                    Text(
-                        text = stringResource(id = R.string.no_notes_yet),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 24.dp)
-                    )
+                    NotesEmptyState(modifier = Modifier.weight(1f))
                 } else {
                     // notes is already sorted most-recently-edited first (see
                     // JournalViewModel.notes); partitioning it (rather than re-sorting) keeps
@@ -230,6 +244,11 @@ fun NotesScreen(
                         NotesViewMode.LIST -> {
                             LazyColumn(
                                 modifier = Modifier.fillMaxWidth().weight(1f),
+                                // Lets the last card scroll fully clear of the floating "+ Add"
+                                // button (see NOTES_FAB_SCAFFOLD_END_MARGIN_DP's own comment).
+                                contentPadding = PaddingValues(
+                                    bottom = fabHeight + NOTES_FAB_SCAFFOLD_END_MARGIN_DP.dp + NOTES_FAB_SAFETY_GAP_DP.dp
+                                ),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 if (pinnedNotes.isNotEmpty()) {
@@ -273,6 +292,11 @@ fun NotesScreen(
                             LazyVerticalGrid(
                                 columns = GridCells.Fixed(2),
                                 modifier = Modifier.fillMaxWidth().weight(1f),
+                                // Lets the last row scroll fully clear of the floating "+ Add"
+                                // button (see NOTES_FAB_SCAFFOLD_END_MARGIN_DP's own comment).
+                                contentPadding = PaddingValues(
+                                    bottom = fabHeight + NOTES_FAB_SCAFFOLD_END_MARGIN_DP.dp + NOTES_FAB_SAFETY_GAP_DP.dp
+                                ),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
@@ -504,6 +528,48 @@ private fun NotesViewToggleButton(
     }
 }
 
+/**
+ * Centered, calm empty state - the same Notes glyph ([OneTaskJournalIcon], reused rather than a
+ * new illustration asset) on a soft tonal backdrop, plus a short title/subtitle. Shown identically
+ * whether there are no notes at all or the current search query simply has no matches - no note
+ * data is ever fabricated to avoid this state.
+ */
+@Composable
+private fun NotesEmptyState(modifier: Modifier = Modifier) {
+    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier = Modifier
+                    .size(112.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                OneTaskJournalIcon(tint = MaterialTheme.colorScheme.primary, size = 52.dp)
+            }
+            Text(
+                text = stringResource(id = R.string.notes_empty_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 24.dp)
+            )
+            Text(
+                text = stringResource(id = R.string.notes_empty_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+    }
+}
+
+/** Compact height for the search field - noticeably shorter than Material3's default filled
+ * TextField (56.dp), while staying at Android's recommended minimum touch-target size. */
+private val NOTES_SEARCH_FIELD_HEIGHT = 48.dp
+
 @Composable
 private fun NotesSearchField(query: String, onQueryChange: (String) -> Unit, modifier: Modifier = Modifier) {
     TextField(
@@ -511,6 +577,7 @@ private fun NotesSearchField(query: String, onQueryChange: (String) -> Unit, mod
         onValueChange = onQueryChange,
         modifier = modifier
             .fillMaxWidth()
+            .height(NOTES_SEARCH_FIELD_HEIGHT)
             .clip(RoundedCornerShape(14.dp))
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp)),
         placeholder = {
@@ -520,7 +587,7 @@ private fun NotesSearchField(query: String, onQueryChange: (String) -> Unit, mod
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
-        leadingIcon = { OneTaskSearchIcon(size = 20.dp) },
+        leadingIcon = { OneTaskSearchIcon(size = 18.dp) },
         singleLine = true,
         textStyle = MaterialTheme.typography.bodyMedium,
         colors = TextFieldDefaults.colors(
