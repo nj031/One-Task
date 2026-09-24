@@ -3,7 +3,6 @@ package com.nj031.onetask.ui.screens
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,8 +18,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -34,9 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,11 +45,7 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.blocking.InstalledApp
-import com.nj031.onetask.ui.theme.OneTaskCardViewIcon
 import com.nj031.onetask.viewmodel.FocusBlockedAppsViewModel
-
-private val OtherAppsAccent = Color(0xFF22B455)
-private val OtherAppsAccentBackground = Color(0xFFE8F8EE)
 
 /**
  * The "Block distracting apps" picker, reached by tapping Focus Mode Configuration's Block
@@ -63,20 +54,23 @@ private val OtherAppsAccentBackground = Color(0xFFE8F8EE)
  * Configuration's own back stack entry, so a selection made here is immediately visible there and
  * preserved if this picker is reopened).
  *
- * The functional "Other Apps" section has two fixed categories (Distracting Apps' 9-app
- * shortlist, and Others: Discord + Telegram + every other launchable user app behind an
- * expandable group), and a "Done (N selected)" button at the end that just saves the in-memory
- * selection and navigates back - it does not start a Focus session. Selection is global by actual
- * package identity: an app can never become two separate selections just because it's reachable
- * from two rows (it can't be - every app appears in exactly one category here), and the
- * displayed/returned count is always [FocusBlockedAppsViewModel.selectedPackages]'s size, i.e.
- * unique actual apps.
+ * A single alphabetical (by displayed label) list of every eligible app - the Distracting Apps
+ * shortlist, Discord, Telegram, and every other launchable user app are all merged into one list
+ * here rather than shown as separate categories; [FocusBlockedAppsViewModel] itself still loads
+ * them as four separate lists (unchanged - FocusModeConfigScreen's own preview still reads those
+ * directly), this screen just combines and sorts them for display. A single "Select all"/
+ * "Deselect all" action at the top acts on the whole merged list, and a "Done (N selected)" button
+ * at the end just saves the in-memory selection and navigates back - it does not start a Focus
+ * session. Selection is global by actual package identity: an app can never become two separate
+ * selections just because it's reachable from two of the underlying lists (it can't be - every
+ * app appears in exactly one of them), and the displayed/returned count is always
+ * [FocusBlockedAppsViewModel.selectedPackages]'s size, i.e. unique actual apps.
  *
  * No YouTube- or short-form-specific card/controls exist here: neither ever had real blocking
  * behavior, and both were removed rather than kept as inert placeholders. YouTube itself remains
- * selectable exactly like any other installed user app - it already surfaces under Others' "All
- * other user apps" group via the same InstalledAppsRepository query every other non-shortlisted
- * app goes through, with no special-casing needed or present.
+ * selectable exactly like any other installed user app - it already surfaces via the same
+ * InstalledAppsRepository query every other non-shortlisted app goes through, with no
+ * special-casing needed or present.
  */
 @Composable
 fun BlockDistractingAppsScreen(
@@ -88,12 +82,13 @@ fun BlockDistractingAppsScreen(
     val telegramApp by viewModel.telegramApp.collectAsState()
     val otherApps by viewModel.otherApps.collectAsState()
     val selectedPackages by viewModel.selectedPackages.collectAsState()
-    var othersExpanded by remember { mutableStateOf(false) }
 
-    val distractingPackages = remember(distractingApps) { distractingApps.map { it.packageName } }
-    val othersPackages = remember(discordApp, telegramApp, otherApps) {
-        listOfNotNull(discordApp?.packageName, telegramApp?.packageName) + otherApps.map { it.packageName }
+    val allApps = remember(distractingApps, discordApp, telegramApp, otherApps) {
+        (distractingApps + listOfNotNull(discordApp, telegramApp) + otherApps)
+            .sortedBy { it.label.lowercase() }
     }
+    val allPackages = remember(allApps) { allApps.map { it.packageName } }
+    val allSelected = allPackages.isNotEmpty() && allPackages.all { it in selectedPackages }
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
         Column(
@@ -126,88 +121,18 @@ fun BlockDistractingAppsScreen(
                 modifier = Modifier.padding(start = 48.dp, top = 2.dp)
             )
 
-            FocusModeSectionLabel(
-                icon = { tint -> OneTaskCardViewIcon(tint = tint, size = 18.dp) },
-                iconTint = OtherAppsAccent,
-                iconBackground = OtherAppsAccentBackground,
-                title = stringResource(id = R.string.block_apps_other_apps_title),
-                subtitle = stringResource(id = R.string.block_apps_other_apps_subtitle),
+            AppListCard(
+                allSelected = allSelected,
+                onSelectAllToggle = { viewModel.setSelected(allPackages, selected = !allSelected) },
                 modifier = Modifier.padding(top = 20.dp)
-            )
-
-            AppCategoryCard(
-                title = stringResource(id = R.string.block_apps_distracting_apps_title),
-                allSelected = distractingPackages.isNotEmpty() && distractingPackages.all { it in selectedPackages },
-                onSelectAllToggle = { allSelected ->
-                    viewModel.setSelected(distractingPackages, selected = !allSelected)
-                },
-                modifier = Modifier.padding(top = 16.dp)
             ) {
-                distractingApps.forEach { app ->
+                allApps.forEach { app ->
                     AppRow(
                         app = app,
                         checked = app.packageName in selectedPackages,
                         onToggle = { viewModel.toggleSelected(app.packageName) },
                         modifier = Modifier.padding(top = 12.dp)
                     )
-                }
-            }
-
-            AppCategoryCard(
-                title = stringResource(id = R.string.block_apps_others_title),
-                allSelected = othersPackages.isNotEmpty() && othersPackages.all { it in selectedPackages },
-                onSelectAllToggle = { allSelected ->
-                    viewModel.setSelected(othersPackages, selected = !allSelected)
-                },
-                modifier = Modifier.padding(top = 16.dp)
-            ) {
-                discordApp?.let { app ->
-                    AppRow(
-                        app = app,
-                        checked = app.packageName in selectedPackages,
-                        onToggle = { viewModel.toggleSelected(app.packageName) },
-                        modifier = Modifier.padding(top = 12.dp)
-                    )
-                }
-                telegramApp?.let { app ->
-                    AppRow(
-                        app = app,
-                        checked = app.packageName in selectedPackages,
-                        onToggle = { viewModel.toggleSelected(app.packageName) },
-                        modifier = Modifier.padding(top = 12.dp)
-                    )
-                }
-                if (otherApps.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { othersExpanded = !othersExpanded }
-                            .padding(top = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = stringResource(id = R.string.block_apps_all_other_user_apps),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Icon(
-                            imageVector = if (othersExpanded) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (othersExpanded) {
-                        otherApps.forEach { app ->
-                            AppRow(
-                                app = app,
-                                checked = app.packageName in selectedPackages,
-                                onToggle = { viewModel.toggleSelected(app.packageName) },
-                                modifier = Modifier.padding(top = 12.dp, start = 12.dp)
-                            )
-                        }
-                    }
                 }
             }
 
@@ -235,13 +160,13 @@ fun BlockDistractingAppsScreen(
     }
 }
 
-/** One of the two Other Apps categories (Distracting Apps / Others): a bold title + a "Select
- * all"/"Deselect all" pill, followed by whatever app rows [content] renders. */
+/** The single app list card: a "Select all"/"Deselect all" action at the top, followed by
+ * whatever app rows [content] renders - no per-category title, since the picker is now one
+ * continuous alphabetical list rather than separate categories. */
 @Composable
-private fun AppCategoryCard(
-    title: String,
+private fun AppListCard(
     allSelected: Boolean,
-    onSelectAllToggle: (Boolean) -> Unit,
+    onSelectAllToggle: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
@@ -251,17 +176,7 @@ private fun AppCategoryCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
+            Row(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = stringResource(
                         id = if (allSelected) R.string.block_apps_deselect_all else R.string.block_apps_select_all
@@ -269,7 +184,7 @@ private fun AppCategoryCard(
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable { onSelectAllToggle(allSelected) }
+                    modifier = Modifier.clickable { onSelectAllToggle() }
                 )
             }
             content()
