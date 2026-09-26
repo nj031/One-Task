@@ -76,7 +76,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -363,6 +363,18 @@ fun NoteEditorScreen(
         val block = blocks[index]
         if (block.value.text.isBlank()) {
             blocks = blocks.mapIndexed { i, b -> if (i == index) b.copy(type = NoteBlockType.TEXT, checked = false) else b }
+            // Converting this block's type changes which branch of EditableBlockRow's own
+            // when(block.type) composes for it (BULLET/CHECKLIST -> TEXT), which are structurally
+            // different composables even though the LazyColumn item key (blockId) is unchanged -
+            // Compose tears down the old (focused) BasicTextField and composes a brand new,
+            // unfocused one in its place. Without explicitly re-requesting focus here, that new
+            // TEXT field never claims it, the IME loses its input target, and the keyboard hides -
+            // this is the actual, confirmed cause of "keyboard hides after exiting an empty list
+            // item," not something a global "keep keyboard open" flag would fix. Retargeting focus
+            // at the same id (exactly like the non-empty branch below and removeBlockAndRetarget
+            // already do for their own newly-relevant blocks) lets EditableBlockRow's existing
+            // LaunchedEffect(requestFocus) reclaim it the instant the new TEXT field composes.
+            focusTargetId = blockId
         } else {
             val newBlock = EditableBlock(id = UUID.randomUUID().toString(), type = block.type)
             blocks = blocks.toMutableList().apply { add(index + 1, newBlock) }
@@ -1762,15 +1774,18 @@ private fun EditableBlockRow(
                         .onGloballyPositioned {
                             if (isFocused) bringCursorIntoView()
                         }
-                        // Best-effort backspace-at-start handling: Android soft keyboards don't
-                        // always deliver a KeyEvent for a backspace that has nothing to delete
-                        // forward of the cursor (an IME may instead call deleteSurroundingText
-                        // directly, which never reaches onKeyEvent) - this reliably catches a
-                        // hardware keyboard and many soft keyboards, but isn't guaranteed on
-                        // every keyboard app/OS version. Enter (spec 3C/3D, 4C/4D) is the
-                        // primary, reliable way to exit Bullet/Checklist mode - it doesn't
-                        // depend on this at all.
-                        .onKeyEvent { event ->
+                        // Backspace-at-start handling for an empty Bullet/Checklist item. Uses
+                        // onPreviewKeyEvent (capture phase, fires on the way DOWN to the focused
+                        // field) rather than onKeyEvent (bubble phase, fires on the way back UP) -
+                        // BasicTextField's own internal key handling sits between the two and can
+                        // otherwise consume a backspace key event for its own (here, no-op, since
+                        // the field is already empty) edit handling before onKeyEvent ever sees it,
+                        // which was the actual, confirmed cause of backspace-at-an-empty-item
+                        // sometimes doing nothing at all. Intercepting in the preview/capture phase
+                        // guarantees this modifier sees the key first, regardless of what the field
+                        // itself would otherwise have done with it; every other key still falls
+                        // through untouched (returns false) to the field exactly as before.
+                        .onPreviewKeyEvent { event ->
                             if (event.type == KeyEventType.KeyDown && event.key == Key.Backspace && atLineStart) {
                                 onBackspaceAtStart()
                                 true
