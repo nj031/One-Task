@@ -97,6 +97,28 @@ interface TaskDao {
     @Query("SELECT * FROM tasks")
     suspend fun getAll(): List<TaskEntity>
 
+    // Which of [ids] currently have a real row - used only by upsertUnlessDeletedSince below to
+    // tell "this task was deleted by something else since we last looked" apart from "this task
+    // never had a row yet" (a still-virtual recurring occurrence - see
+    // TaskEntity.asVirtualOccurrence), which must keep materializing normally.
+    @Query("SELECT id FROM tasks WHERE id IN (:ids)")
+    suspend fun getExistingIds(ids: List<String>): List<String>
+
+    /** Persists [updated] unless [hadRealRowAtStart] is true and its row has since been deleted
+     * by some other, concurrent write - see TaskRepository.reorderTasks's own doc comment for the
+     * race this closes. Wrapped in one transaction so the existence check and the upsert can
+     * never be split by a concurrent delete landing in between them. A task that never had a row
+     * to begin with ([hadRealRowAtStart] false - a still-virtual recurring occurrence) is
+     * unaffected: it always persists exactly as it already did before this method existed.
+     * Returns whether the row was actually written, so the caller can skip mirroring a skipped
+     * write to the cloud backup too. */
+    @Transaction
+    suspend fun upsertUnlessDeletedSince(taskId: String, hadRealRowAtStart: Boolean, updated: TaskEntity): Boolean {
+        if (hadRealRowAtStart && getExistingIds(listOf(taskId)).isEmpty()) return false
+        upsert(updated)
+        return true
+    }
+
     @Query("SELECT * FROM tasks WHERE id = :id")
     fun getById(id: String): Flow<TaskEntity?>
 
