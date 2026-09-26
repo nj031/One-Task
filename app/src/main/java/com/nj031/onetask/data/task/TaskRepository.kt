@@ -14,6 +14,17 @@ import kotlinx.coroutines.flow.combine
 // any functional behavior.
 private const val DELETE_DEBUG_TAG = "ONE_TASK_DELETE_DEBUG"
 
+// TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment. Called immediately before
+// every dao.upsert() call site in this file, so a live repro can show whether any of them fire
+// for a task id after that same id's own DELETE_END - purely observational (a log line only),
+// changes no behavior, no query, no persisted data.
+private fun logUpsert(caller: String, task: TaskEntity) {
+    Log.d(
+        DELETE_DEBUG_TAG,
+        "UPSERT_CALL caller=$caller taskId=${task.id} name=${task.name} ts=${System.currentTimeMillis()}"
+    )
+}
+
 class TaskRepository(private val dao: TaskDao) {
     /**
      * Every task actually due on [date]: real rows stored with that exact date that are actually
@@ -199,6 +210,7 @@ class TaskRepository(private val dao: TaskDao) {
             timerRemainingMillis = newTimerRemainingMillis,
             updatedAt = now
         ).reconcileStatusWithSuccessCondition()
+        logUpsert("updateTask", updated)
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
         return updated
@@ -217,6 +229,7 @@ class TaskRepository(private val dao: TaskDao) {
         }
         val updated = task.copy(subtasks = updatedSubtasks, updatedAt = System.currentTimeMillis())
             .reconcileStatusWithSuccessCondition()
+        logUpsert("toggleSubtask", updated)
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
         return updated
@@ -225,6 +238,7 @@ class TaskRepository(private val dao: TaskDao) {
     /** Marks the task Done, pausing (not resetting) any active timer so its progress is preserved. */
     suspend fun markTaskDone(task: TaskEntity): TaskEntity {
         val updated = task.markDoneTransition()
+        logUpsert("markTaskDone", updated)
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
         return updated
@@ -373,6 +387,7 @@ class TaskRepository(private val dao: TaskDao) {
             timerRemainingMillis = null,
             updatedAt = now
         )
+        logUpsert("startTimer", updated)
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
     }
@@ -387,6 +402,7 @@ class TaskRepository(private val dao: TaskDao) {
             timerRemainingMillis = remainingMillis,
             updatedAt = now
         )
+        logUpsert("pauseTimer", updated)
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
     }
@@ -400,6 +416,7 @@ class TaskRepository(private val dao: TaskDao) {
             timerRemainingMillis = totalMillis,
             updatedAt = System.currentTimeMillis()
         )
+        logUpsert("resetTimer", updated)
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
     }
@@ -418,6 +435,7 @@ class TaskRepository(private val dao: TaskDao) {
             timerRemainingMillis = 0L,
             updatedAt = System.currentTimeMillis()
         )
+        logUpsert("finishTimer", updated)
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
     }
@@ -431,6 +449,7 @@ class TaskRepository(private val dao: TaskDao) {
      */
     suspend fun uncompleteTask(task: TaskEntity): TaskEntity {
         val updated = task.uncompleteTransition()
+        logUpsert("uncompleteTask", updated)
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
         return updated
@@ -445,15 +464,25 @@ class TaskRepository(private val dao: TaskDao) {
      */
     suspend fun reorderTasks(scope: TaskOrderScope, orderedTasks: List<TaskEntity>) {
         val now = System.currentTimeMillis()
+        // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment. Marks the whole
+        // snapshot this loop is about to persist from, and its size, so a live repro can show
+        // whether a later item's turn in this sequential loop still lands after some OTHER
+        // task's delete (this list was frozen at drag-end time, before any such delete).
+        Log.d(
+            DELETE_DEBUG_TAG,
+            "REORDER_START scope=$scope ids=${orderedTasks.map { it.id }} ts=${System.currentTimeMillis()}"
+        )
         orderedTasks.forEachIndexed { index, task ->
             val updated = when (scope) {
                 TaskOrderScope.ALL -> task.copy(orderInAll = index.toLong(), updatedAt = now)
                 TaskOrderScope.IN_PROGRESS -> task.copy(orderInProgress = index.toLong(), updatedAt = now)
                 TaskOrderScope.DONE -> task.copy(orderInDone = index.toLong(), updatedAt = now)
             }
+            logUpsert("reorderTasks[index=$index/${orderedTasks.size}]", updated)
             dao.upsert(updated)
             CloudBackupRepository.pushTask(updated)
         }
+        Log.d(DELETE_DEBUG_TAG, "REORDER_END scope=$scope ts=${System.currentTimeMillis()}")
     }
 
     private companion object {
