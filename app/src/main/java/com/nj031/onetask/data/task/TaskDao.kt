@@ -1,5 +1,6 @@
 package com.nj031.onetask.data.task
 
+import android.util.Log
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
@@ -9,6 +10,10 @@ import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
+// TEMPORARY DIAGNOSTIC INSTRUMENTATION (last-task-deletion-reappears investigation) - see
+// TaskRepository.kt's own DELETE_DEBUG_TAG doc comment; same tag, same reason, same revert plan.
+private const val DELETE_DEBUG_TAG = "ONE_TASK_DELETE_DEBUG"
+
 @Dao
 interface TaskDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -17,13 +22,32 @@ interface TaskDao {
     @Update
     suspend fun update(task: TaskEntity)
 
+    /** The actual Room-generated INSERT OR REPLACE primitive - see [upsert] below, which is the
+     * real call site used everywhere and is what actually executes this. Kept as a separate
+     * abstract method only so [upsert] can log immediately around the real DAO write, distinct
+     * from each caller's own "I'm about to call upsert" log - TEMPORARY, for the last-task-
+     * deletion investigation. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertInternal(task: TaskEntity)
+
     /** Same insert-or-replace-by-id behavior as [insert] - used at every "persist a change to a
      * task that's expected to already exist" call site instead of [update], since a virtual
      * (not-yet-persisted) recurring occurrence - see [TaskEntity.asVirtualOccurrence] - has no
      * existing row for a plain @Update to match. Behaves exactly like [update] for a task that
      * already has a row, and materializes one for a virtual occurrence on its first use. */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(task: TaskEntity)
+    suspend fun upsert(task: TaskEntity) {
+        // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment. Logs immediately
+        // before the real Room DAO write executes - distinct from each caller's own UPSERT_CALL
+        // log in TaskRepository, so a live repro can show whether the DAO write itself ever runs
+        // for a task id after that same id's own DELETE_END, even if some caller's own log line
+        // were somehow missed.
+        Log.d(
+            DELETE_DEBUG_TAG,
+            "DAO_UPSERT_WRITE taskId=${task.id} name=${task.name} status=${task.status} " +
+                "updatedAt=${task.updatedAt} ts=${System.currentTimeMillis()}"
+        )
+        upsertInternal(task)
+    }
 
     @Delete
     suspend fun delete(task: TaskEntity)
