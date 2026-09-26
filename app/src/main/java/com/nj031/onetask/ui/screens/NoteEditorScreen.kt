@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -53,6 +55,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -108,6 +112,7 @@ import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -123,6 +128,8 @@ import com.nj031.onetask.data.journal.NoteFormatSpan
 import com.nj031.onetask.data.journal.NoteFormatStyle
 import com.nj031.onetask.data.journal.NoteImageStorage
 import com.nj031.onetask.data.sync.CloudBackupRepository
+import com.nj031.onetask.ui.theme.OneTaskCameraIcon
+import com.nj031.onetask.ui.theme.OneTaskWallpaperPlaceholderIcon
 import com.nj031.onetask.viewmodel.JournalViewModel
 import java.time.Instant
 import java.time.ZoneId
@@ -636,6 +643,8 @@ fun NoteEditorScreen(
                     isBoldActive = isCharacterStyleActive(NoteFormatStyle.BOLD),
                     isItalicActive = isCharacterStyleActive(NoteFormatStyle.ITALIC),
                     isUnderlineActive = isCharacterStyleActive(NoteFormatStyle.UNDERLINE),
+                    isSizeMediumActive = isCharacterStyleActive(NoteFormatStyle.HEADING_MEDIUM),
+                    isSizeLargeActive = isCharacterStyleActive(NoteFormatStyle.HEADING_LARGE),
                     onBoldClick = { toggleCharacterStyle(NoteFormatStyle.BOLD) },
                     onItalicClick = { toggleCharacterStyle(NoteFormatStyle.ITALIC) },
                     onUnderlineClick = { toggleCharacterStyle(NoteFormatStyle.UNDERLINE) },
@@ -818,6 +827,8 @@ private fun NoteFormattingToolbar(
     isBoldActive: Boolean,
     isItalicActive: Boolean,
     isUnderlineActive: Boolean,
+    isSizeMediumActive: Boolean,
+    isSizeLargeActive: Boolean,
     onBoldClick: () -> Unit,
     onItalicClick: () -> Unit,
     onUnderlineClick: () -> Unit,
@@ -896,43 +907,26 @@ private fun NoteFormattingToolbar(
                 DropdownMenu(
                     expanded = showSizeMenu,
                     onDismissRequest = { showSizeMenu = false },
-                    shape = RoundedCornerShape(16.dp),
-                    containerColor = MaterialTheme.colorScheme.surface
+                    shape = RoundedCornerShape(20.dp),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 8.dp
                 ) {
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = "A",
-                                fontSize = 16.sp,
-                                modifier = Modifier.semantics {
-                                    contentDescription = smallSizeDescription
-                                }
-                            )
-                        },
+                    TextSizeMenuItem(
+                        glyphFontSize = 16.sp,
+                        label = smallSizeDescription,
+                        selected = !isSizeMediumActive && !isSizeLargeActive,
                         onClick = { showSizeMenu = false; onSizeSelected(null) }
                     )
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = "A",
-                                fontSize = 22.sp,
-                                modifier = Modifier.semantics {
-                                    contentDescription = mediumSizeDescription
-                                }
-                            )
-                        },
+                    TextSizeMenuItem(
+                        glyphFontSize = 20.sp,
+                        label = mediumSizeDescription,
+                        selected = isSizeMediumActive,
                         onClick = { showSizeMenu = false; onSizeSelected(NoteFormatStyle.HEADING_MEDIUM) }
                     )
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = "A",
-                                fontSize = 28.sp,
-                                modifier = Modifier.semantics {
-                                    contentDescription = largeSizeDescription
-                                }
-                            )
-                        },
+                    TextSizeMenuItem(
+                        glyphFontSize = 24.sp,
+                        label = largeSizeDescription,
+                        selected = isSizeLargeActive,
                         onClick = { showSizeMenu = false; onSizeSelected(NoteFormatStyle.HEADING_LARGE) }
                     )
                 }
@@ -972,21 +966,31 @@ private fun NoteFormattingToolbar(
                 DropdownMenu(
                     expanded = showPlusMenu,
                     onDismissRequest = { showPlusMenu = false },
-                    shape = RoundedCornerShape(16.dp),
-                    containerColor = MaterialTheme.colorScheme.surface
+                    shape = RoundedCornerShape(20.dp),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 8.dp
                 ) {
                     val imageActionColor = if (imageActionsEnabled) {
                         MaterialTheme.colorScheme.onBackground
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                     }
-                    DropdownMenuItem(
-                        text = { Text(stringResource(id = R.string.note_plus_menu_add_image), color = imageActionColor) },
+                    val imageActionIconTint = if (imageActionsEnabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                    }
+                    PlusMenuItem(
+                        icon = { OneTaskWallpaperPlaceholderIcon(tint = imageActionIconTint, size = 18.dp) },
+                        label = stringResource(id = R.string.note_plus_menu_add_image),
+                        labelColor = imageActionColor,
                         enabled = imageActionsEnabled,
                         onClick = { showPlusMenu = false; onAddImageClick() }
                     )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(id = R.string.note_plus_menu_open_camera), color = imageActionColor) },
+                    PlusMenuItem(
+                        icon = { OneTaskCameraIcon(tint = imageActionIconTint, size = 18.dp) },
+                        label = stringResource(id = R.string.note_plus_menu_open_camera),
+                        labelColor = imageActionColor,
                         enabled = imageActionsEnabled,
                         onClick = { showPlusMenu = false; onOpenCameraClick() }
                     )
@@ -994,6 +998,77 @@ private fun NoteFormattingToolbar(
             }
         }
     }
+}
+
+/** One row of the "Aa" text-size popup: a size-proportional "Aa" glyph preview, the size's label,
+ * and a trailing radio indicator - [selected] also tints the glyph/radio and highlights the whole
+ * row with the same secondaryContainer treatment [FormatGlyphButton] already uses for its own
+ * active state, so the current size reads as selected at a glance. */
+@Composable
+private fun TextSizeMenuItem(
+    glyphFontSize: TextUnit,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
+    DropdownMenuItem(
+        modifier = if (selected) {
+            Modifier
+                .padding(horizontal = 8.dp, vertical = 2.dp)
+                .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(12.dp))
+        } else {
+            Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+        },
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        leadingIcon = {
+            Text(
+                text = "Aa",
+                fontSize = glyphFontSize,
+                color = contentColor,
+                modifier = Modifier.width(32.dp)
+            )
+        },
+        text = { Text(text = label, color = contentColor) },
+        trailingIcon = {
+            RadioButton(
+                selected = selected,
+                onClick = null,
+                colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary)
+            )
+        },
+        onClick = onClick
+    )
+}
+
+/** One row of the "+" attachment popup: a circular light-blue icon chip followed by its label,
+ * vertically centered - [enabled] false (the note already has an image) dims both the chip's icon
+ * and the label the same way the previous plain-text version already dimmed disabled rows. */
+@Composable
+private fun PlusMenuItem(
+    icon: @Composable () -> Unit,
+    label: String,
+    labelColor: Color,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    DropdownMenuItem(
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+        leadingIcon = {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                icon()
+            }
+        },
+        text = { Text(text = label, color = labelColor) },
+        enabled = enabled,
+        onClick = onClick
+    )
 }
 
 /** One glyph-style toolbar button - the letter/symbol itself IS the icon (matching the Note

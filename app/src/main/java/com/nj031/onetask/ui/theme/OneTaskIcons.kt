@@ -1294,3 +1294,45 @@ fun OneTaskCoffeeCupIcon(
         )
     }
 }
+
+/** A camera glyph (body + lens + top viewfinder bump) - the Note Editor's "+" menu's own
+ * "Open Camera" row. */
+@Composable
+fun OneTaskCameraIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.09f
+        val bodyLeft = this.size.width * 0.12f
+        val bodyRight = this.size.width * 0.88f
+        val bodyTop = this.size.height * 0.32f
+        val bodyBottom = this.size.height * 0.82f
+
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(bodyLeft, bodyTop),
+            size = Size(bodyRight - bodyLeft, bodyBottom - bodyTop),
+            cornerRadius = CornerRadius(this.size.minDimension * 0.1f),
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+
+        val bumpWidth = this.size.width * 0.28f
+        val bumpHeight = this.size.height * 0.12f
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(this.size.width * 0.36f, bodyTop - bumpHeight * 0.8f),
+            size = Size(bumpWidth, bumpHeight),
+            cornerRadius = CornerRadius(bumpHeight * 0.3f),
+            style = Stroke(width = strokeWidth * 0.85f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+
+        drawCircle(
+            color = tint,
+            radius = (bodyBottom - bodyTop) * 0.26f,
+            center = Offset((bodyLeft + bodyRight) / 2f, (bodyTop + bodyBottom) / 2f + this.size.height * 0.02f),
+            style = Stroke(width = strokeWidth * 0.85f)
+        )
+    }
+}
