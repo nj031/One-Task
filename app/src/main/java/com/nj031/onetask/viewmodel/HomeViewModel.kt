@@ -1,6 +1,7 @@
 package com.nj031.onetask.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nj031.onetask.data.AppDatabase
@@ -26,8 +27,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+// TEMPORARY DIAGNOSTIC INSTRUMENTATION (last-task-deletion-reappears investigation) - see
+// TaskRepository.kt's own DELETE_DEBUG_TAG doc comment; same tag, same reason, same revert plan.
+private const val DELETE_DEBUG_TAG = "ONE_TASK_DELETE_DEBUG"
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
@@ -38,6 +44,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     val tasksForSelectedDate: StateFlow<List<TaskEntity>> =
         _selectedDate.flatMapLatest { date -> repository.observeTasksByDate(date.toEpochDay()) }
+            .onEach { list ->
+                // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment. Logged here
+                // (post-flatMapLatest, pre-stateIn) so it's directly comparable to
+                // TaskRepository's own COMBINE_EMIT log for the same value.
+                Log.d(
+                    DELETE_DEBUG_TAG,
+                    "VIEWMODEL_FLOW_EMIT ids=${list.map { it.id }} count=${list.size} " +
+                        "ts=${System.currentTimeMillis()}"
+                )
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val customTags: StateFlow<List<String>> =
@@ -220,9 +236,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deleteTask(task: TaskEntity) {
+        // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment.
+        Log.d(DELETE_DEBUG_TAG, "VIEWMODEL_DELETE_CALLED taskId=${task.id} ts=${System.currentTimeMillis()}")
         viewModelScope.launch {
             repository.deleteTask(task)
             ReminderManager.cancel(getApplication<Application>(), task.id)
+            Log.d(DELETE_DEBUG_TAG, "VIEWMODEL_DELETE_COROUTINE_DONE taskId=${task.id} ts=${System.currentTimeMillis()}")
         }
     }
 

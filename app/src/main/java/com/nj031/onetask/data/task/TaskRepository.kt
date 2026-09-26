@@ -1,9 +1,18 @@
 package com.nj031.onetask.data.task
 
+import android.util.Log
 import com.nj031.onetask.data.sync.CloudBackupRepository
 import java.time.DayOfWeek
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+
+// TEMPORARY DIAGNOSTIC INSTRUMENTATION (last-task-deletion-reappears investigation) - every Log.d
+// call tagged with this constant, here and in HomeViewModel/HomeScreen, exists solely to build a
+// timestamped causal chain from a live device repro, since this sandbox has no emulator/device to
+// reproduce or observe runtime Flow/Compose behavior directly. Remove every call site tagged with
+// this constant (and this constant itself) once the investigation concludes - none of it changes
+// any functional behavior.
+private const val DELETE_DEBUG_TAG = "ONE_TASK_DELETE_DEBUG"
 
 class TaskRepository(private val dao: TaskDao) {
     /**
@@ -34,7 +43,15 @@ class TaskRepository(private val dao: TaskDao) {
                 val occurrence = seriesTask.asVirtualOccurrence(date)
                 if (occurrence.id in existingIds) null else occurrence
             }
-            (dueExactMatches + virtualOccurrences).sortedBy { it.createdAt }
+            val result = (dueExactMatches + virtualOccurrences).sortedBy { it.createdAt }
+            // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment.
+            Log.d(
+                DELETE_DEBUG_TAG,
+                "COMBINE_EMIT date=$date ids=${result.map { it.id }} count=${result.size} " +
+                    "exactIds=${exactMatches.map { it.id }} seriesIds=${series.map { it.id }} " +
+                    "excluded=$excludedSeriesIds ts=${System.currentTimeMillis()}"
+            )
+            result
         }
 
     /** Same recurring-aware matching as [observeTasksByDate], applied across a whole date range
@@ -238,23 +255,36 @@ class TaskRepository(private val dao: TaskDao) {
      * atomic.
      */
     suspend fun deleteTask(task: TaskEntity) {
+        // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment.
+        Log.d(
+            DELETE_DEBUG_TAG,
+            "DELETE_START taskId=${task.id} name=${task.name} date=${task.date} " +
+                "seriesId=${task.seriesId} repeat=${task.repeat} ts=${System.currentTimeMillis()}"
+        )
         when {
             task.seriesId == null && task.repeat != TaskRepeat.NONE -> {
+                Log.d(DELETE_DEBUG_TAG, "DELETE_BRANCH=SERIES taskId=${task.id} ts=${System.currentTimeMillis()}")
                 val occurrenceIds = dao.deleteRecurringSeriesLocally(task)
+                Log.d(DELETE_DEBUG_TAG, "DELETE_LOCAL_DONE=SERIES taskId=${task.id} ts=${System.currentTimeMillis()}")
                 occurrenceIds.forEach { CloudBackupRepository.deleteTask(it) }
                 CloudBackupRepository.deleteTask(task.id)
                 CloudBackupRepository.deleteRecurringExclusionsForSeries(task.id)
             }
             task.seriesId != null -> {
+                Log.d(DELETE_DEBUG_TAG, "DELETE_BRANCH=OCCURRENCE taskId=${task.id} ts=${System.currentTimeMillis()}")
                 dao.deleteRecurringOccurrenceLocally(task, task.seriesId, task.date)
+                Log.d(DELETE_DEBUG_TAG, "DELETE_LOCAL_DONE=OCCURRENCE taskId=${task.id} ts=${System.currentTimeMillis()}")
                 CloudBackupRepository.deleteTask(task.id)
                 CloudBackupRepository.pushRecurringExclusion(task.seriesId, task.date)
             }
             else -> {
+                Log.d(DELETE_DEBUG_TAG, "DELETE_BRANCH=PLAIN taskId=${task.id} ts=${System.currentTimeMillis()}")
                 dao.delete(task)
+                Log.d(DELETE_DEBUG_TAG, "DELETE_LOCAL_DONE=PLAIN taskId=${task.id} ts=${System.currentTimeMillis()}")
                 CloudBackupRepository.deleteTask(task.id)
             }
         }
+        Log.d(DELETE_DEBUG_TAG, "DELETE_END taskId=${task.id} ts=${System.currentTimeMillis()}")
     }
 
     suspend fun addCustomTag(name: String) {

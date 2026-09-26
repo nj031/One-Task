@@ -1,5 +1,6 @@
 package com.nj031.onetask.ui.screens
 
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -49,6 +50,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -126,6 +128,10 @@ private const val AUTO_SCROLL_MAX_SPEED_DP_PER_SEC = 1200f
 // card never visually touches the button.
 private const val FAB_SCAFFOLD_END_MARGIN_DP = 16
 private const val FAB_SAFETY_GAP_DP = 8
+
+// TEMPORARY DIAGNOSTIC INSTRUMENTATION (last-task-deletion-reappears investigation) - see
+// TaskRepository.kt's own DELETE_DEBUG_TAG doc comment; same tag, same reason, same revert plan.
+private const val DELETE_DEBUG_TAG = "ONE_TASK_DELETE_DEBUG"
 
 /** The Tasks screen's compact filter strip (All/Basic/Timer/Category - see [TaskFilterStrip]).
  * BASIC/TIMER classification depends only on whether
@@ -293,11 +299,29 @@ fun HomeScreen(
         .partition { it.status == TaskStatus.COMPLETED }
         .let { (completed, active) -> active.sortedBy { it.orderInAll } + completed.sortedBy { it.orderInAll } }
 
+    // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment. SideEffect runs after
+    // every successful recomposition commit, so this captures exactly what this composable
+    // computed/rendered on each pass, including which branch (empty state vs. list) is about to
+    // be composed below.
+    SideEffect {
+        Log.d(
+            DELETE_DEBUG_TAG,
+            "UI_RECOMPOSE rawTasks=${tasks.map { it.id }} visibleTasks=${visibleTasks.map { it.id }} " +
+                "displayedTasks=${displayedTasks.map { it.id }} willShowEmptyState=${visibleTasks.isEmpty()} " +
+                "ts=${System.currentTimeMillis()}"
+        )
+    }
+
     // Only re-sync from the real (persisted) order while nothing is actively being dragged, so a
     // fresh Flow emission mid-drag can't yank the list back to the pre-drag order under the
     // user's finger.
     LaunchedEffect(visibleTasks, draggedTaskId) {
         if (draggedTaskId == null) {
+            // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment.
+            Log.d(
+                DELETE_DEBUG_TAG,
+                "DISPLAYED_TASKS_SYNC ids=${visibleTasks.map { it.id }} ts=${System.currentTimeMillis()}"
+            )
             displayedTasks = visibleTasks
         }
     }
@@ -812,6 +836,11 @@ private fun HomeTaskListItem(
         },
         onDelete = {
             onDeselect()
+            // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment.
+            Log.d(
+                DELETE_DEBUG_TAG,
+                "UI_DELETE_TAPPED taskId=${task.id} name=${task.name} ts=${System.currentTimeMillis()}"
+            )
             // A task with a currently-running timer gets an extra confirmation step, since
             // deleting it also silently ends the active focus session - everything else deletes
             // immediately, matching existing behavior.
