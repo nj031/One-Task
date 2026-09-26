@@ -66,6 +66,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -112,6 +114,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.journal.ChecklistItem
+import com.nj031.onetask.data.journal.Converters
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.data.journal.JournalNoteType
 import com.nj031.onetask.data.journal.NoteBlock
@@ -135,13 +138,22 @@ import kotlinx.coroutines.launch
  * doc comment for the persisted data model, and [legacyBlocksFor] for how a note saved before this
  * editor existed is read.
  *
- * State here deliberately uses plain `remember`, not `rememberSaveable`: the app going to the
- * background or the screen locking never destroys this composition (Activity.onStop, not
- * onDestroy), so `remember` alone already preserves in-progress edits across both - exactly the
- * "preserve on background/lock, but not across a real process kill" behavior this needs, with no
- * extra plumbing. The same is true of navigating to Labels and back (see [onManageLabelsClick]
- * below) - it's a normal back-stack push, not a recreation, so this composition (and every var
- * below) survives the round trip unchanged.
+ * The title/blocks/label/pinned state below deliberately uses `rememberSaveable`, not plain
+ * `remember`: navigating to another destination (Labels, reached via [onManageLabelsClick] below,
+ * or any other screen) and back is a normal back-stack push/pop, but Compose Navigation only
+ * actually keeps ONE destination's composable alive at a time - pushing Labels on top disposes
+ * this entire composable, discarding any plain `remember` state outright, and popping back
+ * recomposes it completely fresh. `rememberSaveable` is backed by Navigation-Compose's own
+ * per-destination `SaveableStateHolder`, which is specifically designed to survive exactly that
+ * round trip (as well as a config change or process-death-and-restore) - restoring the LIVE,
+ * currently-typed value, not just its initial seed. This was confirmed (not assumed) to be the
+ * actual cause of in-progress note content silently disappearing after Editor -> Labels -> Back:
+ * before this fix, typing "Nakul" into a new note and returning from Labels showed a blank editor
+ * again, because `blocks`/`title` (plain `remember`) reset to their initial (empty) values on the
+ * fresh recomposition, and - for a brand-new note - the nav `noteId` argument stays null for the
+ * entire session, so even the already-autosaved row (see the `hasContentNow` effect below) could
+ * no longer be found by id either. See [pendingNoteId] and [EditableBlocksSaver] for the rest of
+ * this fix.
  */
 @Composable
 fun NoteEditorScreen(
@@ -151,16 +163,22 @@ fun NoteEditorScreen(
     onDone: () -> Unit,
     onManageLabelsClick: () -> Unit = {}
 ) {
-    val existingNote = remember(noteId) { viewModel.getNoteById(noteId) }
-    val effectiveNoteType = existingNote?.noteType ?: noteType
     // The id a brand-new note will be created under - generated once, up front, so the eager
     // create below (see the hasContentNow LaunchedEffect) and commitOnExit's own fallback create
     // always target the exact same row via JournalNoteDao.insert's REPLACE conflict strategy,
     // even if both somehow ever fired (they can't produce two notes for one editing session). It
     // also doubles as the deterministic key NoteImageStorage/CloudBackupRepository's own note-
     // image Storage path use, so an image can be saved before the note itself is confirmed
-    // persisted.
-    val pendingNoteId = remember(noteId) { noteId ?: UUID.randomUUID().toString() }
+    // persisted. rememberSaveable (not plain remember): must be computed BEFORE existingNote and
+    // stay stable across the Editor -> Labels -> Back round trip described above, or a brand-new
+    // note that already got auto-persisted under this id becomes unreachable by id afterward.
+    val pendingNoteId = rememberSaveable(noteId) { noteId ?: UUID.randomUUID().toString() }
+    // Falls back to pendingNoteId - not just the nav argument noteId, which stays null for a
+    // brand-new note's entire editing session - so a note already auto-persisted under
+    // pendingNoteId (see the hasContentNow LaunchedEffect below) is still found by id after the
+    // Editor -> Labels -> Back round trip, instead of looking like a blank new note again.
+    val existingNote = remember(noteId) { viewModel.getNoteById(noteId ?: pendingNoteId) }
+    val effectiveNoteType = existingNote?.noteType ?: noteType
     // The note's real, currently-persisted DB row - null for a brand-new note until it first gets
     // real content (see the hasContentNow LaunchedEffect below). Distinct from [existingNote],
     // which is captured once at composition entry and never updates: Note Info must react the
@@ -169,10 +187,16 @@ fun NoteEditorScreen(
     // needs it to know whether to create or update.
     var persistedNote by remember(noteId) { mutableStateOf(existingNote) }
 
-    var title by remember { mutableStateOf(existingNote?.title.orEmpty()) }
-    var blocks by remember { mutableStateOf(initialBlocksFor(existingNote)) }
-    var noteLabel by remember { mutableStateOf(existingNote?.label) }
-    var isPinned by remember { mutableStateOf(existingNote?.pinned ?: false) }
+    // rememberSaveable (not plain remember) for all four of these - see this composable's own doc
+    // comment above for why: it's what actually preserves in-progress, not-yet-saved edits (to
+    // either a brand-new or an already-existing note) across the Editor -> Labels -> Back round
+    // trip, a config change, or process death. blocks needs an explicit stateSaver
+    // (EditableBlocksSaver) since List<EditableBlock> isn't a type Bundle can store directly;
+    // title/noteLabel/isPinned are plain String/String?/Boolean, already natively saveable.
+    var title by rememberSaveable { mutableStateOf(existingNote?.title.orEmpty()) }
+    var blocks by rememberSaveable(stateSaver = EditableBlocksSaver) { mutableStateOf(initialBlocksFor(existingNote)) }
+    var noteLabel by rememberSaveable { mutableStateOf(existingNote?.label) }
+    var isPinned by rememberSaveable { mutableStateOf(existingNote?.pinned ?: false) }
     // Armed while the focused block's selection is collapsed: the next characters typed inherit
     // whichever of these styles are armed (see onBlockValueChange below) - the "start applying
     // from the current cursor/typing position" behavior Bold/Italic/Underline/Aa need when
@@ -1273,6 +1297,26 @@ private fun EditableBlock.toPersisted(): NoteBlock = NoteBlock(
     checked = checked,
     formatSpans = formatSpans,
     imagePath = imagePath
+)
+
+// A single Converters instance purely for its fromNoteBlocks/toNoteBlocks string encoding below -
+// it has no constructor dependencies (see Converters' own file), so this is safe to create here
+// without any Room/DI wiring.
+private val blockConverters = Converters()
+
+/** Lets `blocks` (this screen's own in-progress [EditableBlock] list) survive with
+ * `rememberSaveable` across a destination round trip (Labels and back), a config change, or
+ * process death - none of which `EditableBlock`/`TextFieldValue` can be stored in a Bundle
+ * directly. Round-trips through [NoteBlock] and the exact same lossless string encoding
+ * Room already trusts for real persistence (Converters.fromNoteBlocks/toNoteBlocks), so every
+ * block's text/type/checked/formatSpans/imagePath - including Bold/Italic/Underline and
+ * Bullet/Checklist structure - is preserved exactly; only each block's live cursor position isn't
+ * (it resets to the end of that block's text on restore), the same trade-off already accepted
+ * whenever a note is freshly opened from persisted storage via [NoteBlock.toEditable].
+ */
+private val EditableBlocksSaver: Saver<List<EditableBlock>, String> = Saver(
+    save = { blocks -> blockConverters.fromNoteBlocks(blocks.map { it.toPersisted() }) },
+    restore = { encoded -> blockConverters.toNoteBlocks(encoded).map { it.toEditable() } }
 )
 
 /** Synthesizes an equivalent block list from a note saved before the mixed-content editor existed
