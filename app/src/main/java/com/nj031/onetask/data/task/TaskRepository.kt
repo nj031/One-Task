@@ -308,19 +308,35 @@ class TaskRepository(private val dao: TaskDao) {
             }
             else -> {
                 Log.d(DELETE_DEBUG_TAG, "DELETE_BRANCH=PLAIN taskId=${task.id} ts=${System.currentTimeMillis()}")
-                // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment. Timestamps
-                // immediately before/after the actual dao.delete() call, plus a read-only
-                // verification query right after it - does not alter behavior.
-                Log.d(DELETE_DEBUG_TAG, "DAO_DELETE_BEFORE branch=PLAIN taskId=${task.id} ts=${System.currentTimeMillis()}")
-                dao.delete(task)
-                Log.d(DELETE_DEBUG_TAG, "DAO_DELETE_AFTER branch=PLAIN taskId=${task.id} ts=${System.currentTimeMillis()}")
-                val stillExistsPlain = dao.getExistingIds(listOf(task.id)).isNotEmpty()
-                Log.d(DELETE_DEBUG_TAG, "DELETE_VERIFY branch=PLAIN taskId=${task.id} stillExistsInDb=$stillExistsPlain ts=${System.currentTimeMillis()}")
-                Log.d(DELETE_DEBUG_TAG, "DELETE_LOCAL_DONE=PLAIN taskId=${task.id} ts=${System.currentTimeMillis()}")
-                CloudBackupRepository.deleteTask(task.id)
+                // Non-recurring task: handled entirely by the Phase 1 rebuilt path below.
+                deletePlainTask(task.id)
             }
         }
         Log.d(DELETE_DEBUG_TAG, "DELETE_END taskId=${task.id} ts=${System.currentTimeMillis()}")
+    }
+
+    /**
+     * Phase 1 rebuilt deletion for a plain, non-recurring task (repeat NONE, no seriesId) -
+     * permanently removes exactly that one task's row, by id only, then mirrors the removal to
+     * the cloud backup. Takes only the id (never a TaskEntity snapshot), so nothing here can
+     * write any version of the task back. The task's timer state, Pending Task flag
+     * (postponeIfIncomplete) and every other field live on that same row, so they go with it.
+     * Reminder cancellation and Focus session cleanup are done by the caller - see
+     * HomeViewModel.deletePlainTask. Recurring series/occurrence deletion never reaches here:
+     * the DAO query itself only matches a non-recurring row. The PLAIN_DELETE_* log lines are
+     * TEMPORARY DIAGNOSTIC logs under the same DELETE_DEBUG_TAG as the rest of this file.
+     */
+    suspend fun deletePlainTask(taskId: String) {
+        Log.d(DELETE_DEBUG_TAG, "PLAIN_DELETE_START taskId=$taskId ts=${System.currentTimeMillis()}")
+        val deletedRows = dao.deletePlainTaskById(taskId)
+        val stillExists = dao.getExistingIds(listOf(taskId)).isNotEmpty()
+        Log.d(
+            DELETE_DEBUG_TAG,
+            "PLAIN_DELETE_DB_DONE taskId=$taskId deletedRows=$deletedRows stillExistsInDb=$stillExists " +
+                "ts=${System.currentTimeMillis()}"
+        )
+        CloudBackupRepository.deleteTask(taskId)
+        Log.d(DELETE_DEBUG_TAG, "PLAIN_DELETE_END taskId=$taskId ts=${System.currentTimeMillis()}")
     }
 
     suspend fun addCustomTag(name: String) {

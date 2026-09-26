@@ -52,6 +52,14 @@ interface TaskDao {
     @Delete
     suspend fun delete(task: TaskEntity)
 
+    /** Phase 1 rebuilt plain-task delete - see TaskRepository.deletePlainTask. Deletes by id
+     * alone (never from a possibly-stale entity snapshot), and the seriesId/repeat guard means it
+     * can only ever match a non-recurring task's own row - never a recurring series definition
+     * or a materialized occurrence, whose deletion stays on the existing recurring paths above.
+     * Returns the number of rows deleted (0 or 1). */
+    @Query("DELETE FROM tasks WHERE id = :taskId AND seriesId IS NULL AND repeat = 'NONE'")
+    suspend fun deletePlainTaskById(taskId: String): Int
+
     @Query("SELECT * FROM tasks WHERE date = :date ORDER BY createdAt ASC")
     fun getByDate(date: Long): Flow<List<TaskEntity>>
 
