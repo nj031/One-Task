@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -39,6 +40,39 @@ interface TaskDao {
 
     @Query("SELECT id FROM tasks WHERE seriesId = :seriesId")
     suspend fun getOccurrenceIdsForSeries(seriesId: String): List<String>
+
+    /** Atomically deletes a recurring series' own definition row together with every already-
+     * materialized occurrence and per-date exclusion recorded against it - see
+     * TaskRepository.deleteTask's own doc comment. Bundling all of it into one Room transaction
+     * (rather than the separate, independently-invalidating suspend calls this used to be) means
+     * a concurrent observeTasksByDate re-query can never land in between them and see a
+     * partially-applied delete (e.g. this series' own row still present, or an occurrence row
+     * still present) - Room's Flow observers for getByDate/getActiveRecurringSeries only ever
+     * see the fully-applied result or the fully-unapplied one, never a state in between. Returns
+     * the occurrence ids that were deleted, so the caller can still mirror each one's removal to
+     * the cloud backup afterward (cloud sync itself is untouched by this transaction). */
+    @Transaction
+    suspend fun deleteRecurringSeriesLocally(seriesTask: TaskEntity): List<String> {
+        val occurrenceIds = getOccurrenceIdsForSeries(seriesTask.id)
+        deleteOccurrencesForSeries(seriesTask.id)
+        deleteRecurringExclusionsForSeries(seriesTask.id)
+        delete(seriesTask)
+        return occurrenceIds
+    }
+
+    /** Atomically records that [epochDay] is excluded going forward AND removes the occurrence's
+     * own row (a real row if already materialized, a no-op delete if it was still virtual - see
+     * TaskEntity.asVirtualOccurrence) in the SAME Room transaction. Recording the exclusion before
+     * deleting the row already closed most of the window where a concurrent observeTasksByDate
+     * re-query could see "row gone, not yet excluded" and regenerate the just-deleted occurrence
+     * (see this DAO's git history); doing both in one transaction closes it completely, since
+     * Room's invalidation can now only ever reflect the fully-applied pair, never one write
+     * without the other. */
+    @Transaction
+    suspend fun deleteRecurringOccurrenceLocally(occurrenceTask: TaskEntity, seriesId: String, epochDay: Long) {
+        insertRecurringExclusion(RecurringExclusionEntity(seriesId = seriesId, epochDay = epochDay))
+        delete(occurrenceTask)
+    }
 
     // The set of this series' already-materialized-and-completed occurrence dates - used by
     // ReminderScheduler to skip a completed date when computing the next reminder to schedule,
