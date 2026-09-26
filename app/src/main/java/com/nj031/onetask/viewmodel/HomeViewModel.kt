@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nj031.onetask.data.AppDatabase
+import com.nj031.onetask.data.focus.FocusSessionState
 import com.nj031.onetask.data.reminder.ReminderManager
 import com.nj031.onetask.data.task.CategoryEntity
 import com.nj031.onetask.data.task.Subtask
@@ -238,10 +239,33 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteTask(task: TaskEntity) {
         // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment.
         Log.d(DELETE_DEBUG_TAG, "VIEWMODEL_DELETE_CALLED taskId=${task.id} ts=${System.currentTimeMillis()}")
+        if (task.seriesId == null && task.repeat == TaskRepeat.NONE) {
+            deletePlainTask(task.id)
+            return
+        }
         viewModelScope.launch {
             repository.deleteTask(task)
             ReminderManager.cancel(getApplication<Application>(), task.id)
             Log.d(DELETE_DEBUG_TAG, "VIEWMODEL_DELETE_COROUTINE_DONE taskId=${task.id} ts=${System.currentTimeMillis()}")
+        }
+    }
+
+    /** Phase 1 rebuilt deletion for a plain, non-recurring task - see
+     * TaskRepository.deletePlainTask. Carries only the task's id from here on (never the tapped
+     * TaskEntity snapshot). After the row is gone: cancels its reminder, and clears the persisted
+     * "open Focus Mode session" marker if it pointed at this task, so a later cold start can't try
+     * to reopen Focus Mode for a task that no longer exists. A running task timer needs no extra
+     * call here - TimerForegroundService observes this task's row and stops itself as soon as it
+     * reads null. */
+    private fun deletePlainTask(taskId: String) {
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            repository.deletePlainTask(taskId)
+            ReminderManager.cancel(app, taskId)
+            if (FocusSessionState.getActiveTaskId(app) == taskId) {
+                FocusSessionState.clearActive(app)
+            }
+            Log.d(DELETE_DEBUG_TAG, "VIEWMODEL_PLAIN_DELETE_DONE taskId=$taskId ts=${System.currentTimeMillis()}")
         }
     }
 
