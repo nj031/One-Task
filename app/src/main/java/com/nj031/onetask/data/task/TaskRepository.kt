@@ -17,11 +17,14 @@ private const val DELETE_DEBUG_TAG = "ONE_TASK_DELETE_DEBUG"
 // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment. Called immediately before
 // every dao.upsert() call site in this file, so a live repro can show whether any of them fire
 // for a task id after that same id's own DELETE_END - purely observational (a log line only),
-// changes no behavior, no query, no persisted data.
+// changes no behavior, no query, no persisted data. Includes enough of the task's own state
+// (status/date/seriesId/repeat/updatedAt) to tell which exact object version is being written.
 private fun logUpsert(caller: String, task: TaskEntity) {
     Log.d(
         DELETE_DEBUG_TAG,
-        "UPSERT_CALL caller=$caller taskId=${task.id} name=${task.name} ts=${System.currentTimeMillis()}"
+        "UPSERT_CALL caller=$caller taskId=${task.id} name=${task.name} status=${task.status} " +
+            "date=${task.date} seriesId=${task.seriesId} repeat=${task.repeat} " +
+            "updatedAt=${task.updatedAt} ts=${System.currentTimeMillis()}"
     )
 }
 
@@ -278,7 +281,13 @@ class TaskRepository(private val dao: TaskDao) {
         when {
             task.seriesId == null && task.repeat != TaskRepeat.NONE -> {
                 Log.d(DELETE_DEBUG_TAG, "DELETE_BRANCH=SERIES taskId=${task.id} ts=${System.currentTimeMillis()}")
+                // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment.
+                Log.d(DELETE_DEBUG_TAG, "DAO_DELETE_BEFORE branch=SERIES taskId=${task.id} ts=${System.currentTimeMillis()}")
                 val occurrenceIds = dao.deleteRecurringSeriesLocally(task)
+                Log.d(DELETE_DEBUG_TAG, "DAO_DELETE_AFTER branch=SERIES taskId=${task.id} ts=${System.currentTimeMillis()}")
+                // Read-only verification query - does not alter behavior, purely observational.
+                val stillExistsSeries = dao.getExistingIds(listOf(task.id)).isNotEmpty()
+                Log.d(DELETE_DEBUG_TAG, "DELETE_VERIFY branch=SERIES taskId=${task.id} stillExistsInDb=$stillExistsSeries ts=${System.currentTimeMillis()}")
                 Log.d(DELETE_DEBUG_TAG, "DELETE_LOCAL_DONE=SERIES taskId=${task.id} ts=${System.currentTimeMillis()}")
                 occurrenceIds.forEach { CloudBackupRepository.deleteTask(it) }
                 CloudBackupRepository.deleteTask(task.id)
@@ -286,14 +295,27 @@ class TaskRepository(private val dao: TaskDao) {
             }
             task.seriesId != null -> {
                 Log.d(DELETE_DEBUG_TAG, "DELETE_BRANCH=OCCURRENCE taskId=${task.id} ts=${System.currentTimeMillis()}")
+                // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment.
+                Log.d(DELETE_DEBUG_TAG, "DAO_DELETE_BEFORE branch=OCCURRENCE taskId=${task.id} ts=${System.currentTimeMillis()}")
                 dao.deleteRecurringOccurrenceLocally(task, task.seriesId, task.date)
+                Log.d(DELETE_DEBUG_TAG, "DAO_DELETE_AFTER branch=OCCURRENCE taskId=${task.id} ts=${System.currentTimeMillis()}")
+                // Read-only verification query - does not alter behavior, purely observational.
+                val stillExistsOccurrence = dao.getExistingIds(listOf(task.id)).isNotEmpty()
+                Log.d(DELETE_DEBUG_TAG, "DELETE_VERIFY branch=OCCURRENCE taskId=${task.id} stillExistsInDb=$stillExistsOccurrence ts=${System.currentTimeMillis()}")
                 Log.d(DELETE_DEBUG_TAG, "DELETE_LOCAL_DONE=OCCURRENCE taskId=${task.id} ts=${System.currentTimeMillis()}")
                 CloudBackupRepository.deleteTask(task.id)
                 CloudBackupRepository.pushRecurringExclusion(task.seriesId, task.date)
             }
             else -> {
                 Log.d(DELETE_DEBUG_TAG, "DELETE_BRANCH=PLAIN taskId=${task.id} ts=${System.currentTimeMillis()}")
+                // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment. Timestamps
+                // immediately before/after the actual dao.delete() call, plus a read-only
+                // verification query right after it - does not alter behavior.
+                Log.d(DELETE_DEBUG_TAG, "DAO_DELETE_BEFORE branch=PLAIN taskId=${task.id} ts=${System.currentTimeMillis()}")
                 dao.delete(task)
+                Log.d(DELETE_DEBUG_TAG, "DAO_DELETE_AFTER branch=PLAIN taskId=${task.id} ts=${System.currentTimeMillis()}")
+                val stillExistsPlain = dao.getExistingIds(listOf(task.id)).isNotEmpty()
+                Log.d(DELETE_DEBUG_TAG, "DELETE_VERIFY branch=PLAIN taskId=${task.id} stillExistsInDb=$stillExistsPlain ts=${System.currentTimeMillis()}")
                 Log.d(DELETE_DEBUG_TAG, "DELETE_LOCAL_DONE=PLAIN taskId=${task.id} ts=${System.currentTimeMillis()}")
                 CloudBackupRepository.deleteTask(task.id)
             }
