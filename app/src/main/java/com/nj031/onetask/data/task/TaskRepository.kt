@@ -461,9 +461,23 @@ class TaskRepository(private val dao: TaskDao) {
      * order column is touched - reordering In Progress never writes orderInAll/orderInDone - so
      * each tab's manual order stays completely independent, and nothing about a task's status,
      * timer, or any other field changes.
+     *
+     * [orderedTasks] is a snapshot frozen at the moment the drag ended (see HomeScreen's own
+     * onDragEnd), and this loop persists it sequentially, awaiting a cloud push per item before
+     * moving to the next - for a list of any size this can take long enough that a task in it
+     * gets deleted (by a separate, concurrent action) before this loop reaches that task's own
+     * turn. [TaskDao.upsertUnlessDeletedSince] is what makes that safe: for a task this loop
+     * already knew had a real row when it started (see [idsWithRealRowAtStart] below), it
+     * re-checks - atomically, right before writing - whether that row is still there, and skips
+     * persisting (locally and to the cloud) if it isn't, rather than letting `upsert`'s
+     * INSERT-OR-REPLACE silently resurrect a task someone else just deleted. A task that never
+     * had a row yet (a still-virtual recurring occurrence - see [TaskEntity.asVirtualOccurrence])
+     * is unaffected: it keeps materializing on this reorder exactly as it already did before this
+     * check existed.
      */
     suspend fun reorderTasks(scope: TaskOrderScope, orderedTasks: List<TaskEntity>) {
         val now = System.currentTimeMillis()
+        val idsWithRealRowAtStart = dao.getExistingIds(orderedTasks.map { it.id }).toHashSet()
         // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment. Marks the whole
         // snapshot this loop is about to persist from, and its size, so a live repro can show
         // whether a later item's turn in this sequential loop still lands after some OTHER
@@ -479,8 +493,16 @@ class TaskRepository(private val dao: TaskDao) {
                 TaskOrderScope.DONE -> task.copy(orderInDone = index.toLong(), updatedAt = now)
             }
             logUpsert("reorderTasks[index=$index/${orderedTasks.size}]", updated)
-            dao.upsert(updated)
-            CloudBackupRepository.pushTask(updated)
+            val persisted = dao.upsertUnlessDeletedSince(task.id, task.id in idsWithRealRowAtStart, updated)
+            if (persisted) {
+                CloudBackupRepository.pushTask(updated)
+            } else {
+                // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment.
+                Log.d(
+                    DELETE_DEBUG_TAG,
+                    "REORDER_SKIPPED_DELETED taskId=${task.id} ts=${System.currentTimeMillis()}"
+                )
+            }
         }
         Log.d(DELETE_DEBUG_TAG, "REORDER_END scope=$scope ts=${System.currentTimeMillis()}")
     }
