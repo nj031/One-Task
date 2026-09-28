@@ -1,32 +1,9 @@
 package com.nj031.onetask.data.task
 
-import android.util.Log
 import com.nj031.onetask.data.sync.CloudBackupRepository
 import java.time.DayOfWeek
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
-
-// TEMPORARY DIAGNOSTIC INSTRUMENTATION (last-task-deletion-reappears investigation) - every Log.d
-// call tagged with this constant, here and in HomeViewModel/HomeScreen, exists solely to build a
-// timestamped causal chain from a live device repro, since this sandbox has no emulator/device to
-// reproduce or observe runtime Flow/Compose behavior directly. Remove every call site tagged with
-// this constant (and this constant itself) once the investigation concludes - none of it changes
-// any functional behavior.
-private const val DELETE_DEBUG_TAG = "ONE_TASK_DELETE_DEBUG"
-
-// TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment. Called immediately before
-// every dao.upsert() call site in this file, so a live repro can show whether any of them fire
-// for a task id after that same id's own DELETE_END - purely observational (a log line only),
-// changes no behavior, no query, no persisted data. Includes enough of the task's own state
-// (status/date/seriesId/repeat/updatedAt) to tell which exact object version is being written.
-private fun logUpsert(caller: String, task: TaskEntity) {
-    Log.d(
-        DELETE_DEBUG_TAG,
-        "UPSERT_CALL caller=$caller taskId=${task.id} name=${task.name} status=${task.status} " +
-            "date=${task.date} seriesId=${task.seriesId} repeat=${task.repeat} " +
-            "updatedAt=${task.updatedAt} ts=${System.currentTimeMillis()}"
-    )
-}
 
 class TaskRepository(private val dao: TaskDao) {
     /**
@@ -57,15 +34,7 @@ class TaskRepository(private val dao: TaskDao) {
                 val occurrence = seriesTask.asVirtualOccurrence(date)
                 if (occurrence.id in existingIds) null else occurrence
             }
-            val result = (dueExactMatches + virtualOccurrences).sortedBy { it.createdAt }
-            // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment.
-            Log.d(
-                DELETE_DEBUG_TAG,
-                "COMBINE_EMIT date=$date ids=${result.map { it.id }} count=${result.size} " +
-                    "exactIds=${exactMatches.map { it.id }} seriesIds=${series.map { it.id }} " +
-                    "excluded=$excludedSeriesIds ts=${System.currentTimeMillis()}"
-            )
-            result
+            (dueExactMatches + virtualOccurrences).sortedBy { it.createdAt }
         }
 
     /** Same recurring-aware matching as [observeTasksByDate], applied across a whole date range
@@ -213,7 +182,6 @@ class TaskRepository(private val dao: TaskDao) {
             timerRemainingMillis = newTimerRemainingMillis,
             updatedAt = now
         ).reconcileStatusWithSuccessCondition()
-        logUpsert("updateTask", updated)
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
         return updated
@@ -232,7 +200,6 @@ class TaskRepository(private val dao: TaskDao) {
         }
         val updated = task.copy(subtasks = updatedSubtasks, updatedAt = System.currentTimeMillis())
             .reconcileStatusWithSuccessCondition()
-        logUpsert("toggleSubtask", updated)
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
         return updated
@@ -241,7 +208,6 @@ class TaskRepository(private val dao: TaskDao) {
     /** Marks the task Done, pausing (not resetting) any active timer so its progress is preserved. */
     suspend fun markTaskDone(task: TaskEntity): TaskEntity {
         val updated = task.markDoneTransition()
-        logUpsert("markTaskDone", updated)
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
         return updated
@@ -272,47 +238,23 @@ class TaskRepository(private val dao: TaskDao) {
      * atomic.
      */
     suspend fun deleteTask(task: TaskEntity) {
-        // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment.
-        Log.d(
-            DELETE_DEBUG_TAG,
-            "DELETE_START taskId=${task.id} name=${task.name} date=${task.date} " +
-                "seriesId=${task.seriesId} repeat=${task.repeat} ts=${System.currentTimeMillis()}"
-        )
         when {
             task.seriesId == null && task.repeat != TaskRepeat.NONE -> {
-                Log.d(DELETE_DEBUG_TAG, "DELETE_BRANCH=SERIES taskId=${task.id} ts=${System.currentTimeMillis()}")
-                // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment.
-                Log.d(DELETE_DEBUG_TAG, "DAO_DELETE_BEFORE branch=SERIES taskId=${task.id} ts=${System.currentTimeMillis()}")
                 val occurrenceIds = dao.deleteRecurringSeriesLocally(task)
-                Log.d(DELETE_DEBUG_TAG, "DAO_DELETE_AFTER branch=SERIES taskId=${task.id} ts=${System.currentTimeMillis()}")
-                // Read-only verification query - does not alter behavior, purely observational.
-                val stillExistsSeries = dao.getExistingIds(listOf(task.id)).isNotEmpty()
-                Log.d(DELETE_DEBUG_TAG, "DELETE_VERIFY branch=SERIES taskId=${task.id} stillExistsInDb=$stillExistsSeries ts=${System.currentTimeMillis()}")
-                Log.d(DELETE_DEBUG_TAG, "DELETE_LOCAL_DONE=SERIES taskId=${task.id} ts=${System.currentTimeMillis()}")
                 occurrenceIds.forEach { CloudBackupRepository.deleteTask(it) }
                 CloudBackupRepository.deleteTask(task.id)
                 CloudBackupRepository.deleteRecurringExclusionsForSeries(task.id)
             }
             task.seriesId != null -> {
-                Log.d(DELETE_DEBUG_TAG, "DELETE_BRANCH=OCCURRENCE taskId=${task.id} ts=${System.currentTimeMillis()}")
-                // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment.
-                Log.d(DELETE_DEBUG_TAG, "DAO_DELETE_BEFORE branch=OCCURRENCE taskId=${task.id} ts=${System.currentTimeMillis()}")
                 dao.deleteRecurringOccurrenceLocally(task, task.seriesId, task.date)
-                Log.d(DELETE_DEBUG_TAG, "DAO_DELETE_AFTER branch=OCCURRENCE taskId=${task.id} ts=${System.currentTimeMillis()}")
-                // Read-only verification query - does not alter behavior, purely observational.
-                val stillExistsOccurrence = dao.getExistingIds(listOf(task.id)).isNotEmpty()
-                Log.d(DELETE_DEBUG_TAG, "DELETE_VERIFY branch=OCCURRENCE taskId=${task.id} stillExistsInDb=$stillExistsOccurrence ts=${System.currentTimeMillis()}")
-                Log.d(DELETE_DEBUG_TAG, "DELETE_LOCAL_DONE=OCCURRENCE taskId=${task.id} ts=${System.currentTimeMillis()}")
                 CloudBackupRepository.deleteTask(task.id)
                 CloudBackupRepository.pushRecurringExclusion(task.seriesId, task.date)
             }
             else -> {
-                Log.d(DELETE_DEBUG_TAG, "DELETE_BRANCH=PLAIN taskId=${task.id} ts=${System.currentTimeMillis()}")
                 // Non-recurring task: handled entirely by the Phase 1 rebuilt path below.
                 deletePlainTask(task.id)
             }
         }
-        Log.d(DELETE_DEBUG_TAG, "DELETE_END taskId=${task.id} ts=${System.currentTimeMillis()}")
     }
 
     /**
@@ -323,20 +265,11 @@ class TaskRepository(private val dao: TaskDao) {
      * (postponeIfIncomplete) and every other field live on that same row, so they go with it.
      * Reminder cancellation and Focus session cleanup are done by the caller - see
      * HomeViewModel.deletePlainTask. Recurring series/occurrence deletion never reaches here:
-     * the DAO query itself only matches a non-recurring row. The PLAIN_DELETE_* log lines are
-     * TEMPORARY DIAGNOSTIC logs under the same DELETE_DEBUG_TAG as the rest of this file.
+     * the DAO query itself only matches a non-recurring row.
      */
     suspend fun deletePlainTask(taskId: String) {
-        Log.d(DELETE_DEBUG_TAG, "PLAIN_DELETE_START taskId=$taskId ts=${System.currentTimeMillis()}")
-        val deletedRows = dao.deletePlainTaskById(taskId)
-        val stillExists = dao.getExistingIds(listOf(taskId)).isNotEmpty()
-        Log.d(
-            DELETE_DEBUG_TAG,
-            "PLAIN_DELETE_DB_DONE taskId=$taskId deletedRows=$deletedRows stillExistsInDb=$stillExists " +
-                "ts=${System.currentTimeMillis()}"
-        )
+        dao.deletePlainTaskById(taskId)
         CloudBackupRepository.deleteTask(taskId)
-        Log.d(DELETE_DEBUG_TAG, "PLAIN_DELETE_END taskId=$taskId ts=${System.currentTimeMillis()}")
     }
 
     suspend fun addCustomTag(name: String) {
@@ -425,7 +358,6 @@ class TaskRepository(private val dao: TaskDao) {
             timerRemainingMillis = null,
             updatedAt = now
         )
-        logUpsert("startTimer", updated)
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
     }
@@ -440,7 +372,6 @@ class TaskRepository(private val dao: TaskDao) {
             timerRemainingMillis = remainingMillis,
             updatedAt = now
         )
-        logUpsert("pauseTimer", updated)
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
     }
@@ -454,7 +385,6 @@ class TaskRepository(private val dao: TaskDao) {
             timerRemainingMillis = totalMillis,
             updatedAt = System.currentTimeMillis()
         )
-        logUpsert("resetTimer", updated)
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
     }
@@ -473,7 +403,6 @@ class TaskRepository(private val dao: TaskDao) {
             timerRemainingMillis = 0L,
             updatedAt = System.currentTimeMillis()
         )
-        logUpsert("finishTimer", updated)
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
     }
@@ -487,7 +416,6 @@ class TaskRepository(private val dao: TaskDao) {
      */
     suspend fun uncompleteTask(task: TaskEntity): TaskEntity {
         val updated = task.uncompleteTransition()
-        logUpsert("uncompleteTask", updated)
         dao.upsert(updated)
         CloudBackupRepository.pushTask(updated)
         return updated
@@ -516,33 +444,17 @@ class TaskRepository(private val dao: TaskDao) {
     suspend fun reorderTasks(scope: TaskOrderScope, orderedTasks: List<TaskEntity>) {
         val now = System.currentTimeMillis()
         val idsWithRealRowAtStart = dao.getExistingIds(orderedTasks.map { it.id }).toHashSet()
-        // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment. Marks the whole
-        // snapshot this loop is about to persist from, and its size, so a live repro can show
-        // whether a later item's turn in this sequential loop still lands after some OTHER
-        // task's delete (this list was frozen at drag-end time, before any such delete).
-        Log.d(
-            DELETE_DEBUG_TAG,
-            "REORDER_START scope=$scope ids=${orderedTasks.map { it.id }} ts=${System.currentTimeMillis()}"
-        )
         orderedTasks.forEachIndexed { index, task ->
             val updated = when (scope) {
                 TaskOrderScope.ALL -> task.copy(orderInAll = index.toLong(), updatedAt = now)
                 TaskOrderScope.IN_PROGRESS -> task.copy(orderInProgress = index.toLong(), updatedAt = now)
                 TaskOrderScope.DONE -> task.copy(orderInDone = index.toLong(), updatedAt = now)
             }
-            logUpsert("reorderTasks[index=$index/${orderedTasks.size}]", updated)
             val persisted = dao.upsertUnlessDeletedSince(task.id, task.id in idsWithRealRowAtStart, updated)
             if (persisted) {
                 CloudBackupRepository.pushTask(updated)
-            } else {
-                // TEMPORARY DIAGNOSTIC LOG - see DELETE_DEBUG_TAG's own doc comment.
-                Log.d(
-                    DELETE_DEBUG_TAG,
-                    "REORDER_SKIPPED_DELETED taskId=${task.id} ts=${System.currentTimeMillis()}"
-                )
             }
         }
-        Log.d(DELETE_DEBUG_TAG, "REORDER_END scope=$scope ts=${System.currentTimeMillis()}")
     }
 
     private companion object {
