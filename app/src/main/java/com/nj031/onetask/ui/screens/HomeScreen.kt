@@ -458,6 +458,18 @@ fun HomeScreen(
                                     // just always targeting the one scope that now exists.
                                     viewModel.reorderTasks(TaskOrderScope.ALL, finalOrder)
                                 },
+                                onDragCancel = {
+                                    // Cancel only resets drag state - never persists a reorder.
+                                    // Only the card actually being dragged owns that state; a
+                                    // cancel from any other card (e.g. one leaving composition)
+                                    // must not touch it. Once draggedTaskId is null, the
+                                    // LaunchedEffect above re-syncs displayedTasks to the real
+                                    // persisted order.
+                                    if (draggedTaskId == task.id) {
+                                        draggedTaskId = null
+                                        dragOffsetY = 0f
+                                    }
+                                },
                                 listState = listState,
                                 modifier = if (isDragged) Modifier else Modifier.animateItem(),
                                 wallpaper = wallpaper,
@@ -803,6 +815,7 @@ private fun HomeTaskListItem(
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
+    onDragCancel: () -> Unit,
     listState: LazyListState,
     modifier: Modifier = Modifier,
     wallpaper: Wallpaper = Wallpaper.NONE,
@@ -855,6 +868,7 @@ private fun HomeTaskListItem(
         onDragStart = onDragStart,
         onDrag = onDrag,
         onDragEnd = onDragEnd,
+        onDragCancel = onDragCancel,
         listState = listState,
         modifier = modifier,
         wallpaper = wallpaper,
@@ -887,6 +901,7 @@ private fun TaskCardWithActionRow(
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
+    onDragCancel: () -> Unit,
     listState: LazyListState,
     modifier: Modifier = Modifier,
     wallpaper: Wallpaper = Wallpaper.NONE,
@@ -916,6 +931,7 @@ private fun TaskCardWithActionRow(
             onDragStart = onDragStart,
             onDrag = onDrag,
             onDragEnd = onDragEnd,
+            onDragCancel = onDragCancel,
             listState = listState,
             wallpaper = wallpaper,
             customCategories = customCategories
@@ -1040,6 +1056,7 @@ private fun TaskCard(
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
+    onDragCancel: () -> Unit,
     listState: LazyListState,
     wallpaper: Wallpaper = Wallpaper.NONE,
     customCategories: List<CategoryEntity> = emptyList()
@@ -1089,7 +1106,10 @@ private fun TaskCard(
                         onDrag(dragAmount.y)
                     },
                     onDragEnd = { onDragEnd() },
-                    onDragCancel = { onDragEnd() }
+                    // Kept separate from onDragEnd: Compose also reports a cancel whenever this
+                    // card leaves composition (e.g. the last task on a date being deleted), even
+                    // if no drag ever started - so a cancel must never persist a reorder.
+                    onDragCancel = { onDragCancel() }
                 )
             },
         shape = RoundedCornerShape(16.dp),
