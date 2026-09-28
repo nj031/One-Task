@@ -1107,7 +1107,8 @@ fun OneTaskWallpaperPlaceholderIcon(
     }
 }
 
-/** A single leaf (almond outline + center vein) - Focus Mode's "Light" focus level option. */
+/** A single leaf (almond outline + center vein) - the Timer/Focus screen's "Focus mode" secondary
+ * action icon. */
 @Composable
 fun OneTaskLeafIcon(
     modifier: Modifier = Modifier,
@@ -1138,6 +1139,43 @@ fun OneTaskLeafIcon(
             end = Offset(tipX, tipY),
             strokeWidth = strokeWidth * 0.7f,
             cap = StrokeCap.Round
+        )
+    }
+}
+
+/** A single checked task (rounded square outline + checkmark) - the Timer/Focus screen's
+ * "Focus on a task" secondary action. */
+@Composable
+fun OneTaskFocusTaskIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    size: Dp = 24.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.1f
+        val checkStartX = this.size.width * 0.32f
+        val checkStartY = this.size.height * 0.52f
+        val checkMidX = this.size.width * 0.45f
+        val checkMidY = this.size.height * 0.65f
+        val checkEndX = this.size.width * 0.7f
+        val checkEndY = this.size.height * 0.38f
+
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(this.size.width * 0.14f, this.size.height * 0.14f),
+            size = Size(this.size.width * 0.72f, this.size.height * 0.72f),
+            cornerRadius = CornerRadius(this.size.minDimension * 0.18f),
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+        val checkPath = Path().apply {
+            moveTo(checkStartX, checkStartY)
+            lineTo(checkMidX, checkMidY)
+            lineTo(checkEndX, checkEndY)
+        }
+        drawPath(
+            checkPath,
+            color = tint,
+            style = Stroke(width = strokeWidth * 0.9f, cap = StrokeCap.Round, join = StrokeJoin.Round)
         )
     }
 }

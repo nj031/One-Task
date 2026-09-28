@@ -7,7 +7,6 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,7 +17,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -29,8 +27,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -77,7 +73,9 @@ import com.nj031.onetask.ui.components.WallpaperBackdrop
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.ui.theme.OneTaskClockIcon
 import com.nj031.onetask.ui.theme.OneTaskCoffeeCupIcon
+import com.nj031.onetask.ui.theme.OneTaskFocusTaskIcon
 import com.nj031.onetask.ui.theme.OneTaskLapFlagIcon
+import com.nj031.onetask.ui.theme.OneTaskLeafIcon
 import com.nj031.onetask.ui.theme.OneTaskPauseIcon
 import com.nj031.onetask.ui.theme.OneTaskPlayIcon
 import com.nj031.onetask.ui.theme.OneTaskStopIcon
@@ -488,7 +486,7 @@ private fun TimerTopBar(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             // Only while a wallpaper is active: gives this title/menu row the same translucent-
@@ -506,17 +504,25 @@ private fun TimerTopBar(
                 } else {
                     Modifier
                 }
-            )
+            ),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = stringResource(id = R.string.timer_focus_title),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.align(Alignment.Center)
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(id = R.string.timer_focus_title),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = stringResource(id = R.string.timer_focus_subtitle),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
 
-        Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+        Box {
             IconButton(onClick = { showMenu = true }) {
                 Icon(
                     imageVector = Icons.Filled.MoreVert,
@@ -569,14 +575,11 @@ private fun TimerStopwatchSegmentedControl(
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
-            .padding(4.dp)
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         SegmentedTab(
-            icon = { tint -> OneTaskClockIcon(tint = tint, size = 20.dp) },
+            icon = { tint -> OneTaskClockIcon(tint = tint, size = 18.dp) },
             label = stringResource(id = R.string.timer_tab_timer),
             selected = selectedTab == TimerTab.TIMER,
             enabled = !timerLocked,
@@ -584,7 +587,7 @@ private fun TimerStopwatchSegmentedControl(
             modifier = Modifier.weight(1f)
         )
         SegmentedTab(
-            icon = { tint -> OneTaskStopwatchIcon(tint = tint, size = 20.dp) },
+            icon = { tint -> OneTaskStopwatchIcon(tint = tint, size = 18.dp) },
             label = stringResource(id = R.string.timer_tab_stopwatch),
             selected = selectedTab == TimerTab.STOPWATCH,
             enabled = !stopwatchLocked,
@@ -594,6 +597,9 @@ private fun TimerStopwatchSegmentedControl(
     }
 }
 
+/** A light icon+label tab with a small dot underneath marking the active mode, replacing the
+ * segmented control's old heavy bordered/filled-pill look - same selection/lock behavior as
+ * before, purely restyled. */
 @Composable
 private fun SegmentedTab(
     icon: @Composable (tint: Color) -> Unit,
@@ -611,18 +617,24 @@ private fun SegmentedTab(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(vertical = 14.dp),
+            .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         icon(tint)
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = tint,
             modifier = Modifier.padding(top = 4.dp)
+        )
+        Box(
+            modifier = Modifier
+                .padding(top = 6.dp)
+                .size(width = 14.dp, height = 3.dp)
+                .clip(RoundedCornerShape(50))
+                .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
         )
     }
 }
@@ -704,36 +716,56 @@ private fun TimerModeContent(
         )
     } else {
         when {
-            !isActive -> TimerPrimaryButton(
-                icon = { OneTaskPlayIcon(tint = Color.White, size = 20.dp) },
-                label = stringResource(id = R.string.timer_start_button),
-                onClick = { hapticTick(); onStart() },
-                wallpaper = wallpaper
+            !isActive -> TimerPrimaryControlRow(
+                primary = {
+                    TimerCircularPrimaryButton(
+                        icon = { OneTaskPlayIcon(tint = Color.White, size = 26.dp) },
+                        label = stringResource(id = R.string.timer_start_focus_session_button),
+                        onClick = { hapticTick(); onStart() },
+                        wallpaper = wallpaper
+                    )
+                }
             )
-            isRunning -> TimerPrimaryButton(
-                icon = { OneTaskPauseIcon(tint = Color.White, size = 20.dp) },
-                label = stringResource(id = R.string.pause),
-                onClick = { hapticTick(); onPause() },
-                wallpaper = wallpaper
+            isRunning -> TimerPrimaryControlRow(
+                primary = {
+                    TimerCircularPrimaryButton(
+                        icon = { OneTaskPauseIcon(tint = Color.White, size = 26.dp) },
+                        label = stringResource(id = R.string.pause),
+                        onClick = { hapticTick(); onPause() },
+                        wallpaper = wallpaper
+                    )
+                }
             )
-            isPaused -> {
-                TimerPrimaryButton(
-                    icon = { OneTaskPlayIcon(tint = Color.White, size = 20.dp) },
-                    label = stringResource(id = R.string.resume),
-                    onClick = { hapticTick(); onResume() },
-                    wallpaper = wallpaper
-                )
-                TimerSecondaryStopButton(onClick = { hapticTick(); onStop() })
-            }
+            isPaused -> TimerPrimaryControlRow(
+                leftSlot = {
+                    TimerSlotButton(
+                        icon = { tint -> OneTaskStopIcon(tint = tint, size = 18.dp) },
+                        label = stringResource(id = R.string.timer_stop_button),
+                        onClick = { hapticTick(); onStop() }
+                    )
+                },
+                primary = {
+                    TimerCircularPrimaryButton(
+                        icon = { OneTaskPlayIcon(tint = Color.White, size = 26.dp) },
+                        label = stringResource(id = R.string.resume),
+                        onClick = { hapticTick(); onResume() },
+                        wallpaper = wallpaper
+                    )
+                }
+            )
         }
 
-        FocusModeButton(onClick = onFocusModeClick)
+        TimerSecondaryActionsRow(
+            onFocusModeClick = onFocusModeClick,
+            focusModeEnabled = !isRunning
+        )
     }
 }
 
-/** The Running Focus screen's own bottom controls (per spec): Pause/Resume + Break while
- * running/paused (Stop only appears once paused), or a plain "on break" indicator - no buttons at
- * all, since a break always resumes automatically - while a manual break is counting down. */
+/** The Running Focus screen's own bottom controls: Stop | Pause/Resume | Break while
+ * running/paused (Stop stays visible, disabled instead of hidden, while Strict Mode is on), or a
+ * plain "on break" indicator - no buttons at all, since a break always resumes automatically -
+ * while a manual break is counting down. */
 @Composable
 private fun FocusRunningControls(
     isOnBreak: Boolean,
@@ -758,80 +790,50 @@ private fun FocusRunningControls(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        // Same full-width secondary-action row style already used for Stop (TimerSecondaryStop-
-        // Button) - the minimum addition needed to let the user resume Focus before the break's
-        // own 10-minute countdown elapses on its own.
+        // Same full-width secondary-action row style this on-break state already used - the
+        // minimum addition needed to let the user resume Focus before the break's own 10-minute
+        // countdown elapses on its own.
         TimerSecondaryEndBreakButton(onClick = onEndBreakClick)
         return
     }
 
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        if (isRunning) {
-            FocusHalfButton(
-                icon = { OneTaskPauseIcon(tint = Color.White, size = 20.dp) },
-                label = stringResource(id = R.string.pause),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-                onClick = onPause,
-                modifier = Modifier.weight(1f)
+    // Stop stays visible (disabled while Strict Mode is on) in both running and paused states,
+    // positioned left of the primary control - never removed from the UI, per Strict Mode's own
+    // "visible but non-interactive" rule (see TimerSlotButton's enabled param).
+    TimerPrimaryControlRow(
+        leftSlot = {
+            TimerSlotButton(
+                icon = { tint -> OneTaskStopIcon(tint = tint, size = 18.dp) },
+                label = stringResource(id = R.string.timer_stop_button),
+                onClick = onStopClick,
+                enabled = !strictModeEnabled
             )
-        } else {
-            FocusHalfButton(
-                icon = { OneTaskPlayIcon(tint = Color.White, size = 20.dp) },
-                label = stringResource(id = R.string.resume),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-                onClick = onResume,
-                modifier = Modifier.weight(1f)
+        },
+        rightSlot = {
+            TimerSlotButton(
+                icon = { tint -> OneTaskCoffeeCupIcon(tint = tint, size = 18.dp) },
+                label = stringResource(id = R.string.break_label),
+                onClick = onBreakClick
             )
+        },
+        primary = {
+            if (isRunning) {
+                TimerCircularPrimaryButton(
+                    icon = { OneTaskPauseIcon(tint = Color.White, size = 26.dp) },
+                    label = stringResource(id = R.string.pause),
+                    onClick = onPause,
+                    wallpaper = wallpaper
+                )
+            } else {
+                TimerCircularPrimaryButton(
+                    icon = { OneTaskPlayIcon(tint = Color.White, size = 26.dp) },
+                    label = stringResource(id = R.string.resume),
+                    onClick = onResume,
+                    wallpaper = wallpaper
+                )
+            }
         }
-        FocusHalfButton(
-            icon = { OneTaskCoffeeCupIcon(tint = MaterialTheme.colorScheme.primary, size = 18.dp) },
-            label = stringResource(id = R.string.break_label),
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.primary,
-            onClick = onBreakClick,
-            modifier = Modifier.weight(1f)
-        )
-    }
-
-    // Strict Mode ON: Stop stays visible (disabled) in BOTH running and paused states, never
-    // removed from the UI - see TimerSecondaryStopButton's own doc comment. Strict Mode OFF
-    // preserves the exact original behavior: Stop only appears once paused.
-    if (!isRunning || strictModeEnabled) {
-        TimerSecondaryStopButton(onClick = onStopClick, enabled = !strictModeEnabled)
-    }
-}
-
-/** A half-width sibling of TimerPrimaryButton (same shape/height, no baked-in top padding of its
- * own since two of these sit side by side in one Row) - the Running Focus screen's Pause/Resume
- * and Break buttons. */
-@Composable
-private fun FocusHalfButton(
-    icon: @Composable () -> Unit,
-    label: String,
-    containerColor: Color,
-    contentColor: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Button(
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(56.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = containerColor, contentColor = contentColor)
-    ) {
-        icon()
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 8.dp)
-        )
-    }
+    )
 }
 
 @Composable
@@ -886,33 +888,49 @@ private fun StopwatchModeContent(
         )
     } else {
         when {
-            !isActive -> TimerPrimaryButton(
-                icon = { OneTaskPlayIcon(tint = Color.White, size = 20.dp) },
-                label = stringResource(id = R.string.timer_start_button),
-                onClick = { hapticTick(); onStart() },
-                modifier = Modifier.padding(top = 28.dp),
-                wallpaper = wallpaper
+            !isActive -> TimerPrimaryControlRow(
+                primary = {
+                    TimerCircularPrimaryButton(
+                        icon = { OneTaskPlayIcon(tint = Color.White, size = 26.dp) },
+                        label = stringResource(id = R.string.timer_start_focus_session_button),
+                        onClick = { hapticTick(); onStart() },
+                        wallpaper = wallpaper
+                    )
+                }
             )
-            isRunning -> TimerPrimaryButton(
-                icon = { OneTaskPauseIcon(tint = Color.White, size = 20.dp) },
-                label = stringResource(id = R.string.pause),
-                onClick = { hapticTick(); onPause() },
-                modifier = Modifier.padding(top = 28.dp),
-                wallpaper = wallpaper
+            isRunning -> TimerPrimaryControlRow(
+                primary = {
+                    TimerCircularPrimaryButton(
+                        icon = { OneTaskPauseIcon(tint = Color.White, size = 26.dp) },
+                        label = stringResource(id = R.string.pause),
+                        onClick = { hapticTick(); onPause() },
+                        wallpaper = wallpaper
+                    )
+                }
             )
-            isPaused -> {
-                TimerPrimaryButton(
-                    icon = { OneTaskPlayIcon(tint = Color.White, size = 20.dp) },
-                    label = stringResource(id = R.string.resume),
-                    onClick = { hapticTick(); onResume() },
-                    modifier = Modifier.padding(top = 28.dp),
-                    wallpaper = wallpaper
-                )
-                TimerSecondaryStopButton(onClick = { hapticTick(); onStop() })
-            }
+            isPaused -> TimerPrimaryControlRow(
+                leftSlot = {
+                    TimerSlotButton(
+                        icon = { tint -> OneTaskStopIcon(tint = tint, size = 18.dp) },
+                        label = stringResource(id = R.string.timer_stop_button),
+                        onClick = { hapticTick(); onStop() }
+                    )
+                },
+                primary = {
+                    TimerCircularPrimaryButton(
+                        icon = { OneTaskPlayIcon(tint = Color.White, size = 26.dp) },
+                        label = stringResource(id = R.string.resume),
+                        onClick = { hapticTick(); onResume() },
+                        wallpaper = wallpaper
+                    )
+                }
+            )
         }
 
-        FocusModeButton(onClick = onFocusModeClick)
+        TimerSecondaryActionsRow(
+            onFocusModeClick = onFocusModeClick,
+            focusModeEnabled = !isRunning
+        )
     }
 
     if (isActive) {
@@ -961,12 +979,12 @@ private fun timerRingBackingModifier(wallpaper: Wallpaper): Modifier =
  */
 @Composable
 private fun TimerRing(remainingFraction: Float, showProgress: Boolean, modifier: Modifier = Modifier) {
-    val trackColor = MaterialTheme.colorScheme.secondaryContainer
+    val trackColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
     val progressColor = MaterialTheme.colorScheme.primary
     val clamped = remainingFraction.coerceIn(0f, 1f)
 
     Canvas(modifier = modifier.fillMaxSize()) {
-        val strokeWidthPx = 14.dp.toPx()
+        val strokeWidthPx = 6.dp.toPx()
         val diameter = size.minDimension - strokeWidthPx
         val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
         val arcSize = Size(diameter, diameter)
@@ -1077,19 +1095,19 @@ private fun TimerPresetPill(label: String, selected: Boolean, onClick: () -> Uni
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface)
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
             .border(
                 width = 1.dp,
-                color = if (selected) Color.Transparent else MaterialTheme.colorScheme.outline,
+                color = if (selected) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
                 shape = RoundedCornerShape(50)
             )
             .clickable { hapticTick(); onClick() }
-            .padding(vertical = 10.dp),
+            .padding(vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -1097,78 +1115,104 @@ private fun TimerPresetPill(label: String, selected: Boolean, onClick: () -> Uni
     }
 }
 
+/** Keeps the large circular Start/Pause/Resume control visually centered no matter which of the
+ * optional side slots (Stop/Break) are present for the current state - the minimum structure
+ * needed to reposition those controls beside the primary one instead of stacking them below it,
+ * without hardcoding which combination of slots each state uses. */
 @Composable
-private fun TimerPrimaryButton(
+private fun TimerPrimaryControlRow(
+    primary: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    leftSlot: (@Composable () -> Unit)? = null,
+    rightSlot: (@Composable () -> Unit)? = null
+) {
+    Row(
+        modifier = modifier.fillMaxWidth().padding(top = 28.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { leftSlot?.invoke() }
+        Box(contentAlignment = Alignment.Center) { primary() }
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { rightSlot?.invoke() }
+    }
+}
+
+/** The large circular Start/Pause/Resume control - the redesign's replacement for the old
+ * full-width rectangular button, with its label shown below rather than inline. Colored via the
+ * existing theme/accent system exactly as the old button was (primary/onPrimary), never a
+ * hardcoded color. */
+@Composable
+private fun TimerCircularPrimaryButton(
     icon: @Composable () -> Unit,
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     wallpaper: Wallpaper = Wallpaper.NONE
 ) {
-    Button(
-        onClick = onClick,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(top = 24.dp)
-            .height(56.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = Color.White
-        ),
-        // Only while a wallpaper is active: gives this CTA a defined edge against whatever
-        // wallpaper pixels happen to sit behind it - the same border token/technique Cards
-        // elsewhere already use - without changing containerColor's own existing opacity.
-        // Non-wallpaper themes are unaffected.
-        border = if (wallpaper != Wallpaper.NONE) {
-            BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-        } else {
-            null
-        }
-    ) {
-        icon()
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(76.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary)
+                // Only while a wallpaper is active: same defined-edge treatment the old CTA used
+                // against wallpaper pixels sitting behind it. Non-wallpaper themes are unaffected.
+                .then(
+                    if (wallpaper != Wallpaper.NONE) {
+                        Modifier.border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                    } else {
+                        Modifier
+                    }
+                )
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) { icon() }
         Text(
             text = label,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 8.dp)
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 10.dp)
         )
     }
 }
 
-/** [enabled] defaults to true for this button's plain (non-Focus) Timer/Stopwatch call sites,
- * which have no notion of Strict Mode. The Focus session's own call site (FocusRunningControls)
- * passes `!strictModeEnabled` - per Phase 13, the Stop action must stay visible but become
- * non-interactive (dimmed, no click) while Strict Mode is active, never be removed from the UI. */
+/** A small circular icon+label control for [TimerPrimaryControlRow]'s side slots (Stop/Break) -
+ * the restyled, repositioned replacement for the old full-width secondary button row. [enabled]
+ * defaults to true for call sites with no notion of Strict Mode; the Focus session's own call
+ * site passes `!strictModeEnabled` so Stop stays visible but non-interactive while Strict Mode is
+ * active, per Phase 13 - never removed from the UI. */
 @Composable
-private fun TimerSecondaryStopButton(onClick: () -> Unit, enabled: Boolean = true) {
-    val contentColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 10.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.secondaryContainer)
-            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        OneTaskStopIcon(tint = contentColor, size = 16.dp)
+private fun TimerSlotButton(
+    icon: @Composable (tint: Color) -> Unit,
+    label: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true
+) {
+    val tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+    val containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = if (enabled) 1f else 0.5f)
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(containerColor)
+                .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
+            contentAlignment = Alignment.Center
+        ) { icon(tint) }
         Text(
-            text = stringResource(id = R.string.timer_stop_button),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = contentColor,
-            modifier = Modifier.padding(start = 8.dp)
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium,
+            color = tint,
+            modifier = Modifier.padding(top = 6.dp)
         )
     }
 }
 
 /** Lets the user resume Focus before the break's own 10-minute countdown elapses on its own -
- * same shape/colors/typography as [TimerSecondaryStopButton] (this screen's existing secondary-
- * action row style), just a different icon/label, so the on-break state's own established layout
- * and visual language stay unchanged. */
+ * same full-width secondary-action row shape/colors/typography this on-break state already used,
+ * just a different icon/label, so the on-break state's own established layout and visual language
+ * stay unchanged. */
 @Composable
 private fun TimerSecondaryEndBreakButton(onClick: () -> Unit) {
     Row(
@@ -1193,27 +1237,66 @@ private fun TimerSecondaryEndBreakButton(onClick: () -> Unit) {
     }
 }
 
-/** Opens the new Focus Mode Configuration screen (UI-only Phase 1 - see FocusModeConfigScreen).
- * Does not itself start or touch anything about the actual, separate FocusTimerScreen/
- * TimerForegroundService feature. */
+/** The lightweight "Focus on a task" / "Focus mode" secondary row - two compact, equal-width
+ * controls that never compete visually with the timer or the primary Start/Pause/Resume control.
+ * "Focus on a task" is an explicit visual placeholder only (per the redesign spec): it has no
+ * click handler and renders permanently non-interactive, since no task-selection flow exists for
+ * it yet. "Focus mode" opens the real, unchanged Focus Mode Configuration screen (UI-only Phase 1
+ * - see FocusModeConfigScreen) - [focusModeEnabled] is false only while the Timer/Stopwatch is
+ * actively running, so the control stays visible but non-clickable rather than disappearing. */
 @Composable
-private fun FocusModeButton(onClick: () -> Unit) {
+private fun TimerSecondaryActionsRow(
+    onFocusModeClick: () -> Unit,
+    focusModeEnabled: Boolean,
+    modifier: Modifier = Modifier
+) {
     val hapticTick = rememberHapticTick()
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 10.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.secondaryContainer)
-            .clickable { hapticTick(); onClick() }
-            .padding(vertical = 14.dp),
-        contentAlignment = Alignment.Center
+    Row(
+        modifier = modifier.fillMaxWidth().padding(top = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        CompactSecondaryAction(
+            icon = { tint -> OneTaskFocusTaskIcon(tint = tint, size = 18.dp) },
+            label = stringResource(id = R.string.timer_focus_on_task_button),
+            onClick = {},
+            enabled = false,
+            modifier = Modifier.weight(1f)
+        )
+        CompactSecondaryAction(
+            icon = { tint -> OneTaskLeafIcon(tint = tint, size = 18.dp) },
+            label = stringResource(id = R.string.timer_focus_mode_button),
+            onClick = { hapticTick(); onFocusModeClick() },
+            enabled = focusModeEnabled,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun CompactSecondaryAction(
+    icon: @Composable (tint: Color) -> Unit,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    val tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = if (enabled) 0.6f else 0.3f), RoundedCornerShape(14.dp))
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(vertical = 12.dp, horizontal = 10.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        icon(tint)
         Text(
-            text = stringResource(id = R.string.timer_focus_mode_button),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = tint,
+            modifier = Modifier.padding(start = 6.dp)
         )
     }
 }
