@@ -1393,6 +1393,7 @@ private fun DeleteRunningTimerConfirmationSheet(
  * scope: past occurrences are never touched by either choice, and "this & future" never
  * regenerates a previously-deleted future date.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RecurringDeleteScopeSheet(
     onThisOccurrence: () -> Unit,
