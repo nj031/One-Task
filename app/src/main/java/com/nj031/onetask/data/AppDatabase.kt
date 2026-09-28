@@ -154,6 +154,18 @@ private val MIGRATION_15_16 = object : Migration(15, 16) {
     }
 }
 
+/** Adds the Delete Behavior Contract's recurrence-end-boundary column to the existing tasks
+ * table in place: nullable with no explicit default, so every task that existed before this
+ * update gets NULL - exactly "no end boundary, matches forever" (see
+ * TaskEntity.recurrenceEndEpochDay), the identical unbounded behavior every recurring series
+ * already had. No existing row's observable behavior changes; the column is only ever set by the
+ * new "this & future" delete choice and by detaching an edited occurrence from its old series. */
+private val MIGRATION_16_17 = object : Migration(16, 17) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE tasks ADD COLUMN recurrenceEndEpochDay INTEGER")
+    }
+}
+
 @Database(
     entities = [
         JournalNoteEntity::class,
@@ -163,7 +175,7 @@ private val MIGRATION_15_16 = object : Migration(15, 16) {
         RecurringExclusionEntity::class,
         CategoryEntity::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = false
 )
 @TypeConverters(Converters::class, TaskConverters::class)
@@ -205,7 +217,7 @@ abstract class AppDatabase : RoomDatabase() {
                 instance?.close()
                 val databaseName = "${LEGACY_DATABASE_NAME}_$userId"
                 val database = Room.databaseBuilder(appContext, AppDatabase::class.java, databaseName)
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
                     .fallbackToDestructiveMigration()
                     .build()
                 instance = database

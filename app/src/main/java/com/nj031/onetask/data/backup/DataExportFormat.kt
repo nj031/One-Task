@@ -91,6 +91,7 @@ private fun TaskEntity.toJson(): JSONObject = JSONObject().apply {
     put("updatedAt", updatedAt)
     put("successCondition", successCondition.name)
     put("successConditionThreshold", successConditionThreshold ?: JSONObject.NULL)
+    put("recurrenceEndEpochDay", recurrenceEndEpochDay ?: JSONObject.NULL)
 }
 
 private fun JSONObject.toTaskEntity(): TaskEntity {
@@ -142,6 +143,14 @@ private fun JSONObject.toTaskEntity(): TaskEntity {
             .getOrDefault(SuccessCondition.ALL),
         successConditionThreshold = if (has("successConditionThreshold") && !isNull("successConditionThreshold")) {
             getInt("successConditionThreshold")
+        } else {
+            null
+        },
+        // Absent from any backup file written before the Delete Behavior Contract's "this &
+        // future" delete choice existed - default to null, exactly matching TaskEntity's own
+        // constructor default (no end boundary, matches forever).
+        recurrenceEndEpochDay = if (has("recurrenceEndEpochDay") && !isNull("recurrenceEndEpochDay")) {
+            getLong("recurrenceEndEpochDay")
         } else {
             null
         }
