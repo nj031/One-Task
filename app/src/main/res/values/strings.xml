@@ -459,13 +459,16 @@
     <string name="focus_timer_notification_complete_text">%1$s focus session completed</string>
 
     <string name="timer_focus_title">Focus</string>
+    <string name="timer_focus_subtitle">One task at a time</string>
     <string name="timer_more_options">More options</string>
     <string name="timer_tab_timer">Timer</string>
     <string name="timer_tab_stopwatch">Stopwatch</string>
     <string name="timer_preset_custom">Custom</string>
     <string name="timer_start_button">Start</string>
+    <string name="timer_start_focus_session_button">Start Focus Session</string>
     <string name="timer_stop_button">Stop</string>
     <string name="timer_focus_mode_button">Focus mode</string>
+    <string name="timer_focus_on_task_button">Focus on a task</string>
     <string name="timer_unit_hr">hr</string>
     <string name="timer_unit_min">min</string>
     <string name="timer_unit_sec">sec</string>
