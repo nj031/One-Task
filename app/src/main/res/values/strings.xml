@@ -574,4 +574,8 @@
     <string name="continue_task">Continue Task</string>
     <string name="delete_task_confirm_title">Delete this task?</string>
     <string name="delete_task_confirm_message">This will stop the current focus session and delete the task.</string>
+    <string name="recurring_delete_scope_title">Delete recurring task</string>
+    <string name="recurring_delete_scope_message">Choose what to delete. Past occurrences are never affected.</string>
+    <string name="recurring_delete_this_occurrence">Delete this occurrence</string>
+    <string name="recurring_delete_this_and_future">Delete this &amp; future occurrences</string>
 </resources>

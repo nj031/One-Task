@@ -81,6 +81,7 @@ import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.TaskEntity
 import com.nj031.onetask.data.task.TaskOrderScope
 import com.nj031.onetask.data.task.TaskPriority
+import com.nj031.onetask.data.task.TaskRepeat
 import com.nj031.onetask.data.task.TaskStatus
 import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CategorySelectorDialog
@@ -166,6 +167,12 @@ fun HomeScreen(
     // survives the underlying task object changing identity across recompositions/updates.
     var selectedTaskId by remember { mutableStateOf<String?>(null) }
     var deleteConfirmTask by remember { mutableStateOf<TaskEntity?>(null) }
+    // The task currently awaiting the Delete Behavior Contract's "this occurrence"/"this &
+    // future"/cancel choice - shown instead of deleting immediately whenever the tapped task is
+    // part of an active recurring series (an occurrence of one, or the series' own definition row
+    // - see beginDelete below), so recurring delete scope is always an explicit user choice, never
+    // silently inferred from which row happened to be tapped.
+    var recurringDeleteScopeTask by remember { mutableStateOf<TaskEntity?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
     // All is the default per spec - every task for the day is visible until the user narrows
     // it down.
@@ -177,6 +184,19 @@ fun HomeScreen(
     // The FAB's real, measured height - see FAB_SCAFFOLD_END_MARGIN_DP's own comment for why this
     // (rather than a hardcoded size) drives the task list's bottom content padding.
     var fabHeight by remember { mutableStateOf(0.dp) }
+
+    // The single entry point every Delete tap (direct, or after confirming the running-timer
+    // sheet) goes through - see the Delete Behavior Contract. A task that's either an occurrence
+    // of an active recurring series or that series' own definition row always asks which scope
+    // (this occurrence / this & future) before touching anything; a plain task deletes
+    // immediately, exactly as before this contract existed.
+    fun beginDelete(task: TaskEntity) {
+        if (task.seriesId != null || task.repeat != TaskRepeat.NONE) {
+            recurringDeleteScopeTask = task
+        } else {
+            viewModel.deleteTask(task)
+        }
+    }
 
     // Drag-and-drop reorder state, scoped to whichever tab is currently on screen. draggedTaskId
     // is non-null only while a long-press-drag is in progress; dragOffsetY is that one task's
@@ -410,6 +430,7 @@ fun HomeScreen(
                                 onOpenFocusTimer = onOpenFocusTimer,
                                 onEditTaskClick = onEditTaskClick,
                                 onDeleteConfirmRequired = { deleteConfirmTask = it },
+                                onBeginDelete = ::beginDelete,
                                 isDragged = isDragged,
                                 dragOffsetY = if (isDragged) dragOffsetY else 0f,
                                 onDragStart = {
@@ -491,10 +512,26 @@ fun HomeScreen(
         DeleteRunningTimerConfirmationSheet(
             onDelete = {
                 hapticTick()
-                viewModel.deleteTask(task)
+                beginDelete(task)
                 deleteConfirmTask = null
             },
             onCancel = { deleteConfirmTask = null }
+        )
+    }
+
+    recurringDeleteScopeTask?.let { task ->
+        RecurringDeleteScopeSheet(
+            onThisOccurrence = {
+                hapticTick()
+                viewModel.deleteRecurringOccurrence(task)
+                recurringDeleteScopeTask = null
+            },
+            onThisAndFuture = {
+                hapticTick()
+                viewModel.deleteRecurringThisAndFuture(task)
+                recurringDeleteScopeTask = null
+            },
+            onCancel = { recurringDeleteScopeTask = null }
         )
     }
 }
@@ -786,6 +823,7 @@ private fun HomeTaskListItem(
     onOpenFocusTimer: (String) -> Unit,
     onEditTaskClick: (String) -> Unit,
     onDeleteConfirmRequired: (TaskEntity) -> Unit,
+    onBeginDelete: (TaskEntity) -> Unit,
     isDragged: Boolean,
     dragOffsetY: Float,
     onDragStart: () -> Unit,
@@ -827,11 +865,12 @@ private fun HomeTaskListItem(
             onDeselect()
             // A task with a currently-running timer gets an extra confirmation step, since
             // deleting it also silently ends the active focus session - everything else deletes
-            // immediately, matching existing behavior.
+            // (or, for a recurring task, asks which scope - see onBeginDelete) immediately,
+            // matching existing behavior.
             if (task.timerEndAtMillis != null) {
                 onDeleteConfirmRequired(task)
             } else {
-                viewModel.deleteTask(task)
+                onBeginDelete(task)
             }
         },
         isDragged = isDragged,
@@ -1331,6 +1370,94 @@ private fun DeleteRunningTimerConfirmationSheet(
                     .height(48.dp)
             ) {
                 Text(stringResource(id = R.string.delete), style = MaterialTheme.typography.bodyMedium)
+            }
+            TextButton(
+                onClick = { dismissThen(onCancel) },
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                Text(
+                    text = stringResource(id = R.string.cancel),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The Delete Behavior Contract's recurring-delete scope choice, shown instead of deleting
+ * immediately whenever the tapped task is part of an active recurring series - see HomeScreen's
+ * own beginDelete. Mirrors [DeleteRunningTimerConfirmationSheet]'s layout/styling exactly, with a
+ * second destructive option instead of one, since there is deliberately no default/inferred
+ * scope: past occurrences are never touched by either choice, and "this & future" never
+ * regenerates a previously-deleted future date.
+ */
+@Composable
+private fun RecurringDeleteScopeSheet(
+    onThisOccurrence: () -> Unit,
+    onThisAndFuture: () -> Unit,
+    onCancel: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
+    fun dismissThen(action: () -> Unit) {
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            if (!sheetState.isVisible) action()
+        }
+    }
+
+    CompactBottomSheet(
+        onDismissRequest = onCancel,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = stringResource(id = R.string.recurring_delete_scope_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = stringResource(id = R.string.recurring_delete_scope_message),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 10.dp)
+            )
+            FilledTonalButton(
+                onClick = { dismissThen(onThisOccurrence) },
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                ),
+                modifier = Modifier
+                    .padding(top = 18.dp)
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Text(stringResource(id = R.string.recurring_delete_this_occurrence), style = MaterialTheme.typography.bodyMedium)
+            }
+            FilledTonalButton(
+                onClick = { dismissThen(onThisAndFuture) },
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                ),
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Text(stringResource(id = R.string.recurring_delete_this_and_future), style = MaterialTheme.typography.bodyMedium)
             }
             TextButton(
                 onClick = { dismissThen(onCancel) },

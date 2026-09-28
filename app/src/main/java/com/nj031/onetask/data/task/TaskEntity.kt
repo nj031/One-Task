@@ -109,7 +109,16 @@ data class TaskEntity(
     // Only meaningful when successCondition == CUSTOM; null otherwise. Always kept within
     // 1..subtasks.size by the UI (see AddTaskScreen) and re-clamped there whenever subtasks are
     // added/removed while editing.
-    val successConditionThreshold: Int? = null
+    val successConditionThreshold: Int? = null,
+    // Only meaningful on a recurring series' own definition row ([seriesId] == null, [repeat] !=
+    // NONE): the exact first date this series no longer matches - the upper-bound counterpart to
+    // [date], which is already the lower bound (see [matchesRecurrenceOn]). Null (every row that
+    // existed before this field did, and every series without an explicit end) means "no upper
+    // bound" - the exact same unbounded-forever matching this series already had. Set only by the
+    // Delete Behavior Contract's "this & future" choice (see [TaskRepository.deleteRecurringThisAndFuture])
+    // and by editing an occurrence's own date/repeat away from its original series (see
+    // [TaskRepository.updateTask]) - never edited directly by the user.
+    val recurrenceEndEpochDay: Long? = null
 )
 
 @Entity(tableName = "task_tags")
@@ -171,12 +180,15 @@ fun TaskEntity.repeatDaysSet(): Set<DayOfWeek> =
 /**
  * Whether this recurring series (a row with [TaskEntity.seriesId] == null and
  * [TaskEntity.repeat] != NONE) is due on [targetEpochDay] - never before its own start date
- * ([TaskEntity.date]), and for SELECT_DAYS, only on a date whose weekday is in
+ * ([TaskEntity.date]) and never on or after [TaskEntity.recurrenceEndEpochDay] (null - the
+ * default every series had before the Delete Behavior Contract's "this & future" choice existed -
+ * means no upper bound at all), and for SELECT_DAYS, only on a date whose weekday is in
  * [repeatDaysSet]. Used both for the series' own start date (via [isDueOn]) and for every
  * other date it might also be due on (via [asVirtualOccurrence]'s caller).
  */
 fun TaskEntity.matchesRecurrenceOn(targetEpochDay: Long): Boolean {
     if (targetEpochDay < date) return false
+    if (recurrenceEndEpochDay != null && targetEpochDay >= recurrenceEndEpochDay) return false
     return when (repeat) {
         TaskRepeat.NONE -> false
         TaskRepeat.DAILY -> true

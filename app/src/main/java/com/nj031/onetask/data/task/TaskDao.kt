@@ -9,6 +9,11 @@ import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
+/** [TaskDao.capRecurrenceAt]'s result: the series row's own state after its end boundary was
+ * applied, and the ids of every already-materialized occurrence row this pruned (now at or past
+ * that boundary, so it can never be regenerated). */
+data class RecurrenceCapResult(val updatedSeries: TaskEntity, val prunedOccurrenceIds: List<String>)
+
 @Dao
 interface TaskDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -49,25 +54,6 @@ interface TaskDao {
     @Query("SELECT id FROM tasks WHERE seriesId = :seriesId")
     suspend fun getOccurrenceIdsForSeries(seriesId: String): List<String>
 
-    /** Atomically deletes a recurring series' own definition row together with every already-
-     * materialized occurrence and per-date exclusion recorded against it - see
-     * TaskRepository.deleteTask's own doc comment. Bundling all of it into one Room transaction
-     * (rather than the separate, independently-invalidating suspend calls this used to be) means
-     * a concurrent observeTasksByDate re-query can never land in between them and see a
-     * partially-applied delete (e.g. this series' own row still present, or an occurrence row
-     * still present) - Room's Flow observers for getByDate/getActiveRecurringSeries only ever
-     * see the fully-applied result or the fully-unapplied one, never a state in between. Returns
-     * the occurrence ids that were deleted, so the caller can still mirror each one's removal to
-     * the cloud backup afterward (cloud sync itself is untouched by this transaction). */
-    @Transaction
-    suspend fun deleteRecurringSeriesLocally(seriesTask: TaskEntity): List<String> {
-        val occurrenceIds = getOccurrenceIdsForSeries(seriesTask.id)
-        deleteOccurrencesForSeries(seriesTask.id)
-        deleteRecurringExclusionsForSeries(seriesTask.id)
-        delete(seriesTask)
-        return occurrenceIds
-    }
-
     /** Atomically records that [epochDay] is excluded going forward AND removes the occurrence's
      * own row (a real row if already materialized, a no-op delete if it was still virtual - see
      * TaskEntity.asVirtualOccurrence) in the SAME Room transaction. Recording the exclusion before
@@ -75,11 +61,87 @@ interface TaskDao {
      * re-query could see "row gone, not yet excluded" and regenerate the just-deleted occurrence
      * (see this DAO's git history); doing both in one transaction closes it completely, since
      * Room's invalidation can now only ever reflect the fully-applied pair, never one write
-     * without the other. */
+     * without the other. Used only for "this occurrence" on a date OTHER than the series' own
+     * start date - see [excludeSeriesOwnStartDateLocally] for that one, and
+     * TaskRepository.deleteRecurringOccurrence for which of the two a given delete uses. */
     @Transaction
     suspend fun deleteRecurringOccurrenceLocally(occurrenceTask: TaskEntity, seriesId: String, epochDay: Long) {
         insertRecurringExclusion(RecurringExclusionEntity(seriesId = seriesId, epochDay = epochDay))
         delete(occurrenceTask)
+    }
+
+    /** "This occurrence" when the selected occurrence IS the series' own start date - i.e. the
+     * literal row being acted on is the series definition row itself ([TaskEntity.seriesId] ==
+     * null), not a separate materialized/virtual occurrence row. That row must never be deleted
+     * here (deleting it would remove the series' pattern entirely, taking every later date's
+     * occurrence down with it - exactly the forbidden "delete entire series including past"
+     * behavior); the Delete Behavior Contract's "this occurrence" only ever removes the one
+     * selected date, so this records an exclusion for the series' own start date and leaves the
+     * row itself untouched. [observeTasksByDate] already checks this same exclusion set before
+     * showing the series row on its own start date - see its own doc comment. */
+    suspend fun excludeSeriesOwnStartDateLocally(seriesId: String, epochDay: Long) {
+        insertRecurringExclusion(RecurringExclusionEntity(seriesId = seriesId, epochDay = epochDay))
+    }
+
+    @Query("SELECT * FROM tasks WHERE id = :id")
+    suspend fun getByIdOnce(id: String): TaskEntity?
+
+    @Query("SELECT id FROM tasks WHERE seriesId = :seriesId AND date >= :fromEpochDay")
+    suspend fun getOccurrenceIdsForSeriesFromDate(seriesId: String, fromEpochDay: Long): List<String>
+
+    @Query("DELETE FROM tasks WHERE seriesId = :seriesId AND date >= :fromEpochDay")
+    suspend fun deleteOccurrencesForSeriesFromDate(seriesId: String, fromEpochDay: Long)
+
+    @Query("DELETE FROM recurring_exclusions WHERE seriesId = :seriesId AND epochDay >= :fromEpochDay")
+    suspend fun deleteRecurringExclusionsForSeriesFromDate(seriesId: String, fromEpochDay: Long)
+
+    /** Applies (and, if a tighter one already exists, never loosens) an end boundary on
+     * [seriesId] at [cutoffEpochDay] - see [TaskEntity.recurrenceEndEpochDay] - the shared
+     * primitive behind both the Delete Behavior Contract's "this & future" choice
+     * (TaskRepository.deleteRecurringThisAndFuture) and detaching an edited occurrence from its
+     * old series when its own date/repeat changes (TaskRepository.updateTask). Also prunes every
+     * already-materialized occurrence row of this series at or after the cutoff - once excluded
+     * from the pattern they can never be regenerated, so leaving them behind would be permanently
+     * orphaned rows - and every now-redundant per-date exclusion at or after the cutoff, since
+     * [TaskEntity.matchesRecurrenceOn] already covers every one of those dates going forward on
+     * its own.
+     *
+     * If the series' own start date falls at or after the resulting boundary, the series row
+     * itself is now excluded from its own pattern too (this is the "this & future on the very
+     * first occurrence" case - equivalent to removing the series' entire, otherwise-entirely-
+     * future, existence) - if that row still carries a live timer (see TIMER + DELETE in the
+     * Delete Behavior Contract), it's stopped in the same write, exactly like [resetTimer] does:
+     * every future occurrence already starts fresh regardless of this row's own runtime state
+     * (see [TaskEntity.asVirtualOccurrence]), so leaving it running would only ever mean an
+     * orphaned foreground timer for a date that can never be reached again.
+     *
+     * Wrapped in one transaction so a concurrent observeTasksByDate re-query can never see the
+     * boundary applied without the now-invalid occurrences/exclusions already pruned, or vice
+     * versa. Returns the pruned occurrence ids (for the caller to mirror to the cloud backup) and
+     * the series row's own resulting state (for the caller to recompute its one reminder against
+     * the new, possibly now-empty, matching range) - null if the series row no longer exists (e.g.
+     * already deleted by a concurrent action). */
+    @Transaction
+    suspend fun capRecurrenceAt(seriesId: String, cutoffEpochDay: Long): RecurrenceCapResult? {
+        val series = getByIdOnce(seriesId) ?: return null
+        val existingEnd = series.recurrenceEndEpochDay
+        val newEnd = if (existingEnd == null) cutoffEpochDay else minOf(existingEnd, cutoffEpochDay)
+        val prunedIds = getOccurrenceIdsForSeriesFromDate(seriesId, newEnd)
+        deleteOccurrencesForSeriesFromDate(seriesId, newEnd)
+        deleteRecurringExclusionsForSeriesFromDate(seriesId, newEnd)
+        val ownDateNowExcluded = series.date >= newEnd
+        val hasLiveTimer = series.status == TaskStatus.IN_PROGRESS ||
+            series.timerEndAtMillis != null ||
+            series.timerRemainingMillis != null
+        val stopTimer = ownDateNowExcluded && hasLiveTimer
+        val updatedSeries = series.copy(
+            recurrenceEndEpochDay = newEnd,
+            status = if (stopTimer) TaskStatus.NOT_STARTED else series.status,
+            timerEndAtMillis = if (stopTimer) null else series.timerEndAtMillis,
+            timerRemainingMillis = if (stopTimer) null else series.timerRemainingMillis
+        )
+        update(updatedSeries)
+        return RecurrenceCapResult(updatedSeries, prunedIds)
     }
 
     // The set of this series' already-materialized-and-completed occurrence dates - used by
@@ -88,9 +150,10 @@ interface TaskDao {
     @Query("SELECT date FROM tasks WHERE seriesId = :seriesId AND status = 'COMPLETED'")
     suspend fun getCompletedOccurrenceDatesForSeries(seriesId: String): List<Long>
 
-    // Cleans up already-materialized occurrences when their series' own definition row is
-    // deleted, so deleting a recurring task doesn't leave orphaned individual-date leftovers
-    // behind - see TaskRepository.deleteTask.
+    // Deletes every already-materialized occurrence of a series in one go - currently unused by
+    // any delete path (the Delete Behavior Contract has no "delete entire series including past"
+    // operation; see capRecurrenceAt/deleteOccurrencesForSeriesFromDate for the bounded version
+    // "this & future" actually uses), kept only as a general-purpose primitive.
     @Query("DELETE FROM tasks WHERE seriesId = :seriesId")
     suspend fun deleteOccurrencesForSeries(seriesId: String)
 

@@ -143,7 +143,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         successConditionThreshold: Int? = task.successConditionThreshold
     ) {
         viewModelScope.launch {
-            val updated = repository.updateTask(
+            val app = getApplication<Application>()
+            val result = repository.updateTask(
                 task = task,
                 name = name,
                 subtasks = subtasks,
@@ -160,7 +161,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 successCondition = successCondition,
                 successConditionThreshold = successConditionThreshold
             )
-            ReminderManager.reschedule(getApplication<Application>(), updated)
+            ReminderManager.reschedule(app, result.updated)
+            // Only set when this edit detached [task] from its old recurring series (see
+            // TaskRepository.updateTask's own doc comment) - that series' own reminder needs
+            // recomputing too, since its matching range just changed.
+            result.detachedFromSeries?.let { ReminderManager.reschedule(app, it) }
         }
         selectDate(date)
     }
@@ -220,14 +225,37 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Permanently deletes a plain, non-recurring task - see [TaskRepository.deletePlainTask].
+     * Never called for a recurring task from the UI (see HomeScreen's own delete-tap handler,
+     * which routes a recurring task through [deleteRecurringOccurrence]/
+     * [deleteRecurringThisAndFuture]'s explicit choice instead - the Delete Behavior Contract
+     * requires the user to pick a scope, never silently decides one); the check below is a
+     * defensive fallback only, and picks the least destructive interpretation (this occurrence
+     * alone, never the whole series/history) if it's ever reached anyway. */
     fun deleteTask(task: TaskEntity) {
         if (task.seriesId == null && task.repeat == TaskRepeat.NONE) {
             deletePlainTask(task.id)
-            return
+        } else {
+            deleteRecurringOccurrence(task)
         }
+    }
+
+    /** The Delete Behavior Contract's "Delete this occurrence" choice - see
+     * [TaskRepository.deleteRecurringOccurrence]'s own doc comment. Deliberately never cancels or
+     * reschedules the series' one reminder: it belongs to the whole series, not to this single
+     * date, and isn't affected by excluding one of them. */
+    fun deleteRecurringOccurrence(task: TaskEntity) {
+        viewModelScope.launch { repository.deleteRecurringOccurrence(task) }
+    }
+
+    /** The Delete Behavior Contract's "Delete this & future occurrences" choice - see
+     * [TaskRepository.deleteRecurringThisAndFuture]'s own doc comment. The series' matching range
+     * just changed (possibly to nothing left at all), so its one reminder is always recomputed
+     * against the result. */
+    fun deleteRecurringThisAndFuture(task: TaskEntity) {
         viewModelScope.launch {
-            repository.deleteTask(task)
-            ReminderManager.cancel(getApplication<Application>(), task.id)
+            val updatedSeries = repository.deleteRecurringThisAndFuture(task) ?: return@launch
+            ReminderManager.reschedule(getApplication<Application>(), updatedSeries)
         }
     }
 

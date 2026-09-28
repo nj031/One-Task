@@ -597,7 +597,8 @@ private fun TaskEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "orderInProgress" to orderInProgress,
     "orderInDone" to orderInDone,
     "successCondition" to successCondition.name,
-    "successConditionThreshold" to successConditionThreshold
+    "successConditionThreshold" to successConditionThreshold,
+    "recurrenceEndEpochDay" to recurrenceEndEpochDay
 )
 
 @Suppress("UNCHECKED_CAST")
@@ -645,7 +646,12 @@ private fun DocumentSnapshot.toTaskEntity(): TaskEntity? {
         // ALL/null, exactly matching TaskEntity's own constructor defaults (see TaskEntity.kt).
         successCondition = getString("successCondition")?.let { runCatching { SuccessCondition.valueOf(it) }.getOrNull() }
             ?: SuccessCondition.ALL,
-        successConditionThreshold = (get("successConditionThreshold") as? Long)?.toInt()
+        successConditionThreshold = (get("successConditionThreshold") as? Long)?.toInt(),
+        // Absent from any task document written before the Delete Behavior Contract's "this &
+        // future" delete choice existed - default to null, exactly matching TaskEntity's own
+        // constructor default (no end boundary, matches forever - see
+        // TaskEntity.recurrenceEndEpochDay).
+        recurrenceEndEpochDay = get("recurrenceEndEpochDay") as? Long
     )
 }
 
