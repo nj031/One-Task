@@ -102,7 +102,10 @@ private fun buildColorScheme(colorTheme: ColorTheme, dark: Boolean): ColorScheme
 private fun wallpaperColorScheme(wallpaper: Wallpaper, dark: Boolean): ColorScheme? {
     val definition = OneTaskWallpapers.definitionFor(wallpaper) ?: return null
     val palette = if (dark) definition.dark else definition.light
-    return buildColorScheme(palette.colors, dark)
+    // onBackground is overridden to the wallpaper's own onWallpaperText (rather than
+    // palette.colors.primaryText, which buildColorScheme already used for onSurface) - see
+    // OneTaskWallpaperColors' own doc comment for why a wallpaper needs these to differ.
+    return buildColorScheme(palette.colors, dark).copy(onBackground = palette.onWallpaperText)
 }
 
 /**
@@ -115,7 +118,11 @@ private fun wallpaperColorScheme(wallpaper: Wallpaper, dark: Boolean): ColorSche
 fun wallpaperSettingsColorScheme(wallpaper: Wallpaper, dark: Boolean): ColorScheme? {
     val definition = OneTaskWallpapers.definitionFor(wallpaper) ?: return null
     val palette = if (dark) definition.settingsDark else definition.settingsLight
-    return buildColorScheme(palette, dark)
+    // Same onBackground override as wallpaperColorScheme, and for the same reason - Settings/
+    // Appearance page titles sit directly on the plain wallpaper background color, while row
+    // labels sit on an opaque Card, and the two need different text colors for readable contrast.
+    val onWallpaperText = if (dark) definition.dark.onWallpaperText else definition.light.onWallpaperText
+    return buildColorScheme(palette, dark).copy(onBackground = onWallpaperText)
 }
 
 /**
@@ -129,7 +136,11 @@ fun WallpaperSettingsTheme(wallpaper: Wallpaper, darkTheme: Boolean, content: @C
     if (overrideScheme == null) {
         content()
     } else {
-        MaterialTheme(colorScheme = overrideScheme, typography = MaterialTheme.typography, content = content)
+        // A wallpaper's own typography (see Type.kt's WallpaperTypography) applies here too -
+        // Settings/Appearance are still part of "Wallpaper 1 visual theme" (see this app's
+        // Wallpaper spec's "Profile/Settings ... Wallpaper 1 visual theme: YES" rule), even though
+        // they use this distinct palette rather than wallpaperColorScheme.
+        MaterialTheme(colorScheme = overrideScheme, typography = WallpaperTypography, content = content)
     }
 }
 
@@ -142,12 +153,15 @@ fun OneTaskTheme(
 ) {
     // A wallpaper's own palette becomes the active theme app-wide while it's selected - the
     // user's saved Theme Color is never lost (see AppearanceSettingsRepository.getColorTheme's
-    // own doc comment), it's simply not the one driving colors right now.
+    // own doc comment), it's simply not the one driving colors right now. Its own typography
+    // (see Type.kt's WallpaperTypography) follows the same rule: only while a wallpaper is
+    // active, never for a plain ColorTheme.
     val colorScheme = wallpaperColorScheme(wallpaper, darkTheme) ?: buildColorScheme(colorTheme, darkTheme)
+    val typography = if (wallpaper == Wallpaper.NONE) Typography else WallpaperTypography
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = typography,
         content = content
     )
 }

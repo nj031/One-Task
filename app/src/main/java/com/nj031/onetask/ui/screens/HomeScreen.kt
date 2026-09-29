@@ -566,25 +566,11 @@ private fun TaskScreenHeader(
         selectedDate.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault()))
     }
 
+    // Deliberately transparent even while a wallpaper is active - per the Wallpaper 1 spec's own
+    // "Top App Bars/Headers: transparent, wallpaper visible behind it" rule, this header sits
+    // directly over the wallpaper image with no card-like surface behind it.
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            // Only while a wallpaper is active: gives this header's avatar/title/date/nav icons
-            // the same translucent-surface-plus-border treatment as Cards elsewhere on this
-            // screen, since (unlike a Card) this header previously rendered directly over the
-            // wallpaper image with nothing behind it - reusing the existing Verdant border/surface
-            // tokens, not a new color. Non-wallpaper themes are unaffected.
-            .then(
-                if (wallpaper != Wallpaper.NONE) {
-                    Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                } else {
-                    Modifier
-                }
-            )
+        modifier = modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1185,7 +1171,7 @@ private fun TaskCard(
 
                 priorityLabelRes(task.priority)?.let { labelRes ->
                     Spacer(modifier = Modifier.width(12.dp))
-                    TagPill(text = stringResource(id = labelRes))
+                    TagPill(text = stringResource(id = labelRes), color = priorityColor(task.priority, wallpaper))
                 }
 
                 task.timerMinutes?.let { minutes ->
@@ -1234,18 +1220,38 @@ private fun priorityLabelRes(priority: TaskPriority): Int? = when (priority) {
     TaskPriority.HIGH -> R.string.priority_high
 }
 
+/** [OneTaskColorPalette.priorityHigh]/[priorityMedium]/[priorityLow] all default to [primary] for
+ * every existing plain color theme (see that data class' own doc comment), so this only visibly
+ * differs per priority level while Wallpaper 1 is active - every other theme's priority pill keeps
+ * its exact original look ([MaterialTheme.colorScheme.primary], read directly since a plain color
+ * theme has no [OneTaskWallpaperDefinition] to look these up on). [TaskPriority.SMALL] (the "Low"
+ * priority option) reads priorityLow. Wallpaper 1's own priority colors don't vary between its
+ * light/dark palettes (see WallpaperTheme.kt), so this always reads its `light` one regardless of
+ * the active Display Mode. */
 @Composable
-private fun TagPill(text: String, modifier: Modifier = Modifier) {
+private fun priorityColor(priority: TaskPriority, wallpaper: Wallpaper): Color {
+    val palette = OneTaskWallpapers.definitionFor(wallpaper)?.light?.colors
+    val default = MaterialTheme.colorScheme.primary
+    return when (priority) {
+        TaskPriority.HIGH -> palette?.priorityHigh ?: default
+        TaskPriority.MEDIUM -> palette?.priorityMedium ?: default
+        TaskPriority.SMALL -> palette?.priorityLow ?: default
+        TaskPriority.NONE -> default
+    }
+}
+
+@Composable
+private fun TagPill(text: String, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.primary) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(50))
+            .border(1.dp, color, RoundedCornerShape(50))
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary
+            color = color
         )
     }
 }

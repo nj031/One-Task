@@ -486,25 +486,13 @@ private fun TimerTopBar(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
+    // Deliberately transparent even while a wallpaper is active - per the Wallpaper 1 spec's own
+    // "Top App Bars/Headers: transparent, wallpaper visible behind it" rule, this header sits
+    // directly over the wallpaper image with no card-like surface behind it (unlike this screen's
+    // own pills/segmented control, which stay opaque per the spec's separate "Cards are opaque"
+    // rule - a header isn't a Card).
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            // Only while a wallpaper is active: gives this title/menu row the same translucent-
-            // surface-plus-border treatment as this screen's own pills/segmented control, since
-            // (unlike those) this header previously rendered directly over the wallpaper image
-            // with nothing behind it - reusing the existing Verdant border/surface tokens, not a
-            // new color. Non-wallpaper themes are unaffected.
-            .then(
-                if (wallpaper != Wallpaper.NONE) {
-                    Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                } else {
-                    Modifier
-                }
-            ),
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -952,8 +940,9 @@ private fun StopwatchModeContent(
  * The 280dp ring+countdown-label composition's own modifier - only while a wallpaper is active,
  * adds the same translucent-surface-plus-border treatment Cards elsewhere already use, since the
  * countdown text previously rendered directly over the wallpaper image with nothing behind it.
- * Circular (matching the ring it backs) rather than the cards' rounded-rect, reusing the existing
- * Verdant border/surface tokens - not a new color, and the ring/label themselves are unchanged.
+ * Circular (matching the ring it backs) rather than the cards' rounded-rect, reusing the same
+ * theme border/surface tokens every Card already reads - not a new color, and the ring/label
+ * themselves are unchanged.
  * Non-wallpaper themes get a plain, unmodified 280dp box, exactly as before this existed.
  */
 @Composable
