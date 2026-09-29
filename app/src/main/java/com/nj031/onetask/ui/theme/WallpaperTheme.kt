@@ -95,18 +95,20 @@ private val Wallpaper1OnWallpaperText = Color(0xFFE8D7B3) // LIGHT_TEXT
 
 // Do NOT add a scrim/overlay over the supplied wallpaper image (per the spec's own Accessibility/
 // Readability section: "Do NOT add a background overlay... preserve the artwork as designed") -
-// Cards are opaque already, so no overlay is needed for card-text contrast either.
+// Cards are opaque already, so no overlay is needed for card-text contrast either. Bottom
+// Navigation is transparent (not a Card) on Tasks/Timer/Notes, per the spec's own "Bottom
+// Navigation: transparent, wallpaper visible behind it" rule.
 private val Wallpaper1Light = OneTaskWallpaperColors(
     colors = Wallpaper1LightColors,
     overlay = Color.Transparent,
-    bottomNavigation = Wallpaper1CardLight,
+    bottomNavigation = Color.Transparent,
     onWallpaperText = Wallpaper1OnWallpaperText
 )
 
 private val Wallpaper1Dark = OneTaskWallpaperColors(
     colors = Wallpaper1DarkColors,
     overlay = Color.Transparent,
-    bottomNavigation = Wallpaper1CardLight,
+    bottomNavigation = Color.Transparent,
     onWallpaperText = Wallpaper1OnWallpaperText
 )
 

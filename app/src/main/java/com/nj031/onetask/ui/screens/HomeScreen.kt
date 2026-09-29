@@ -340,7 +340,7 @@ fun HomeScreen(
                 backgroundColor = OneTaskWallpapers.definitionFor(wallpaper)?.let {
                     if (darkTheme) it.dark.bottomNavigation else it.light.bottomNavigation
                 } ?: MaterialTheme.colorScheme.surface,
-                elevated = wallpaper != Wallpaper.NONE
+                wallpaper = wallpaper
             )
         },
         floatingActionButton = {

@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
+import com.nj031.onetask.data.settings.Wallpaper
 
 enum class BottomNavTab { JOURNAL, TASKS, TIMER }
 
@@ -44,7 +45,9 @@ enum class BottomNavTab { JOURNAL, TASKS, TIMER }
  * swapped by [selected] state. The active variant is additionally tinted to the current theme's
  * primary color (its baked-in artwork was drawn blue, so a non-blue color theme still needs a
  * runtime recolor here) - the inactive variant's neutral gray is intentionally left untouched by
- * theming, matching every other "unselected" element elsewhere in the app.
+ * theming, matching every other "unselected" element elsewhere in the app. While Wallpaper 1 is
+ * active, this recoloring is skipped entirely (see [wallpaper]) - the spec calls for the supplied
+ * assets exactly as given, with no extra tinting/recoloring.
  */
 @Composable
 fun OneTaskBottomNav(
@@ -63,11 +66,21 @@ fun OneTaskBottomNav(
     // every Card in this app already relies on for separation from its background - not
     // another translucency/opacity value. False (no shadow, unchanged look) whenever no
     // wallpaper is active, exactly as before this param existed.
-    elevated: Boolean = false
+    elevated: Boolean = false,
+    // NONE (the default) preserves every existing theme's exact original look - only Wallpaper 1
+    // (see [Wallpaper.WALLPAPER_1]) changes anything here: it skips the active icon's runtime
+    // recolor (see this composable's own doc comment) and switches the tab labels to a color
+    // legible directly against the wallpaper image, since [backgroundColor] is transparent for
+    // Wallpaper 1 (see the three screens' own call sites) and the original primary/onSurfaceVariant
+    // label colors were chosen assuming an opaque Card-like background behind them.
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val journalLabel = stringResource(id = R.string.nav_journal)
     val tasksLabel = stringResource(id = R.string.nav_tasks)
     val timerLabel = stringResource(id = R.string.nav_timer)
+    // See this composable's own doc comment on [wallpaper] - Wallpaper 1's supplied icon assets
+    // are shown exactly as given, never recolored.
+    val tintActiveIcon = wallpaper == Wallpaper.NONE
 
     // The system navigation area (3-button bar or gesture bar) draws on top of app
     // content since the app opts into edge-to-edge. windowInsetsPadding here keeps the
@@ -101,13 +114,14 @@ fun OneTaskBottomNav(
                             id = if (tasksSelected) R.drawable.ic_nav_tasks_active else R.drawable.ic_nav_tasks_inactive
                         ),
                         contentDescription = null,
-                        colorFilter = if (tasksSelected) ColorFilter.tint(MaterialTheme.colorScheme.primary) else null,
+                        colorFilter = if (tasksSelected && tintActiveIcon) ColorFilter.tint(MaterialTheme.colorScheme.primary) else null,
                         modifier = Modifier.size(28.dp)
                     )
                 },
                 label = tasksLabel,
                 onClick = onTasksClick,
-                selected = activeTab == BottomNavTab.TASKS
+                selected = activeTab == BottomNavTab.TASKS,
+                wallpaper = wallpaper
             )
             OneTaskBottomNavItem(
                 icon = {
@@ -117,13 +131,14 @@ fun OneTaskBottomNav(
                             id = if (timerSelected) R.drawable.ic_nav_timer_active else R.drawable.ic_nav_timer_inactive
                         ),
                         contentDescription = null,
-                        colorFilter = if (timerSelected) ColorFilter.tint(MaterialTheme.colorScheme.primary) else null,
+                        colorFilter = if (timerSelected && tintActiveIcon) ColorFilter.tint(MaterialTheme.colorScheme.primary) else null,
                         modifier = Modifier.size(28.dp)
                     )
                 },
                 label = timerLabel,
                 onClick = onTimerClick,
-                selected = activeTab == BottomNavTab.TIMER
+                selected = activeTab == BottomNavTab.TIMER,
+                wallpaper = wallpaper
             )
             OneTaskBottomNavItem(
                 icon = {
@@ -133,13 +148,14 @@ fun OneTaskBottomNav(
                             id = if (notesSelected) R.drawable.ic_nav_notes_active else R.drawable.ic_nav_notes_inactive
                         ),
                         contentDescription = null,
-                        colorFilter = if (notesSelected) ColorFilter.tint(MaterialTheme.colorScheme.primary) else null,
+                        colorFilter = if (notesSelected && tintActiveIcon) ColorFilter.tint(MaterialTheme.colorScheme.primary) else null,
                         modifier = Modifier.size(28.dp)
                     )
                 },
                 label = journalLabel,
                 onClick = onJournalClick,
-                selected = activeTab == BottomNavTab.JOURNAL
+                selected = activeTab == BottomNavTab.JOURNAL,
+                wallpaper = wallpaper
             )
         }
     }
@@ -150,7 +166,8 @@ private fun OneTaskBottomNavItem(
     icon: @Composable () -> Unit,
     label: String,
     onClick: () -> Unit,
-    selected: Boolean
+    selected: Boolean,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     Column(
         modifier = Modifier
@@ -164,7 +181,15 @@ private fun OneTaskBottomNavItem(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) {
+            // While Wallpaper 1 is active, backgroundColor is transparent (see this file's
+            // OneTaskBottomNav caller sites) so this label sits directly on the wallpaper image -
+            // primary/onSurfaceVariant (chosen for the opaque Card-like bar every other theme
+            // still has) read poorly there, so onBackground (already tuned for text directly on
+            // the wallpaper - see Theme.kt) is used instead, at reduced opacity when unselected to
+            // preserve the same selected/unselected emphasis every other theme already shows.
+            color = if (wallpaper != Wallpaper.NONE) {
+                if (selected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+            } else if (selected) {
                 MaterialTheme.colorScheme.primary
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant

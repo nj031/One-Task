@@ -611,7 +611,8 @@ fun OneTaskNavHost(
                     onDataPrivacyClick = { navController.navigate(Screen.DataPrivacy.route) },
                     onAboutClick = { navController.navigate(Screen.AboutOneTask.route) },
                     onHelpFeedbackClick = { navController.navigate(Screen.HelpFeedback.route) },
-                    onLogout = { endSessionAndReturnToAuth() }
+                    onLogout = { endSessionAndReturnToAuth() },
+                    wallpaper = wallpaper
                 )
             }
         }

@@ -149,7 +149,7 @@ fun NotesScreen(
                 backgroundColor = OneTaskWallpapers.definitionFor(wallpaper)?.let {
                     if (darkTheme) it.dark.bottomNavigation else it.light.bottomNavigation
                 } ?: MaterialTheme.colorScheme.surface,
-                elevated = wallpaper != Wallpaper.NONE
+                wallpaper = wallpaper
             )
         },
         floatingActionButton = {
@@ -396,7 +396,11 @@ private fun NotesTopBar(
             text = stringResource(id = R.string.journal_title),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
+            // primary (green) reads poorly directly against the wallpaper's blue background -
+            // onBackground is already tuned for text sitting directly on the wallpaper (see
+            // Theme.kt) rather than on an opaque Card. Non-wallpaper themes keep their original
+            // accent-colored title exactly as before.
+            color = if (wallpaper != Wallpaper.NONE) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.primary,
             modifier = Modifier.align(Alignment.Center)
         )
 
@@ -427,7 +431,10 @@ private fun NotesTopBar(
                         Text(
                             text = stringResource(id = R.string.archive_title),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onBackground
+                            // onSurface (not onBackground): this menu's containerColor is
+                            // MaterialTheme.colorScheme.surface (an opaque Card-like surface),
+                            // not the plain background - see this DropdownMenu's own surface.
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     },
                     leadingIcon = { OneTaskArchiveIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 20.dp) },
@@ -441,7 +448,7 @@ private fun NotesTopBar(
                         Text(
                             text = stringResource(id = R.string.recycle_bin_title),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onBackground
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     },
                     leadingIcon = { OneTaskRecycleBinIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 20.dp) },
@@ -455,7 +462,7 @@ private fun NotesTopBar(
                         Text(
                             text = stringResource(id = R.string.labels_title),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onBackground
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     },
                     leadingIcon = { OneTaskLabelIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 20.dp) },
@@ -622,7 +629,10 @@ private fun NoteListRow(
                             text = note.title,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground,
+                            // onSurface (not onBackground): this Card's containerColor is
+                            // MaterialTheme.colorScheme.surface, an opaque surface distinct from
+                            // the plain background this note card itself sits on.
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
@@ -700,7 +710,10 @@ private fun NoteCard(
                             text = note.title,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground,
+                            // onSurface (not onBackground): this Card's containerColor is
+                            // MaterialTheme.colorScheme.surface, an opaque surface distinct from
+                            // the plain background this note card itself sits on.
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
