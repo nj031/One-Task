@@ -11,7 +11,11 @@ import androidx.compose.ui.graphics.Color
 // screen's own layout/structure.
 // ============================================================================
 
-/** Every semantic color token a single color theme (in one display mode) defines. */
+/** Every semantic color token a single color theme (in one display mode) defines.
+ * [priorityHigh]/[priorityMedium]/[priorityLow] default to [primary] - every existing plain color
+ * theme (Blue/Green/Teal/Amber/Pink) renders every task priority level identically, exactly as it
+ * always has, since none of them define distinct per-priority colors of their own. Only Wallpaper
+ * 1's own palette (see WallpaperTheme.kt) sets these to its three distinct given values. */
 data class OneTaskColorPalette(
     val primary: Color,
     val primaryDark: Color,
@@ -27,7 +31,10 @@ data class OneTaskColorPalette(
     val success: Color,
     val error: Color,
     val warning: Color,
-    val disabled: Color
+    val disabled: Color,
+    val priorityHigh: Color = primary,
+    val priorityMedium: Color = primary,
+    val priorityLow: Color = primary
 )
 
 // ----------------------------------------------------------------------------

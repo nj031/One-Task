@@ -1,13 +1,17 @@
 package com.nj031.onetask.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -15,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +29,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -39,11 +46,11 @@ private const val WALLPAPER_OPTION_COUNT = 5
  * Profile & Settings > General > Appearance > Wallpaper - the dedicated Wallpaper picker, reached
  * from AppearanceSettingsScreen's own "Wallpaper" navigation row (the grid used to live inline on
  * Appearance itself; only its location changed, not its selection mechanism or persistence - see
- * AppearanceSettingsRepository/AppearanceSettingsViewModel, reused as-is). "No Wallpaper" is the
- * only real, selectable option so far; every numbered "Wallpaper N" tile (including the first
- * slot, "Wallpaper 1" - the old "Verdant" tile's replacement) stays the exact same non-clickable,
- * stateless placeholder reserved for a future wallpaper image - "does nothing yet" is enforced at
- * the Compose level for those, not just by convention.
+ * AppearanceSettingsRepository/AppearanceSettingsViewModel, reused as-is). "No Wallpaper" and
+ * "Wallpaper 1" ([Wallpaper.WALLPAPER_1] - see WallpaperTheme.kt) are the only real, selectable
+ * options; every other numbered "Wallpaper N" tile stays the exact same non-clickable, stateless
+ * placeholder reserved for a future wallpaper - "does nothing yet" is enforced at the Compose
+ * level for those, not just by convention.
  */
 @Composable
 fun WallpaperScreen(
@@ -119,9 +126,10 @@ private fun WallpaperGrid(
                 onClick = { hapticTick(); onSelect(Wallpaper.NONE) },
                 modifier = Modifier.weight(1f)
             )
-            WallpaperTile(
+            WallpaperImageTile(
                 label = stringResource(id = R.string.appearance_wallpaper_option_format, 1),
-                selected = false,
+                selected = selected == Wallpaper.WALLPAPER_1,
+                onClick = { hapticTick(); onSelect(Wallpaper.WALLPAPER_1) },
                 modifier = Modifier.weight(1f)
             )
         }
@@ -166,6 +174,69 @@ private fun WallpaperTile(
             tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             size = 26.dp
         )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+    }
+}
+
+/** Wallpaper 1's own real, prominent thumbnail - the supplied wallpaper artwork itself (same
+ * asset [com.nj031.onetask.ui.components.WallpaperBackdrop] uses), shown at its own full artwork
+ * ratio rather than a special crop, per spec. Selected state = green border + a checkmark badge
+ * (the spec's own words), distinct from [WallpaperTile]'s plain placeholder look. */
+@Composable
+private fun WallpaperImageTile(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .border(
+                width = if (selected) 2.dp else 1.dp,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                shape = RoundedCornerShape(14.dp)
+            )
+            .selectable(selected = selected, onClick = onClick)
+            .padding(6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box {
+            Image(
+                painter = painterResource(id = R.drawable.wallpaper_1),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(845f / 1860f)
+                    .clip(RoundedCornerShape(10.dp)),
+                contentScale = ContentScale.Crop
+            )
+            if (selected) {
+                Box(
+                    modifier = Modifier
+                        .padding(6.dp)
+                        .align(Alignment.TopEnd)
+                        .size(20.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+        }
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,

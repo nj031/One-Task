@@ -57,14 +57,14 @@ import com.nj031.onetask.ui.theme.TealLightPalette
  * Profile & Settings > General > Appearance. Display Mode and Color Theme write through
  * immediately on tap (no Apply/Save step, no confirmation) - the caller (NavGraph, backed by
  * AppearanceSettingsViewModel) re-renders the ENTIRE app's MaterialTheme.colorScheme the instant
- * either changes, so this screen itself visibly recolors along with everything else. Display Mode
- * always stays fully functional, independent of Wallpaper (see this app's Wallpaper spec). Color
- * Theme's own row is disabled - and shows no swatch as selected - while a wallpaper is active,
- * without ever losing the underlying saved Theme Color (see
- * AppearanceSettingsRepository.getColorTheme's own doc comment); it's simply not the palette
- * driving the app's colors right now. Wallpaper selection itself now lives on its own dedicated
- * screen (see WallpaperScreen) - this screen only exposes a navigation row to it, per the UI
- * revamp that moved the wallpaper grid off of Appearance.
+ * either changes, so this screen itself visibly recolors along with everything else. Both Display
+ * Mode's and Color Theme's own rows are disabled - visible, greyed out, never clickable, and
+ * (Color Theme only - Display Mode always shows its real saved selection either way) showing no
+ * swatch as selected - while a wallpaper is active, without ever losing the underlying saved
+ * Display Mode/Theme Color (see AppearanceSettingsRepository.getColorTheme's own doc comment);
+ * neither is simply the one driving the app's colors right now. Wallpaper selection itself now
+ * lives on its own dedicated screen (see WallpaperScreen) - this screen only exposes a navigation
+ * row to it, per the UI revamp that moved the wallpaper grid off of Appearance.
  */
 @Composable
 fun AppearanceSettingsScreen(
@@ -124,6 +124,12 @@ fun AppearanceSettingsScreen(
                 ) {
                     DisplayModeRow(
                         selected = displayMode,
+                        // Visible but disabled (never clickable) while a wallpaper is active - see
+                        // this screen's own doc comment. Still shows the real saved selection
+                        // (unlike Color Theme, Display Mode has no "wallpaper overrides this"
+                        // relationship to hide - a wallpaper's own look doesn't vary by Display
+                        // Mode - so there's no reason to also hide which one is saved).
+                        enabled = wallpaper == Wallpaper.NONE,
                         onSelect = onSelectDisplayMode,
                         modifier = Modifier.padding(12.dp)
                     )
@@ -210,6 +216,7 @@ private fun AppearanceSectionHeader(title: String, description: String? = null, 
 @Composable
 private fun DisplayModeRow(
     selected: DisplayMode,
+    enabled: Boolean,
     onSelect: (DisplayMode) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -221,6 +228,7 @@ private fun DisplayModeRow(
             icon = { tint -> OneTaskSystemDefaultIcon(tint = tint, size = 24.dp) },
             label = stringResource(id = R.string.appearance_display_mode_system),
             selected = selected == DisplayMode.SYSTEM,
+            enabled = enabled,
             onClick = { onSelect(DisplayMode.SYSTEM) },
             modifier = Modifier.weight(1f)
         )
@@ -228,6 +236,7 @@ private fun DisplayModeRow(
             icon = { tint -> OneTaskSunIcon(tint = tint, size = 24.dp) },
             label = stringResource(id = R.string.appearance_display_mode_light),
             selected = selected == DisplayMode.LIGHT,
+            enabled = enabled,
             onClick = { onSelect(DisplayMode.LIGHT) },
             modifier = Modifier.weight(1f)
         )
@@ -235,6 +244,7 @@ private fun DisplayModeRow(
             icon = { tint -> OneTaskMoonIcon(tint = tint, size = 24.dp) },
             label = stringResource(id = R.string.appearance_display_mode_dark),
             selected = selected == DisplayMode.DARK,
+            enabled = enabled,
             onClick = { onSelect(DisplayMode.DARK) },
             modifier = Modifier.weight(1f)
         )
@@ -246,21 +256,30 @@ private fun DisplayModeCard(
     icon: @Composable (tint: Color) -> Unit,
     label: String,
     selected: Boolean,
+    enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val hapticTick = rememberHapticTick()
-    val tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    // Same greyed-out-but-visible treatment ColorThemeSwatch already uses while disabled - see
+    // this screen's own doc comment.
+    val contentAlpha = if (enabled) 1f else 0.4f
+    val tint = (if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+        .copy(alpha = contentAlpha)
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface)
+            .background(
+                (if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface)
+                    .copy(alpha = contentAlpha)
+            )
             .border(
                 width = if (selected) 2.dp else 1.dp,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                color = (if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                    .copy(alpha = contentAlpha),
                 shape = RoundedCornerShape(16.dp)
             )
-            .selectable(selected = selected, onClick = { hapticTick(); onClick() })
+            .selectable(selected = selected, enabled = enabled, onClick = { hapticTick(); onClick() })
             .padding(vertical = 16.dp, horizontal = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -269,13 +288,15 @@ private fun DisplayModeCard(
             text = label,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
+            color = (if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground)
+                .copy(alpha = contentAlpha),
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 8.dp)
         )
         RadioButton(
             selected = selected,
             onClick = null,
+            enabled = enabled,
             colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary),
             modifier = Modifier.padding(top = 2.dp)
         )

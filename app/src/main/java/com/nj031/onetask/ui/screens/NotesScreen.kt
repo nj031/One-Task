@@ -149,7 +149,7 @@ fun NotesScreen(
                 backgroundColor = OneTaskWallpapers.definitionFor(wallpaper)?.let {
                     if (darkTheme) it.dark.bottomNavigation else it.light.bottomNavigation
                 } ?: MaterialTheme.colorScheme.surface,
-                elevated = wallpaper != Wallpaper.NONE
+                wallpaper = wallpaper
             )
         },
         floatingActionButton = {
@@ -378,26 +378,11 @@ private fun NotesTopBar(
     val profileDescription = stringResource(id = R.string.nav_profile)
     var showMenu by remember { mutableStateOf(false) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            // Only while a wallpaper is active: gives this avatar/title/menu row the same
-            // translucent-surface-plus-border treatment as this screen's own search field, since
-            // (unlike that field) this header previously rendered directly over the wallpaper
-            // image with nothing behind it - reusing the existing Verdant border/surface tokens,
-            // not a new color. Non-wallpaper themes are unaffected.
-            .then(
-                if (wallpaper != Wallpaper.NONE) {
-                    Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                } else {
-                    Modifier
-                }
-            )
-    ) {
+    // Deliberately transparent even while a wallpaper is active - per the Wallpaper 1 spec's own
+    // "Top App Bars/Headers: transparent, wallpaper visible behind it" rule, this header sits
+    // directly over the wallpaper image with no card-like surface behind it (unlike this screen's
+    // own search field, which stays opaque per the spec's separate "Cards are opaque" rule).
+    Box(modifier = Modifier.fillMaxWidth()) {
         IconButton(
             onClick = onAvatarClick,
             modifier = Modifier
@@ -411,7 +396,11 @@ private fun NotesTopBar(
             text = stringResource(id = R.string.journal_title),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
+            // primary (green) reads poorly directly against the wallpaper's blue background -
+            // onBackground is already tuned for text sitting directly on the wallpaper (see
+            // Theme.kt) rather than on an opaque Card. Non-wallpaper themes keep their original
+            // accent-colored title exactly as before.
+            color = if (wallpaper != Wallpaper.NONE) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.primary,
             modifier = Modifier.align(Alignment.Center)
         )
 
@@ -442,7 +431,10 @@ private fun NotesTopBar(
                         Text(
                             text = stringResource(id = R.string.archive_title),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onBackground
+                            // onSurface (not onBackground): this menu's containerColor is
+                            // MaterialTheme.colorScheme.surface (an opaque Card-like surface),
+                            // not the plain background - see this DropdownMenu's own surface.
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     },
                     leadingIcon = { OneTaskArchiveIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 20.dp) },
@@ -456,7 +448,7 @@ private fun NotesTopBar(
                         Text(
                             text = stringResource(id = R.string.recycle_bin_title),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onBackground
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     },
                     leadingIcon = { OneTaskRecycleBinIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 20.dp) },
@@ -470,7 +462,7 @@ private fun NotesTopBar(
                         Text(
                             text = stringResource(id = R.string.labels_title),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onBackground
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     },
                     leadingIcon = { OneTaskLabelIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 20.dp) },
@@ -637,7 +629,10 @@ private fun NoteListRow(
                             text = note.title,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground,
+                            // onSurface (not onBackground): this Card's containerColor is
+                            // MaterialTheme.colorScheme.surface, an opaque surface distinct from
+                            // the plain background this note card itself sits on.
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
@@ -715,7 +710,10 @@ private fun NoteCard(
                             text = note.title,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground,
+                            // onSurface (not onBackground): this Card's containerColor is
+                            // MaterialTheme.colorScheme.surface, an opaque surface distinct from
+                            // the plain background this note card itself sits on.
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)

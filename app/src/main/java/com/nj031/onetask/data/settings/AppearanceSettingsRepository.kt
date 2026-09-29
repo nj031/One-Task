@@ -16,7 +16,7 @@ enum class ColorTheme { BLUE, GREEN, TEAL, AMBER, PINK }
  * [OneTaskWallpaperDefinition] registered in [com.nj031.onetask.ui.theme.OneTaskWallpapers] -
  * adding a future wallpaper means adding both a new constant here and a new definition there,
  * never changing this enum's existing meaning. */
-enum class Wallpaper { NONE, VERDANT }
+enum class Wallpaper { NONE, WALLPAPER_1 }
 
 private const val PREFS_NAME = "appearance_settings_prefs"
 private const val KEY_DISPLAY_MODE = "display_mode"

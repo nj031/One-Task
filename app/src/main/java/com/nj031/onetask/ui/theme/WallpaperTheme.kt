@@ -8,16 +8,24 @@ import com.nj031.onetask.data.settings.Wallpaper
  * Every color a single wallpaper's palette (in one display mode) contributes: [colors] feeds the
  * app-wide [MaterialTheme] ColorScheme (see [buildColorScheme] in Theme.kt) exactly like an
  * ordinary [OneTaskColorPalette] already does for a plain [com.nj031.onetask.data.settings.ColorTheme]
- * - [overlay] and [bottomNavigation] are the two wallpaper-only values that don't correspond to an
- * existing ColorScheme role a screen already reads: [overlay] is the translucent scrim drawn over
- * the wallpaper image itself (see [com.nj031.onetask.ui.components.WallpaperBackdrop]), and
- * [bottomNavigation] is the bottom nav bar's own distinct translucency (kept separate from
- * [colors]' surface/Card translucency, which every other card-like surface already reads).
+ * - [overlay], [bottomNavigation], and [onWallpaperText] are wallpaper-only values that don't
+ * correspond to an existing ColorScheme role a screen already reads the same way for a plain color
+ * theme: [overlay] is the translucent scrim drawn over the wallpaper image itself (see
+ * [com.nj031.onetask.ui.components.WallpaperBackdrop]); [bottomNavigation] is the bottom nav bar's
+ * own distinct translucency (kept separate from [colors]' surface/Card translucency, which every
+ * other card-like surface already reads); [onWallpaperText] is the color for text/icons sitting
+ * directly on the wallpaper image or the plain wallpaper background color (e.g. a screen's own
+ * page title) - kept distinct from [OneTaskColorPalette.primaryText] (used for text on top of an
+ * opaque Card) because a wallpaper's background and its Card color are not close in lightness the
+ * way a plain color theme's background/surface already are, so one shared text color can't serve
+ * both roles at readable contrast (see [wallpaperColorScheme] in Theme.kt, which maps this to the
+ * ColorScheme's `onBackground` role specifically, leaving `onSurface` on [colors].primaryText).
  */
 data class OneTaskWallpaperColors(
     val colors: OneTaskColorPalette,
     val overlay: Color,
-    val bottomNavigation: Color
+    val bottomNavigation: Color,
+    val onWallpaperText: Color
 )
 
 /**
@@ -27,7 +35,7 @@ data class OneTaskWallpaperColors(
  * Settings/Appearance use instead (see [wallpaperSettingsColorScheme] in Theme.kt) - the wallpaper
  * IMAGE never shows on those two screens, only this distinct, more muted palette. Adding a future
  * wallpaper means adding one more of these to [OneTaskWallpapers.definitionFor] and one more
- * [Wallpaper] enum constant - nothing here assumes every wallpaper is green or shares Verdant's
+ * [Wallpaper] enum constant - nothing here assumes every future wallpaper shares Wallpaper 1's
  * own values.
  */
 data class OneTaskWallpaperDefinition(
@@ -41,130 +49,87 @@ data class OneTaskWallpaperDefinition(
 )
 
 // ----------------------------------------------------------------------------
-// Verdant - Light. Exact values from the Wallpaper spec. "Button" (the one
-// concrete, exact-opacity UI element the spec names) is what `primary` is
-// mapped to here, since every button in this app sources its container color
-// from MaterialTheme.colorScheme.primary (see Theme.kt's buildColorScheme) -
-// "Primary Green" itself has no other concrete call site the spec names, so
-// it backs `accent` instead (reserved, like every color theme's own `accent`
-// field already is - see Color.kt). `surface` similarly takes the spec's
-// exact translucent "Card" value (not the solid "Card Tint", which becomes
-// `elevatedSurface` instead), since every card-like surface in this app
-// already reads MaterialTheme.colorScheme.surface.
+// Wallpaper 1. Exact hex values from the Wallpaper 1 spec. Only BACKGROUND vs
+// BACKGROUND_DARK differ between light/dark - every other token the spec gives
+// is a single flat value reused for both, matching the reference screenshots
+// (Wallpaper 1's own look doesn't otherwise change with Display Mode) and
+// matching there being only one supplied wallpaper image (used for both
+// lightImageRes/darkImageRes below - see OneTaskWallpaperDefinition's own doc
+// comment). `surface`/`elevatedSurface` are fully opaque (CARD/CARD_LIGHT) per
+// the spec's explicit "cards are opaque, no wallpaper bleed-through" rule -
+// unlike Verdant's translucent Card values, this is a deliberate departure,
+// not an oversight. `primary` is PRIMARY_ACCENT (every button/selected-state/
+// accent icon in the reference screenshots reads this green). `onWallpaperText`
+// is LIGHT_TEXT - see OneTaskWallpaperColors' own doc comment for why this is
+// kept distinct from primaryText.
 // ----------------------------------------------------------------------------
-private val VerdantLightColors = OneTaskColorPalette(
-    primary = Color(red = 95, green = 174, blue = 104, alpha = 224), // Bright Green, Button 88%
-    primaryDark = Color(0xFF285B35), // Dark Green
-    primaryLight = Color(0xFF78C982), // Accent Green
-    accent = Color(0xFF3F7D4A), // Primary Green
-    background = Color(0xFFF4F8F3),
-    surface = Color(red = 255, green = 255, blue = 255, alpha = 56), // Card 22%
-    elevatedSurface = Color(0xFFFFFFFF), // Card Tint
-    primaryText = Color(0xFF203027),
-    secondaryText = Color(0xFF63746A),
-    mutedText = Color(0xFF87968D),
-    border = Color(red = 255, green = 255, blue = 255, alpha = 51), // Card Border 20%
-    success = Color(0xFF4F9D5B),
-    error = Color(0xFFC75C5C),
-    warning = Color(0xFFC89535),
-    disabled = Color(0xFFB8CCBC) // Border (solid)
+private val Wallpaper1PrimaryAccent = Color(0xFF39775F) // PRIMARY_ACCENT
+private val Wallpaper1CardLight = Color(0xFFE6D4B0) // CARD_LIGHT
+private val Wallpaper1Error = Color(0xFFA95C55) // ERROR
+private val Wallpaper1Warning = Color(0xFFB08A42) // PRIORITY_MEDIUM, reused as this palette's warning tone
+
+private fun wallpaper1Colors(background: Color) = OneTaskColorPalette(
+    primary = Wallpaper1PrimaryAccent,
+    primaryDark = Color(0xFF2C5C48), // a darker shade of PRIMARY_ACCENT; not given explicitly by the spec
+    primaryLight = Wallpaper1CardLight,
+    accent = Wallpaper1PrimaryAccent,
+    background = background,
+    surface = Color(0xFFE1CFA7), // CARD, fully opaque
+    elevatedSurface = Wallpaper1CardLight,
+    primaryText = Color(0xFF202A29), // PRIMARY_TEXT
+    secondaryText = Color(0xFF68736F), // SECONDARY_TEXT
+    mutedText = Color(0xFF596863), // SOFT_OUTLINE
+    border = Color(0xFF202B2A), // OUTLINE
+    success = Wallpaper1PrimaryAccent,
+    error = Wallpaper1Error,
+    warning = Wallpaper1Warning,
+    disabled = Color(0xFFC8B98F), // DIVIDER
+    priorityHigh = Wallpaper1PrimaryAccent, // PRIORITY_HIGH
+    priorityMedium = Wallpaper1Warning, // PRIORITY_MEDIUM
+    priorityLow = Wallpaper1Error // PRIORITY_LOW
 )
 
-private val VerdantLightWallpaper = OneTaskWallpaperColors(
-    colors = VerdantLightColors,
-    overlay = Color(red = 20, green = 55, blue = 28, alpha = 20), // 8%
-    bottomNavigation = Color(red = 245, green = 250, blue = 246, alpha = 77) // 30%
+private val Wallpaper1LightColors = wallpaper1Colors(background = Color(0xFF35647F)) // BACKGROUND
+private val Wallpaper1DarkColors = wallpaper1Colors(background = Color(0xFF2F5B77)) // BACKGROUND_DARK
+private val Wallpaper1OnWallpaperText = Color(0xFFE8D7B3) // LIGHT_TEXT
+
+// Do NOT add a scrim/overlay over the supplied wallpaper image (per the spec's own Accessibility/
+// Readability section: "Do NOT add a background overlay... preserve the artwork as designed") -
+// Cards are opaque already, so no overlay is needed for card-text contrast either. Bottom
+// Navigation is transparent (not a Card) on Tasks/Timer/Notes, per the spec's own "Bottom
+// Navigation: transparent, wallpaper visible behind it" rule.
+private val Wallpaper1Light = OneTaskWallpaperColors(
+    colors = Wallpaper1LightColors,
+    overlay = Color.Transparent,
+    bottomNavigation = Color.Transparent,
+    onWallpaperText = Wallpaper1OnWallpaperText
 )
 
-// ----------------------------------------------------------------------------
-// Verdant - Dark
-// ----------------------------------------------------------------------------
-private val VerdantDarkColors = OneTaskColorPalette(
-    primary = Color(red = 99, green = 170, blue = 113, alpha = 209), // Button 82%
-    primaryDark = Color(0xFF315B4A), // Dark Green
-    primaryLight = Color(0xFFA8E8AE), // Accent Green
-    accent = Color(0xFF7FCB8B), // Primary Green
-    background = Color(0xFF082B2D),
-    surface = Color(red = 30, green = 65, blue = 62, alpha = 51), // Card 20%
-    elevatedSurface = Color(0xFF193D3B), // Card Tint
-    primaryText = Color(0xFFF1F5F0),
-    secondaryText = Color(0xFFB8C8C0),
-    mutedText = Color(0xFF8EA49A),
-    border = Color(red = 190, green = 225, blue = 205, alpha = 46), // Card Border 18%
-    success = Color(0xFF7FCB8B),
-    error = Color(0xFFD86B6B),
-    warning = Color(0xFFD5AA55),
-    disabled = Color(0xFFA8CDB5) // Border (solid)
+private val Wallpaper1Dark = OneTaskWallpaperColors(
+    colors = Wallpaper1DarkColors,
+    overlay = Color.Transparent,
+    bottomNavigation = Color.Transparent,
+    onWallpaperText = Wallpaper1OnWallpaperText
 )
 
-private val VerdantDarkWallpaper = OneTaskWallpaperColors(
-    colors = VerdantDarkColors,
-    overlay = Color(red = 4, green = 25, blue = 25, alpha = 46), // 18%
-    bottomNavigation = Color(red = 20, green = 48, blue = 46, alpha = 71) // 28%
-)
-
-// ----------------------------------------------------------------------------
-// Verdant - Settings palettes. Only Settings/Appearance read these (see
-// wallpaperSettingsColorScheme in Theme.kt) - the wallpaper image never shows
-// on either screen. `primary` here is "Settings Primary" itself (not a
-// translucent Button value - Settings/Appearance have no such button), and
-// `surface` is "Settings Card" (92%/88%), matching this palette's own exact
-// opacity section.
-// ----------------------------------------------------------------------------
-private val VerdantSettingsLightColors = OneTaskColorPalette(
-    primary = Color(0xFF3F7D4A),
-    primaryDark = Color(0xFF78A981), // Settings Secondary Green
-    primaryLight = Color(0xFFE7F1E8), // Icon Background
-    accent = Color(0xFF5FAE68), // Settings Accent
-    background = Color(0xFFF5F8F4),
-    surface = Color(red = 255, green = 255, blue = 255, alpha = 235), // Settings Card 92%
-    elevatedSurface = Color(0xFFFFFFFF), // Settings Surface
-    primaryText = Color(0xFF1F3025),
-    secondaryText = Color(0xFF66766B),
-    mutedText = Color(0xFF8A968E),
-    border = Color(0xFFC5D4C8), // Settings Border
-    success = VerdantLightColors.success,
-    error = VerdantLightColors.error,
-    warning = VerdantLightColors.warning,
-    disabled = Color(0xFFD8E2D9) // Settings Divider
-)
-
-private val VerdantSettingsDarkColors = OneTaskColorPalette(
-    primary = Color(0xFF7FCB8B),
-    primaryDark = Color(0xFF315B4A), // Settings Dark Green
-    primaryLight = Color(0xFF193D3B), // Icon Background
-    accent = Color(0xFF9BE2A5), // Settings Accent
-    background = Color(0xFF071F21),
-    surface = Color(red = 16, green = 47, blue = 48, alpha = 224), // Settings Card 88%
-    elevatedSurface = Color(0xFF163A38), // Settings Secondary Surface
-    primaryText = Color(0xFFF1F5F0),
-    secondaryText = Color(0xFFB8C8C0),
-    mutedText = Color(0xFF82988E),
-    border = Color(0xFF42645A), // Settings Border
-    success = VerdantDarkColors.success,
-    error = VerdantDarkColors.error,
-    warning = VerdantDarkColors.warning,
-    disabled = Color(0xFF294542) // Settings Divider
-)
-
-private val VerdantDefinition = OneTaskWallpaperDefinition(
-    id = Wallpaper.VERDANT,
-    lightImageRes = R.drawable.wallpaper_verdant_light,
-    darkImageRes = R.drawable.wallpaper_verdant_dark,
-    light = VerdantLightWallpaper,
-    dark = VerdantDarkWallpaper,
-    settingsLight = VerdantSettingsLightColors,
-    settingsDark = VerdantSettingsDarkColors
+private val Wallpaper1Definition = OneTaskWallpaperDefinition(
+    id = Wallpaper.WALLPAPER_1,
+    lightImageRes = R.drawable.wallpaper_1,
+    darkImageRes = R.drawable.wallpaper_1,
+    light = Wallpaper1Light,
+    dark = Wallpaper1Dark,
+    settingsLight = Wallpaper1LightColors,
+    settingsDark = Wallpaper1DarkColors
 )
 
 /**
  * The registry every selectable [Wallpaper] resolves through - the single place a future
  * wallpaper gets added (a new [OneTaskWallpaperDefinition] plus a new branch here), never by
- * special-casing [Wallpaper.VERDANT] anywhere else in the app.
+ * special-casing [Wallpaper.WALLPAPER_1] anywhere else in the app.
  */
 object OneTaskWallpapers {
     fun definitionFor(wallpaper: Wallpaper): OneTaskWallpaperDefinition? = when (wallpaper) {
         Wallpaper.NONE -> null
-        Wallpaper.VERDANT -> VerdantDefinition
+        Wallpaper.WALLPAPER_1 -> Wallpaper1Definition
     }
 }

@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
+import com.nj031.onetask.data.settings.Wallpaper
 import com.nj031.onetask.ui.components.ProfileAvatar
 import com.nj031.onetask.ui.theme.OneTaskChatIcon
 import com.nj031.onetask.ui.theme.OneTaskCrownIcon
@@ -95,7 +96,8 @@ fun ProfileScreen(
     onDataPrivacyClick: () -> Unit = {},
     onAboutClick: () -> Unit = {},
     onHelpFeedbackClick: () -> Unit = {},
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val context = LocalContext.current
     val profile by viewModel.profile.collectAsState()
@@ -128,7 +130,16 @@ fun ProfileScreen(
             Text(
                 text = stringResource(id = R.string.profile_settings_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // onSurfaceVariant (tuned for an opaque Card) reads poorly directly on the
+                // wallpaper background this subtitle actually sits on - a dimmed onBackground
+                // (already tuned for text directly on the wallpaper - see Theme.kt) preserves
+                // this subtitle's lighter emphasis relative to the title above. Non-wallpaper
+                // themes are unaffected.
+                color = if (wallpaper != Wallpaper.NONE) {
+                    MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 modifier = Modifier.padding(start = 48.dp, top = 2.dp)
             )
 
@@ -150,7 +161,10 @@ fun ProfileScreen(
                         text = profile.name,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
+                        // onSurface (not onBackground): this Card's containerColor is
+                        // MaterialTheme.colorScheme.surface, an opaque surface distinct from the
+                        // plain background this card itself sits on.
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(top = 12.dp)
                     )
                     Text(
@@ -197,7 +211,10 @@ fun ProfileScreen(
                             text = stringResource(id = R.string.profile_pro_free_plan),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground,
+                            // onSurface (not onBackground): this Card's containerColor is
+                            // MaterialTheme.colorScheme.surface, an opaque surface distinct from
+                            // the plain background this card itself sits on.
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(start = 8.dp)
                         )
                     }
@@ -361,7 +378,10 @@ private fun ProfileMenuRow(
             text = text,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onBackground,
+            // onSurface (not onBackground): every ProfileMenuRow call site sits inside a Card
+            // (containerColor = MaterialTheme.colorScheme.surface), an opaque surface distinct
+            // from the plain background the card itself sits on.
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
                 .weight(1f)
                 .padding(start = 14.dp)

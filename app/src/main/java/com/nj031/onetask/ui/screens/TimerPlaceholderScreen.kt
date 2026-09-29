@@ -211,7 +211,7 @@ fun TimerPlaceholderScreen(
                 backgroundColor = OneTaskWallpapers.definitionFor(wallpaper)?.let {
                     if (darkTheme) it.dark.bottomNavigation else it.light.bottomNavigation
                 } ?: MaterialTheme.colorScheme.surface,
-                elevated = wallpaper != Wallpaper.NONE
+                wallpaper = wallpaper
             )
         }
     ) { innerPadding ->
@@ -242,6 +242,7 @@ fun TimerPlaceholderScreen(
                     stopwatchLocked = snapshot.activeMode == TimerMode.TIMER,
                     onSelectTimer = { selectedTab = TimerTab.TIMER },
                     onSelectStopwatch = { selectedTab = TimerTab.STOPWATCH },
+                    wallpaper = wallpaper,
                     modifier = Modifier.padding(top = 20.dp)
                 )
 
@@ -486,25 +487,13 @@ private fun TimerTopBar(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
+    // Deliberately transparent even while a wallpaper is active - per the Wallpaper 1 spec's own
+    // "Top App Bars/Headers: transparent, wallpaper visible behind it" rule, this header sits
+    // directly over the wallpaper image with no card-like surface behind it (unlike this screen's
+    // own pills/segmented control, which stay opaque per the spec's separate "Cards are opaque"
+    // rule - a header isn't a Card).
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            // Only while a wallpaper is active: gives this title/menu row the same translucent-
-            // surface-plus-border treatment as this screen's own pills/segmented control, since
-            // (unlike those) this header previously rendered directly over the wallpaper image
-            // with nothing behind it - reusing the existing Verdant border/surface tokens, not a
-            // new color. Non-wallpaper themes are unaffected.
-            .then(
-                if (wallpaper != Wallpaper.NONE) {
-                    Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                } else {
-                    Modifier
-                }
-            ),
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -512,12 +501,24 @@ private fun TimerTopBar(
                 text = stringResource(id = R.string.timer_focus_title),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                // primary (green) reads poorly directly against the wallpaper's blue background -
+                // onBackground is already tuned for text sitting directly on the wallpaper (see
+                // Theme.kt) rather than on an opaque Card. Non-wallpaper themes keep their
+                // original accent-colored title exactly as before.
+                color = if (wallpaper != Wallpaper.NONE) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.primary
             )
             Text(
                 text = stringResource(id = R.string.timer_focus_subtitle),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // onSurfaceVariant (chosen for text on an opaque Card) also reads poorly directly
+                // on the wallpaper background - a dimmed onBackground preserves this subtitle's
+                // lighter emphasis relative to the title above without losing readability. Non-
+                // wallpaper themes are unaffected.
+                color = if (wallpaper != Wallpaper.NONE) {
+                    MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 modifier = Modifier.padding(top = 2.dp)
             )
         }
@@ -572,6 +573,7 @@ private fun TimerStopwatchSegmentedControl(
     stopwatchLocked: Boolean,
     onSelectTimer: () -> Unit,
     onSelectStopwatch: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -584,6 +586,7 @@ private fun TimerStopwatchSegmentedControl(
             selected = selectedTab == TimerTab.TIMER,
             enabled = !timerLocked,
             onClick = onSelectTimer,
+            wallpaper = wallpaper,
             modifier = Modifier.weight(1f)
         )
         SegmentedTab(
@@ -592,6 +595,7 @@ private fun TimerStopwatchSegmentedControl(
             selected = selectedTab == TimerTab.STOPWATCH,
             enabled = !stopwatchLocked,
             onClick = onSelectStopwatch,
+            wallpaper = wallpaper,
             modifier = Modifier.weight(1f)
         )
     }
@@ -607,12 +611,23 @@ private fun SegmentedTab(
     selected: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE,
     modifier: Modifier = Modifier
 ) {
     val tint = when {
         selected -> MaterialTheme.colorScheme.primary
         !enabled -> MaterialTheme.colorScheme.outline
         else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    // The icon keeps its existing tint (above) unconditionally - only the label text color
+    // changes for Wallpaper 1, since this control sits directly on the wallpaper image (no Card
+    // background) and primary/onSurfaceVariant (tuned for an opaque Card) read poorly there. See
+    // TimerTopBar's title/subtitle fix just above for the same onBackground-based approach.
+    val labelColor = if (wallpaper != Wallpaper.NONE) {
+        val onBackground = MaterialTheme.colorScheme.onBackground
+        if (selected) onBackground else onBackground.copy(alpha = 0.6f)
+    } else {
+        tint
     }
     Column(
         modifier = modifier
@@ -626,7 +641,7 @@ private fun SegmentedTab(
             text = label,
             style = MaterialTheme.typography.bodySmall,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = tint,
+            color = labelColor,
             modifier = Modifier.padding(top = 4.dp)
         )
         Box(
@@ -697,6 +712,7 @@ private fun TimerModeContent(
             selectedMillis = selectedIdleDurationMillis,
             onSelectPreset = onSelectPreset,
             onCustomClick = onOpenCustomPicker,
+            wallpaper = wallpaper,
             modifier = Modifier.padding(top = 28.dp)
         )
     }
@@ -952,8 +968,9 @@ private fun StopwatchModeContent(
  * The 280dp ring+countdown-label composition's own modifier - only while a wallpaper is active,
  * adds the same translucent-surface-plus-border treatment Cards elsewhere already use, since the
  * countdown text previously rendered directly over the wallpaper image with nothing behind it.
- * Circular (matching the ring it backs) rather than the cards' rounded-rect, reusing the existing
- * Verdant border/surface tokens - not a new color, and the ring/label themselves are unchanged.
+ * Circular (matching the ring it backs) rather than the cards' rounded-rect, reusing the same
+ * theme border/surface tokens every Card already reads - not a new color, and the ring/label
+ * themselves are unchanged.
  * Non-wallpaper themes get a plain, unmodified 280dp box, exactly as before this existed.
  */
 @Composable
@@ -1035,7 +1052,10 @@ private fun TimerCenterLabel(millis: Long) {
             text = formatTimerDuration(millis),
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
+            // onSurface (not onBackground): this label sits inside timerRingBackingModifier's own
+            // opaque Card-like circle while a wallpaper is active (a plain, unfilled 280dp box
+            // otherwise, where onSurface and onBackground are identical anyway).
+            color = MaterialTheme.colorScheme.onSurface
         )
         Row(
             modifier = Modifier.padding(top = 6.dp),
@@ -1067,6 +1087,7 @@ private fun TimerPresetRow(
     selectedMillis: Long,
     onSelectPreset: (Long) -> Unit,
     onCustomClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE,
     modifier: Modifier = Modifier
 ) {
     val isCustomSelected = TIMER_PRESET_MINUTES.none { it * 60_000L == selectedMillis }
@@ -1077,6 +1098,7 @@ private fun TimerPresetRow(
                 label = stringResource(id = R.string.timer_minutes_format, minutes),
                 selected = !isCustomSelected && selectedMillis == millis,
                 onClick = { onSelectPreset(millis) },
+                wallpaper = wallpaper,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -1084,13 +1106,20 @@ private fun TimerPresetRow(
             label = stringResource(id = R.string.timer_preset_custom),
             selected = isCustomSelected,
             onClick = onCustomClick,
+            wallpaper = wallpaper,
             modifier = Modifier.weight(1f)
         )
     }
 }
 
 @Composable
-private fun TimerPresetPill(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun TimerPresetPill(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE,
+    modifier: Modifier = Modifier
+) {
     val hapticTick = rememberHapticTick()
     Box(
         modifier = modifier
@@ -1109,7 +1138,16 @@ private fun TimerPresetPill(label: String, selected: Boolean, onClick: () -> Uni
             text = label,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = when {
+                // Selected pills sit on an opaque secondaryContainer background (cream) in every
+                // theme including Wallpaper 1 - primary already reads fine there, unchanged.
+                selected -> MaterialTheme.colorScheme.primary
+                // Unselected pills have a transparent fill, so on Wallpaper 1 this label sits
+                // directly on the wallpaper image - onSurfaceVariant (tuned for an opaque Card)
+                // reads poorly there; a dimmed onBackground preserves the same lighter emphasis.
+                wallpaper != Wallpaper.NONE -> MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
             textAlign = TextAlign.Center
         )
     }
@@ -1170,7 +1208,10 @@ private fun TimerCircularPrimaryButton(
             text = label,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            // onSurfaceVariant (tuned for an opaque Card) reads poorly directly on the wallpaper
+            // background this label actually sits on - onBackground is already tuned for that.
+            // Non-wallpaper themes are unaffected.
+            color = if (wallpaper != Wallpaper.NONE) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 10.dp)
         )
     }
