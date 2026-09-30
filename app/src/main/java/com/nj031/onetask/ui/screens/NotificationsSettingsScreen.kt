@@ -115,7 +115,9 @@ fun NotificationsSettingsScreen(
                                 text = stringResource(id = R.string.notifications_task_reminders_title),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onBackground
+                                // onSurface (not onBackground) - this row sits on the Card's own
+                                // opaque surface fill, not the raw background.
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             ProBadge(modifier = Modifier.padding(start = 8.dp))
                         }
@@ -156,7 +158,9 @@ private fun NotificationToggleRow(
                 text = title,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground
+                // onSurface (not onBackground) - this row sits on the Card's own opaque surface
+                // fill, not the raw background.
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = description,

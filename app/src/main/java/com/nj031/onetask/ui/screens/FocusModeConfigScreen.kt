@@ -183,11 +183,16 @@ fun FocusModeConfigScreen(
                 modifier = Modifier.padding(top = 16.dp)
             )
 
-            StrictModeCard(
-                enabled = strictModeEnabled,
-                onToggle = { hapticTick(); strictModeEnabled = !strictModeEnabled },
-                modifier = Modifier.padding(top = 24.dp)
-            )
+            // Strict Mode only makes sense for Timer's fixed-duration session - Stopwatch has no
+            // countdown to lock the Stop button behind, so the card is omitted entirely (not
+            // shown-disabled) rather than leaving a dead control or an empty gap.
+            if (selectedTab == FocusModeTab.TIMER) {
+                StrictModeCard(
+                    enabled = strictModeEnabled,
+                    onToggle = { hapticTick(); strictModeEnabled = !strictModeEnabled },
+                    modifier = Modifier.padding(top = 24.dp)
+                )
+            }
 
             BlockDistractionsCard(
                 blockedAppsViewModel = blockedAppsViewModel,

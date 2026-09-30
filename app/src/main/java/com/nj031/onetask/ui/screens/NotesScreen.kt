@@ -558,18 +558,16 @@ private fun NotesEmptyState(modifier: Modifier = Modifier) {
     }
 }
 
-/** Compact height for the search field - noticeably shorter than Material3's default filled
- * TextField (56.dp), while staying at Android's recommended minimum touch-target size. */
-private val NOTES_SEARCH_FIELD_HEIGHT = 48.dp
-
 @Composable
 private fun NotesSearchField(query: String, onQueryChange: (String) -> Unit, modifier: Modifier = Modifier) {
     TextField(
         value = query,
         onValueChange = onQueryChange,
+        // No explicit height here (there used to be one, fixed below Material3's own internal
+        // content-padding budget for this TextField's default size) - that mismatch clipped the
+        // placeholder vertically. Letting the field size itself naturally avoids the clip.
         modifier = modifier
             .fillMaxWidth()
-            .height(NOTES_SEARCH_FIELD_HEIGHT)
             .clip(RoundedCornerShape(14.dp))
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp)),
         placeholder = {

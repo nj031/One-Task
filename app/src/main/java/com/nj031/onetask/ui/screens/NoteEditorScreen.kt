@@ -1340,7 +1340,9 @@ private fun NoteInfoRow(label: String, value: String) {
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground,
+            // onSurface (not onBackground) - this dialog's own Surface fill is the opaque
+            // cream card color, not the raw background.
+            color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.End,
             modifier = Modifier.weight(1f)
         )
