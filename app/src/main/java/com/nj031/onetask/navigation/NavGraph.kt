@@ -647,7 +647,8 @@ fun OneTaskNavHost(
             DataPrivacyScreen(
                 onBackClick = { navController.popBackStack() },
                 onPrivacyPolicyClick = { navController.navigate(Screen.PrivacyPolicy.route) },
-                onAccountDeleted = { endSessionAndReturnToAuth(alreadySignedOut = true) }
+                onAccountDeleted = { endSessionAndReturnToAuth(alreadySignedOut = true) },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.PrivacyPolicy.route) {
@@ -717,7 +718,8 @@ fun OneTaskNavHost(
                 WallpaperScreen(
                     selected = currentWallpaper,
                     onSelect = appearanceSettingsViewModel::setWallpaper,
-                    onBackClick = { navController.popBackStack() }
+                    onBackClick = { navController.popBackStack() },
+                    wallpaper = currentWallpaper
                 )
             }
         }
@@ -726,7 +728,8 @@ fun OneTaskNavHost(
             StartScreenSettingScreen(
                 selected = startScreen,
                 onSelect = generalSettingsViewModel::setStartScreen,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.DefaultTaskSettings.route) {
@@ -769,7 +772,8 @@ fun OneTaskNavHost(
             WeekStartsOnSettingScreen(
                 selected = weekStartDay,
                 onSelect = generalSettingsViewModel::setWeekStartDay,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.TimeFormatSettings.route) {
@@ -777,7 +781,8 @@ fun OneTaskNavHost(
             TimeFormatSettingScreen(
                 selected = timeFormat,
                 onSelect = generalSettingsViewModel::setTimeFormat,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.HapticFeedbackSettings.route) {

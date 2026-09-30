@@ -208,7 +208,7 @@ fun ProfileScreen(
                 }
             }
 
-            ProfileSectionLabel(text = stringResource(id = R.string.profile_section_plan), topPadding = 28.dp)
+            ProfileSectionLabel(text = stringResource(id = R.string.profile_section_plan), topPadding = 28.dp, wallpaper = wallpaper)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -249,7 +249,7 @@ fun ProfileScreen(
                 }
             }
 
-            ProfileSectionLabel(text = stringResource(id = R.string.profile_section_settings), topPadding = 24.dp)
+            ProfileSectionLabel(text = stringResource(id = R.string.profile_section_settings), topPadding = 24.dp, wallpaper = wallpaper)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -279,7 +279,7 @@ fun ProfileScreen(
                 }
             }
 
-            ProfileSectionLabel(text = stringResource(id = R.string.profile_section_about), topPadding = 24.dp)
+            ProfileSectionLabel(text = stringResource(id = R.string.profile_section_about), topPadding = 24.dp, wallpaper = wallpaper)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -304,7 +304,7 @@ fun ProfileScreen(
                 }
             }
 
-            ProfileSectionLabel(text = stringResource(id = R.string.profile_section_account), topPadding = 24.dp)
+            ProfileSectionLabel(text = stringResource(id = R.string.profile_section_account), topPadding = 24.dp, wallpaper = wallpaper)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -417,12 +417,20 @@ private fun ProfileMenuRow(
 }
 
 @Composable
-private fun ProfileSectionLabel(text: String, topPadding: Dp = 0.dp) {
+private fun ProfileSectionLabel(text: String, topPadding: Dp = 0.dp, wallpaper: Wallpaper = Wallpaper.NONE) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        // This label sits directly on the raw wallpaper background (between Cards, no Card of
+        // its own), so onSurfaceVariant (tuned for an opaque Card) is nearly invisible under
+        // Wallpaper 1 - fall back to the same dimmed onBackground treatment already used for
+        // other raw-background secondary text in this file. Every other theme is unaffected.
+        color = if (wallpaper != Wallpaper.NONE) {
+            MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
         modifier = Modifier.padding(top = topPadding, bottom = 8.dp, start = 4.dp)
     )
 }

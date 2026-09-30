@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
+import com.nj031.onetask.data.settings.Wallpaper
 import com.nj031.onetask.ui.haptics.rememberHapticTick
 import com.nj031.onetask.viewmodel.DataPrivacyViewModel
 import java.time.Instant
@@ -72,7 +73,8 @@ fun DataPrivacyScreen(
     viewModel: DataPrivacyViewModel = viewModel(),
     onBackClick: () -> Unit,
     onPrivacyPolicyClick: () -> Unit,
-    onAccountDeleted: () -> Unit
+    onAccountDeleted: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -135,7 +137,7 @@ fun DataPrivacyScreen(
                 )
             }
 
-            SectionLabel(text = stringResource(id = R.string.data_privacy_section_backup_sync), topPadding = 24.dp)
+            SectionLabel(text = stringResource(id = R.string.data_privacy_section_backup_sync), topPadding = 24.dp, wallpaper = wallpaper)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -177,7 +179,7 @@ fun DataPrivacyScreen(
                 }
             }
 
-            SectionLabel(text = stringResource(id = R.string.data_privacy_section_local_backup), topPadding = 24.dp)
+            SectionLabel(text = stringResource(id = R.string.data_privacy_section_local_backup), topPadding = 24.dp, wallpaper = wallpaper)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -468,13 +470,21 @@ private fun NavRow(
 }
 
 @Composable
-private fun SectionLabel(text: String, topPadding: Dp = 0.dp) {
+private fun SectionLabel(text: String, topPadding: Dp = 0.dp, wallpaper: Wallpaper = Wallpaper.NONE) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.Bold,
         letterSpacing = 1.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        // This label sits directly on the raw wallpaper background (between Cards), so
+        // onSurfaceVariant (tuned for an opaque Card) is nearly invisible under Wallpaper 1 -
+        // fall back to the same dimmed onBackground treatment used for other raw-background
+        // secondary text elsewhere in the app. Every other theme is unaffected.
+        color = if (wallpaper != Wallpaper.NONE) {
+            MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
         modifier = Modifier.padding(top = topPadding, bottom = 6.dp, start = 4.dp)
     )
 }

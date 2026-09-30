@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -235,7 +236,7 @@ fun NotesScreen(
                 }
 
                 if (notes.isEmpty()) {
-                    NotesEmptyState(modifier = Modifier.weight(1f))
+                    NotesEmptyState(modifier = Modifier.weight(1f), wallpaper = wallpaper)
                 } else {
                     // notes is already sorted most-recently-edited first (see
                     // JournalViewModel.notes); partitioning it (rather than re-sorting) keeps
@@ -580,17 +581,23 @@ private fun NotesViewToggleButton(
  * data is ever fabricated to avoid this state.
  */
 @Composable
-private fun NotesEmptyState(modifier: Modifier = Modifier) {
+private fun NotesEmptyState(modifier: Modifier = Modifier, wallpaper: Wallpaper = Wallpaper.NONE) {
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // A small size reduction (112dp -> 96dp) plus a slight upward shift keeps this
+        // centered group's text further from the Wallpaper 1 artwork's cloud band at the
+        // bottom of the screen.
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.offset(y = (-12).dp)
+        ) {
             Box(
                 modifier = Modifier
-                    .size(112.dp)
+                    .size(96.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.secondaryContainer),
                 contentAlignment = Alignment.Center
             ) {
-                OneTaskJournalIcon(tint = MaterialTheme.colorScheme.primary, size = 52.dp)
+                OneTaskJournalIcon(tint = MaterialTheme.colorScheme.primary, size = 44.dp)
             }
             Text(
                 text = stringResource(id = R.string.notes_empty_title),
@@ -603,7 +610,16 @@ private fun NotesEmptyState(modifier: Modifier = Modifier) {
             Text(
                 text = stringResource(id = R.string.notes_empty_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // This subtitle sits directly on the raw wallpaper background, so
+                // onSurfaceVariant (tuned for an opaque Card) reads poorly under Wallpaper 1 -
+                // fall back to the same dimmed onBackground treatment used for other
+                // raw-background secondary text elsewhere in the app. Every other theme is
+                // unaffected.
+                color = if (wallpaper != Wallpaper.NONE) {
+                    MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 8.dp)
             )

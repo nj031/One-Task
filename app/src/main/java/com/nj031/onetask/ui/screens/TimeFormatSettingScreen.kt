@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
 import com.nj031.onetask.data.settings.TimeFormat
+import com.nj031.onetask.data.settings.Wallpaper
 
 /**
  * General Settings > Time Format. Applies wherever One Task shows a clock time (currently
@@ -37,7 +38,8 @@ import com.nj031.onetask.data.settings.TimeFormat
 fun TimeFormatSettingScreen(
     selected: TimeFormat,
     onSelect: (TimeFormat) -> Unit,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
         Column(
@@ -66,7 +68,16 @@ fun TimeFormatSettingScreen(
             Text(
                 text = stringResource(id = R.string.time_format_description),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // This sits directly on the raw wallpaper background (no Card), so
+                // onSurfaceVariant (tuned for an opaque Card) reads poorly under Wallpaper 1 -
+                // fall back to the same dimmed onBackground treatment used for other
+                // raw-background secondary text elsewhere in the app. Every other theme is
+                // unaffected.
+                color = if (wallpaper != Wallpaper.NONE) {
+                    MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 modifier = Modifier.padding(top = 8.dp, bottom = 20.dp)
             )
 

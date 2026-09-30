@@ -120,13 +120,23 @@ fun AppearanceSettingsScreen(
                 Text(
                     text = stringResource(id = R.string.appearance_subtitle),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // This sits directly on the raw wallpaper background (no Card), so
+                    // onSurfaceVariant (tuned for an opaque Card) reads poorly under Wallpaper 1
+                    // - fall back to the same dimmed onBackground treatment used for other
+                    // raw-background secondary text elsewhere in the app. Every other theme is
+                    // unaffected.
+                    color = if (wallpaper != Wallpaper.NONE) {
+                        MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                     modifier = Modifier.padding(start = 52.dp, top = 4.dp, bottom = 24.dp)
                 )
 
                 AppearanceSectionHeader(
                     title = stringResource(id = R.string.appearance_display_mode_title),
-                    description = stringResource(id = R.string.appearance_display_mode_description)
+                    description = stringResource(id = R.string.appearance_display_mode_description),
+                    wallpaper = wallpaper
                 )
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
@@ -150,7 +160,8 @@ fun AppearanceSettingsScreen(
                 AppearanceSectionHeader(
                     title = stringResource(id = R.string.appearance_theme_title),
                     description = stringResource(id = R.string.appearance_theme_description),
-                    modifier = Modifier.padding(top = 28.dp)
+                    modifier = Modifier.padding(top = 28.dp),
+                    wallpaper = wallpaper
                 )
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
@@ -208,7 +219,12 @@ fun AppearanceSettingsScreen(
 }
 
 @Composable
-private fun AppearanceSectionHeader(title: String, description: String? = null, modifier: Modifier = Modifier) {
+private fun AppearanceSectionHeader(
+    title: String,
+    description: String? = null,
+    modifier: Modifier = Modifier,
+    wallpaper: Wallpaper = Wallpaper.NONE
+) {
     Column(modifier = modifier) {
         Text(
             text = title,
@@ -220,7 +236,16 @@ private fun AppearanceSectionHeader(title: String, description: String? = null, 
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // This sits directly on the raw wallpaper background (no Card), so
+                // onSurfaceVariant (tuned for an opaque Card) reads poorly under Wallpaper 1 -
+                // fall back to the same dimmed onBackground treatment used for other
+                // raw-background secondary text elsewhere in the app. Every other theme is
+                // unaffected.
+                color = if (wallpaper != Wallpaper.NONE) {
+                    MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 modifier = Modifier.padding(top = 2.dp)
             )
         }

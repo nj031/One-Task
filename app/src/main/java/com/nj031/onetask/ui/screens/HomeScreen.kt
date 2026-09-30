@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -644,7 +645,17 @@ private fun TaskScreenHeader(
                 Text(
                     text = formattedDate,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // This label sits directly on the raw wallpaper background (see this
+                    // header's own "deliberately transparent" note above), so onSurfaceVariant
+                    // (tuned for an opaque Card) reads poorly under Wallpaper 1 - fall back to
+                    // the same dimmed onBackground treatment already used for other
+                    // raw-background secondary text (e.g. ProfileScreen's subtitle). Every
+                    // other theme is unaffected.
+                    color = if (wallpaper != Wallpaper.NONE) {
+                        MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                     textAlign = TextAlign.Center
                 )
             }
@@ -803,15 +814,21 @@ private fun FilterPill(
 @Composable
 private fun HomeEmptyState(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // A small size reduction (112dp -> 96dp) plus a slight upward shift keeps this
+        // centered group's text further from the Wallpaper 1 artwork's cloud band at the
+        // bottom of the screen, where "here" in home_empty_title was blending into the cloud.
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.offset(y = (-12).dp)
+        ) {
             Box(
                 modifier = Modifier
-                    .size(112.dp)
+                    .size(96.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.secondaryContainer),
                 contentAlignment = Alignment.Center
             ) {
-                OneTaskTasksIcon(active = false, size = 52.dp)
+                OneTaskTasksIcon(active = false, size = 44.dp)
             }
             Text(
                 text = stringResource(id = R.string.home_empty_title),
