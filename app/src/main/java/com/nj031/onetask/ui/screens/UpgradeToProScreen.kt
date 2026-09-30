@@ -204,7 +204,9 @@ private fun ComparisonFeatureRow(label: String, includedInFree: Boolean) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground,
+            // onSurface (not onBackground) - this row is always used inside the comparison
+            // table's Card, whose fill is the opaque surface color, not the raw background.
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1.4f).padding(end = 8.dp)
         )
         ComparisonMark(included = includedInFree, modifier = Modifier.weight(0.6f))

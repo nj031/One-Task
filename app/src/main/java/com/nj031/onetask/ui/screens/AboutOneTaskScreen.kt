@@ -134,7 +134,9 @@ fun AboutOneTaskScreen(
                 Text(
                     text = stringResource(id = R.string.about_one_task_description),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    // onSurface (not onBackground) - this Text sits on the Card's own opaque
+                    // surface fill, not the raw background.
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(20.dp)
                 )
             }
@@ -156,7 +158,8 @@ fun AboutOneTaskScreen(
                         text = stringResource(id = R.string.profile_app_version),
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onBackground,
+                        // onSurface (not onBackground) - see the description Text above for why.
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f)
                     )
                     Text(
@@ -211,7 +214,9 @@ private fun AboutLinkRow(title: String, onClick: () -> Unit) {
             text = title,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onBackground,
+            // onSurface (not onBackground) - this row is always used inside a Card whose fill is
+            // the opaque surface color, not the raw background.
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
         Icon(

@@ -101,7 +101,9 @@ fun CategorySelectorDialog(
                     text = stringResource(id = R.string.category_selector_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    // onSurface (not onBackground) - this dialog's own Surface fill is the
+                    // opaque cream card color, not the raw background.
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
@@ -218,7 +220,8 @@ private fun CategoryOptionRow(text: String, selected: Boolean, onClick: () -> Un
             text = text,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
+            // onSurface (not onBackground) when unselected - see the dialog title above for why.
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
         if (selected) {

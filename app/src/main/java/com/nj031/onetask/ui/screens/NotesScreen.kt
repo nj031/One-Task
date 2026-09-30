@@ -818,7 +818,9 @@ private fun NoteActionSheetItem(text: String, onClick: () -> Unit) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onBackground,
+        // onSurface (not onBackground) - this sheet's own container fill is the opaque surface
+        // color, not the raw background.
+        color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)

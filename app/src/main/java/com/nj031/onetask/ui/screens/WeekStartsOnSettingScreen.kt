@@ -113,7 +113,9 @@ private fun SettingOptionRow(label: String, selected: Boolean, onClick: () -> Un
             text = label,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onBackground,
+            // onSurface (not onBackground) - this row sits on the Card's own opaque surface
+            // fill, not the raw background.
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(start = 4.dp)
         )
     }

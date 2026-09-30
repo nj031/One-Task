@@ -385,7 +385,9 @@ private fun ToggleRow(title: String, description: String) {
                 text = title,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground
+                // onSurface (not onBackground) - this row sits on the Card's own opaque surface
+                // fill, not the raw background.
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = description,
@@ -417,7 +419,8 @@ private fun BackupActionRow(title: String, subtitle: String, onClick: () -> Unit
                 text = title,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground
+                // onSurface (not onBackground) - see ToggleRow's title Text above for why.
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = subtitle,

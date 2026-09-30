@@ -680,6 +680,7 @@ fun OneTaskNavHost(
                 startScreen = startScreen,
                 weekStartDay = weekStartDay,
                 timeFormat = timeFormat,
+                wallpaper = wallpaper,
                 onBackClick = { navController.popBackStack() },
                 onAppearanceClick = { navController.navigate(Screen.AppearanceSettings.route) },
                 onStartScreenClick = { navController.navigate(Screen.StartScreenSettings.route) },

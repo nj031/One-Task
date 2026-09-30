@@ -178,7 +178,9 @@ fun AppearanceSettingsScreen(
                             text = stringResource(id = R.string.appearance_wallpaper_title),
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onBackground,
+                            // onSurface (not onBackground) - this row sits on the Card's own
+                            // opaque surface fill, not the raw background.
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.weight(1f)
                         )
                         Icon(
@@ -288,7 +290,9 @@ private fun DisplayModeCard(
             text = label,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = (if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground)
+            // onSurface (not onBackground) when unselected - this label sits on the Card's own
+            // opaque surface fill, not the raw background.
+            color = (if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                 .copy(alpha = contentAlpha),
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 8.dp)
@@ -377,7 +381,9 @@ private fun ColorThemeSwatch(
             text = label,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = (if (selected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant)
+            // onSurface (not onBackground) when selected - this label sits on the Card's own
+            // opaque surface fill, not the raw background.
+            color = (if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
                 .copy(alpha = contentAlpha),
             modifier = Modifier.padding(top = 6.dp)
         )
