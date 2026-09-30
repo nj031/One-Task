@@ -1133,7 +1133,9 @@ private fun TaskCard(
                     text = task.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onBackground,
+                    // onSurface (not onBackground) when active - this Text sits on the Card's
+                    // own opaque surface fill, not the raw background.
+                    color = if (isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                     textDecoration = if (isCompleted) TextDecoration.LineThrough else TextDecoration.None,
                     modifier = Modifier
                         .weight(1f)
@@ -1288,7 +1290,9 @@ private fun SubtaskRow(
         Text(
             text = subtask.name,
             style = MaterialTheme.typography.bodyMedium,
-            color = if (subtask.completed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onBackground,
+            // onSurface (not onBackground) when active - see TaskCard's task.name Text above
+            // for why.
+            color = if (subtask.completed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
             textDecoration = if (subtask.completed) TextDecoration.LineThrough else TextDecoration.None,
             modifier = Modifier.padding(start = 10.dp)
         )

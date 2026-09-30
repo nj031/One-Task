@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
 import com.nj031.onetask.data.settings.StartScreen
 import com.nj031.onetask.data.settings.TimeFormat
+import com.nj031.onetask.data.settings.Wallpaper
 import java.time.DayOfWeek
 import java.time.format.TextStyle
 import java.util.Locale
@@ -39,6 +40,7 @@ fun GeneralSettingsScreen(
     startScreen: StartScreen,
     weekStartDay: DayOfWeek,
     timeFormat: TimeFormat,
+    wallpaper: Wallpaper = Wallpaper.NONE,
     onBackClick: () -> Unit,
     onAppearanceClick: () -> Unit,
     onStartScreenClick: () -> Unit,
@@ -98,6 +100,7 @@ fun GeneralSettingsScreen(
             GeneralSettingsRow(
                 title = stringResource(id = R.string.general_start_screen),
                 value = startScreenLabel,
+                wallpaper = wallpaper,
                 onClick = onStartScreenClick
             )
             GeneralSettingsRow(
@@ -115,11 +118,13 @@ fun GeneralSettingsScreen(
             GeneralSettingsRow(
                 title = stringResource(id = R.string.general_week_starts_on),
                 value = weekStartDayLabel,
+                wallpaper = wallpaper,
                 onClick = onWeekStartsOnClick
             )
             GeneralSettingsRow(
                 title = stringResource(id = R.string.general_time_format),
                 value = timeFormatLabel,
+                wallpaper = wallpaper,
                 onClick = onTimeFormatClick
             )
             GeneralSettingsRow(
@@ -135,6 +140,7 @@ private fun GeneralSettingsRow(
     title: String,
     modifier: Modifier = Modifier,
     value: String? = null,
+    wallpaper: Wallpaper = Wallpaper.NONE,
     onClick: () -> Unit
 ) {
     Row(
@@ -156,7 +162,16 @@ private fun GeneralSettingsRow(
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                // This row sits directly on the raw background (no Card), so onSurfaceVariant
+                // (a color meant for opaque-surface content) is nearly invisible under Wallpaper
+                // 1 - fall back to the wallpaper's own dimmed on-background treatment there,
+                // same pattern already used for other raw-background secondary text (e.g.
+                // TimerPlaceholderScreen's subtitle). Every other theme is unaffected.
+                color = if (wallpaper != Wallpaper.NONE) {
+                    MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
             )
         }
     }

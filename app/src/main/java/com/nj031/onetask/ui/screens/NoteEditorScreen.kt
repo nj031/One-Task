@@ -971,7 +971,9 @@ private fun NoteFormattingToolbar(
                     shadowElevation = 8.dp
                 ) {
                     val imageActionColor = if (imageActionsEnabled) {
-                        MaterialTheme.colorScheme.onBackground
+                        // onSurface (not onBackground) - this menu's own containerColor is the
+                        // opaque surface color, not the raw background.
+                        MaterialTheme.colorScheme.onSurface
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                     }
@@ -1011,7 +1013,9 @@ private fun TextSizeMenuItem(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    val contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
+    // onSurface (not onBackground) when unselected - this menu's own containerColor is the
+    // opaque surface color, not the raw background.
+    val contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
     DropdownMenuItem(
         modifier = if (selected) {
             Modifier
@@ -1090,7 +1094,9 @@ private fun FormatGlyphButton(
     val contentColor = when {
         !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
         active -> MaterialTheme.colorScheme.primary
-        else -> MaterialTheme.colorScheme.onBackground
+        // onSurface (not onBackground) - this toolbar's own Surface fill is the opaque surface
+        // color, not the raw background.
+        else -> MaterialTheme.colorScheme.onSurface
     }
     Box(
         modifier = Modifier
@@ -1147,7 +1153,9 @@ private fun NoteLabelSelectorDialog(
                     text = stringResource(id = R.string.note_menu_add_to_label),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    // onSurface (not onBackground) - this dialog's own Surface fill is the
+                    // opaque cream card color, not the raw background.
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
@@ -1219,7 +1227,8 @@ private fun NoteLabelOptionRow(text: String, selected: Boolean, onClick: () -> U
             text = text,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
+            // onSurface (not onBackground) when unselected - see the dialog title above for why.
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
         if (selected) {

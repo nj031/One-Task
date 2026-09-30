@@ -208,7 +208,9 @@ private fun AppRow(app: InstalledApp, checked: Boolean, onToggle: () -> Unit, mo
             text = app.label,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground,
+            // onSurface (not onBackground) - this row sits inside the AppListCard's own opaque
+            // surface fill, not the raw background.
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f).padding(start = 12.dp)
         )
         Checkbox(checked = checked, onCheckedChange = { onToggle() })

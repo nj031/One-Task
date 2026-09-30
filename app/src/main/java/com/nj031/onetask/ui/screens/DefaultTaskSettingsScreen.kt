@@ -211,7 +211,9 @@ private fun DefaultSettingChip(text: String, selected: Boolean, onClick: () -> U
         border = null,
         colors = FilterChipDefaults.filterChipColors(
             containerColor = MaterialTheme.colorScheme.surface,
-            labelColor = MaterialTheme.colorScheme.onBackground,
+            // onSurface (not onBackground) - this chip's own fill is the opaque surface color,
+            // not the raw background.
+            labelColor = MaterialTheme.colorScheme.onSurface,
             selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
             selectedLabelColor = MaterialTheme.colorScheme.primary
         )
