@@ -46,6 +46,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.blocking.InstalledApp
 import com.nj031.onetask.viewmodel.FocusBlockedAppsViewModel
+import androidx.compose.ui.res.painterResource
+import com.nj031.onetask.data.settings.Wallpaper
 
 /**
  * The "Block distracting apps" picker, reached by tapping Focus Mode Configuration's Block
@@ -75,7 +77,8 @@ import com.nj031.onetask.viewmodel.FocusBlockedAppsViewModel
 @Composable
 fun BlockDistractingAppsScreen(
     viewModel: FocusBlockedAppsViewModel = viewModel(),
-    onDone: () -> Unit
+    onDone: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val distractingApps by viewModel.distractingApps.collectAsState()
     val discordApp by viewModel.discordApp.collectAsState()
@@ -100,11 +103,19 @@ fun BlockDistractingAppsScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onDone) {
-                    Icon(
-                        imageVector = Icons.Filled.ArrowBack,
-                        contentDescription = stringResource(id = R.string.back),
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
+                    if (wallpaper == Wallpaper.WALLPAPER_1) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_wp1_back),
+                            contentDescription = stringResource(id = R.string.back),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = stringResource(id = R.string.back),
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
                 }
                 Text(
                     text = stringResource(id = R.string.focus_mode_config_block_distractions_title),

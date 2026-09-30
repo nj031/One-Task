@@ -380,7 +380,7 @@
     <string name="date_picker_ok">OK</string>
 
     <string name="notes_search_placeholder">Search your notes…</string>
-    <string name="notes_add_button">Add</string>
+    <string name="notes_add_button">Add Note</string>
     <string name="notes_list_heading">Notes</string>
     <string name="notes_pinned_heading">Pinned Notes</string>
     <string name="notes_view_list">List View</string>

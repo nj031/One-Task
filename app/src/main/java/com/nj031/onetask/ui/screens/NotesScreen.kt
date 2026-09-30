@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -165,6 +166,9 @@ fun NotesScreen(
                 ExtendedFloatingActionButton(
                     onClick = { onAddNoteClick(JournalNoteType.TEXT) },
                     modifier = Modifier
+                        // Larger than the default ExtendedFAB sizing, matching the approved
+                        // Wallpaper 1 "+ Add Note" reference's more prominent proportions.
+                        .heightIn(min = 64.dp)
                         // Only while a wallpaper is active: gives this CTA a defined edge against
                         // whatever wallpaper pixels happen to sit behind it - the same border
                         // token/technique Cards elsewhere already use, without changing
@@ -182,10 +186,15 @@ fun NotesScreen(
                     contentColor = Color.White,
                     elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
                 ) {
-                    Icon(imageVector = Icons.Filled.Add, contentDescription = null, tint = Color.White)
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
                     Text(
                         text = stringResource(id = R.string.notes_add_button),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(start = 8.dp)
                     )

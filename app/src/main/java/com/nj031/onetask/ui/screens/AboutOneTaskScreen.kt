@@ -41,6 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
+import androidx.compose.foundation.Image
+import com.nj031.onetask.data.settings.Wallpaper
 
 /**
  * About One Task, reachable from the hamburger menu's "About One Task" row. Terms of Service
@@ -55,7 +57,8 @@ fun AboutOneTaskScreen(
     onBackClick: () -> Unit,
     onTermsOfServiceClick: () -> Unit,
     onPrivacyPolicyClick: () -> Unit,
-    onOpenSourceLicensesClick: () -> Unit
+    onOpenSourceLicensesClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val context = LocalContext.current
     val appVersion = remember { readAppVersion(context) }
@@ -70,11 +73,19 @@ fun AboutOneTaskScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.Filled.ArrowBack,
-                        contentDescription = stringResource(id = R.string.back),
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
+                    if (wallpaper == Wallpaper.WALLPAPER_1) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_wp1_back),
+                            contentDescription = stringResource(id = R.string.back),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = stringResource(id = R.string.back),
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
                 }
                 Text(
                     text = stringResource(id = R.string.drawer_about_one_task),

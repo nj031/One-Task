@@ -51,6 +51,8 @@ import com.nj031.onetask.data.task.CategoryEntity
 import com.nj031.onetask.data.task.DefaultCategory
 import com.nj031.onetask.ui.components.categoryDisplayName
 import com.nj031.onetask.ui.haptics.rememberHapticTick
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 
 /**
  * General Settings > Categories - the dedicated management screen for Task Categories, reached
@@ -86,11 +88,19 @@ fun CategoriesScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.Filled.ArrowBack,
-                        contentDescription = stringResource(id = R.string.back),
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
+                    if (wallpaper == Wallpaper.WALLPAPER_1) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_wp1_back),
+                            contentDescription = stringResource(id = R.string.back),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = stringResource(id = R.string.back),
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
                 }
                 Text(
                     text = stringResource(id = R.string.categories_screen_title),

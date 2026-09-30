@@ -29,6 +29,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
 import com.nj031.onetask.ui.haptics.rememberHapticTick
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.res.painterResource
+import com.nj031.onetask.data.settings.Wallpaper
 
 /**
  * General Settings > Notifications. Focus Session Notifications and Focus Session Complete are
@@ -44,7 +48,8 @@ fun NotificationsSettingsScreen(
     onFocusSessionNotificationsChange: (Boolean) -> Unit,
     onFocusSessionCompleteChange: (Boolean) -> Unit,
     onTaskRemindersClick: () -> Unit,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
         Column(
@@ -56,11 +61,19 @@ fun NotificationsSettingsScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.Filled.ArrowBack,
-                        contentDescription = stringResource(id = R.string.back),
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
+                    if (wallpaper == Wallpaper.WALLPAPER_1) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_wp1_back),
+                            contentDescription = stringResource(id = R.string.back),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = stringResource(id = R.string.back),
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
                 }
                 Text(
                     text = stringResource(id = R.string.notifications_settings_title),

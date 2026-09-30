@@ -86,6 +86,8 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 
 private const val TIMER_25_MIN = 25
 private const val TIMER_45_MIN = 45
@@ -372,7 +374,7 @@ private fun AddTaskScreenContent(
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                AddTaskTopBar(isEditMode = existingTask != null, onBackClick = onCancel)
+                AddTaskTopBar(isEditMode = existingTask != null, onBackClick = onCancel, wallpaper = wallpaper)
 
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -942,7 +944,7 @@ private fun formatReminderTime(minuteOfDay: Int, is24Hour: Boolean): String {
 /** Back button + centered title, matching the target design's plain centered header (no
  * subtitle). */
 @Composable
-private fun AddTaskTopBar(isEditMode: Boolean, onBackClick: () -> Unit) {
+private fun AddTaskTopBar(isEditMode: Boolean, onBackClick: () -> Unit, wallpaper: Wallpaper = Wallpaper.NONE) {
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Text(
             text = stringResource(id = if (isEditMode) R.string.edit_task_title else R.string.new_task_title),
@@ -951,11 +953,19 @@ private fun AddTaskTopBar(isEditMode: Boolean, onBackClick: () -> Unit) {
             color = MaterialTheme.colorScheme.onBackground
         )
         IconButton(onClick = onBackClick, modifier = Modifier.align(Alignment.CenterStart)) {
-            Icon(
-                imageVector = Icons.Filled.ArrowBack,
-                contentDescription = stringResource(id = R.string.back),
-                tint = MaterialTheme.colorScheme.onBackground
-            )
+            if (wallpaper == Wallpaper.WALLPAPER_1) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_wp1_back),
+                    contentDescription = stringResource(id = R.string.back),
+                    modifier = Modifier.size(24.dp)
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.ArrowBack,
+                    contentDescription = stringResource(id = R.string.back),
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
         }
     }
 }

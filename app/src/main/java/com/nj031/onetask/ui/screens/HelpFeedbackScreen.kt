@@ -30,6 +30,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.res.painterResource
+import com.nj031.onetask.data.settings.Wallpaper
 
 /** One Task's official support inbox - pre-filled as the "To" address when the user taps
  * Contact Support. This is the only Help & Feedback action that uses email; the other three
@@ -50,7 +54,8 @@ fun HelpFeedbackScreen(
     onHelpFaqClick: () -> Unit,
     onSuggestFeatureClick: () -> Unit,
     onReportProblemClick: () -> Unit,
-    onSendFeedbackClick: () -> Unit
+    onSendFeedbackClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val context = LocalContext.current
 
@@ -64,11 +69,19 @@ fun HelpFeedbackScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.Filled.ArrowBack,
-                        contentDescription = stringResource(id = R.string.back),
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
+                    if (wallpaper == Wallpaper.WALLPAPER_1) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_wp1_back),
+                            contentDescription = stringResource(id = R.string.back),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = stringResource(id = R.string.back),
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
                 }
                 Text(
                     text = stringResource(id = R.string.drawer_help_feedback),
