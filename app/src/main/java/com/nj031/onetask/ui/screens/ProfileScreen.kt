@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -114,11 +116,19 @@ fun ProfileScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBackClick, modifier = Modifier.padding(end = 4.dp)) {
-                    Icon(
-                        imageVector = Icons.Filled.ArrowBack,
-                        contentDescription = stringResource(id = R.string.back),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                    if (wallpaper == Wallpaper.WALLPAPER_1) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_wp1_back),
+                            contentDescription = stringResource(id = R.string.back),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = stringResource(id = R.string.back),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
                 Text(
                     text = stringResource(id = R.string.profile_settings_title),
@@ -156,7 +166,7 @@ fun ProfileScreen(
                         .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    ProfileAvatar(photoPath = profile.photoPath, size = 84.dp)
+                    ProfileAvatar(photoPath = profile.photoPath, size = 84.dp, wallpaper = wallpaper)
                     Text(
                         text = profile.name,
                         style = MaterialTheme.typography.titleLarge,
@@ -247,7 +257,17 @@ fun ProfileScreen(
             ) {
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                     ProfileMenuRow(
-                        icon = { tint -> OneTaskSettingsGearIcon(tint = tint, size = 22.dp) },
+                        icon = { tint ->
+                            if (wallpaper == Wallpaper.WALLPAPER_1) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.ic_wp1_settings),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            } else {
+                                OneTaskSettingsGearIcon(tint = tint, size = 22.dp)
+                            }
+                        },
                         text = stringResource(id = R.string.drawer_settings_general),
                         onClick = onGeneralSettingsClick
                     )

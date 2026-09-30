@@ -2,6 +2,7 @@ package com.nj031.onetask.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -64,6 +65,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -394,7 +396,8 @@ fun HomeScreen(
                     selectedFilter = selectedFilter,
                     onFilterSelected = { selectedFilter = it },
                     onCategoryFilterClick = { showCategoryFilterSelector = true },
-                    modifier = Modifier.padding(top = 16.dp)
+                    modifier = Modifier.padding(top = 16.dp),
+                    wallpaper = wallpaper
                 )
 
                 if (visibleTasks.isEmpty()) {
@@ -581,7 +584,7 @@ private fun TaskScreenHeader(
                 onClick = onAvatarClick,
                 modifier = Modifier.semantics { contentDescription = profileDescription }
             ) {
-                ProfileAvatar(photoPath = profilePhotoPath, size = 32.dp)
+                ProfileAvatar(photoPath = profilePhotoPath, size = 32.dp, wallpaper = wallpaper)
             }
 
             Text(
@@ -597,7 +600,15 @@ private fun TaskScreenHeader(
                 onClick = onCalendarClick,
                 modifier = Modifier.semantics { contentDescription = calendarDescription }
             ) {
-                OneTaskCalendarIcon(tint = MaterialTheme.colorScheme.primary)
+                if (wallpaper == Wallpaper.WALLPAPER_1) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_wp1_calendar),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    OneTaskCalendarIcon(tint = MaterialTheme.colorScheme.primary)
+                }
             }
         }
 
@@ -607,11 +618,19 @@ private fun TaskScreenHeader(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onPreviousDay) {
-                Icon(
-                    imageVector = Icons.Filled.KeyboardArrowLeft,
-                    contentDescription = stringResource(id = R.string.previous_day),
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                if (wallpaper == Wallpaper.WALLPAPER_1) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_wp1_previous_date),
+                        contentDescription = stringResource(id = R.string.previous_day),
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowLeft,
+                        contentDescription = stringResource(id = R.string.previous_day),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -631,11 +650,19 @@ private fun TaskScreenHeader(
             }
 
             IconButton(onClick = onNextDay) {
-                Icon(
-                    imageVector = Icons.Filled.KeyboardArrowRight,
-                    contentDescription = stringResource(id = R.string.next_day),
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                if (wallpaper == Wallpaper.WALLPAPER_1) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_wp1_next_date),
+                        contentDescription = stringResource(id = R.string.next_day),
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowRight,
+                        contentDescription = stringResource(id = R.string.next_day),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
     }
@@ -655,8 +682,10 @@ private fun TaskFilterStrip(
     selectedFilter: TaskListFilter,
     onFilterSelected: (TaskListFilter) -> Unit,
     onCategoryFilterClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
+    val isWallpaper1 = wallpaper == Wallpaper.WALLPAPER_1
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -667,25 +696,49 @@ private fun TaskFilterStrip(
             text = stringResource(id = R.string.tab_all),
             selected = selectedFilter == TaskListFilter.ALL,
             onClick = { onFilterSelected(TaskListFilter.ALL) },
-            icon = { tint -> OneTaskListViewIcon(tint = tint, size = 16.dp) }
+            icon = { tint ->
+                if (isWallpaper1) {
+                    Image(painter = painterResource(id = R.drawable.ic_wp1_filter_all), contentDescription = null, modifier = Modifier.height(16.dp))
+                } else {
+                    OneTaskListViewIcon(tint = tint, size = 16.dp)
+                }
+            }
         )
         FilterPill(
             text = stringResource(id = R.string.task_filter_basic),
             selected = selectedFilter == TaskListFilter.BASIC,
             onClick = { onFilterSelected(TaskListFilter.BASIC) },
-            icon = { tint -> OneTaskJournalIcon(tint = tint, size = 16.dp) }
+            icon = { tint ->
+                if (isWallpaper1) {
+                    Image(painter = painterResource(id = R.drawable.ic_wp1_filter_no_timer), contentDescription = null, modifier = Modifier.height(16.dp))
+                } else {
+                    OneTaskJournalIcon(tint = tint, size = 16.dp)
+                }
+            }
         )
         FilterPill(
             text = stringResource(id = R.string.task_filter_timer),
             selected = selectedFilter == TaskListFilter.TIMER,
             onClick = { onFilterSelected(TaskListFilter.TIMER) },
-            icon = { tint -> OneTaskStopwatchIcon(tint = tint, size = 16.dp) }
+            icon = { tint ->
+                if (isWallpaper1) {
+                    Image(painter = painterResource(id = R.drawable.ic_wp1_filter_timer), contentDescription = null, modifier = Modifier.height(16.dp))
+                } else {
+                    OneTaskStopwatchIcon(tint = tint, size = 16.dp)
+                }
+            }
         )
         FilterPill(
             text = stringResource(id = R.string.task_filter_category),
             selected = selectedFilter is TaskListFilter.CATEGORY,
             onClick = onCategoryFilterClick,
-            icon = { tint -> OneTaskLabelIcon(tint = tint, size = 16.dp) }
+            icon = { tint ->
+                if (isWallpaper1) {
+                    Image(painter = painterResource(id = R.drawable.ic_wp1_filter_category), contentDescription = null, modifier = Modifier.height(16.dp))
+                } else {
+                    OneTaskLabelIcon(tint = tint, size = 16.dp)
+                }
+            }
         )
     }
 }

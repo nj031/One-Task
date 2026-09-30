@@ -8,6 +8,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -52,6 +53,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -525,11 +527,19 @@ private fun TimerTopBar(
 
         Box {
             IconButton(onClick = { showMenu = true }) {
-                Icon(
-                    imageVector = Icons.Filled.MoreVert,
-                    contentDescription = stringResource(id = R.string.timer_more_options),
-                    tint = MaterialTheme.colorScheme.onBackground
-                )
+                if (wallpaper == Wallpaper.WALLPAPER_1) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_wp1_more),
+                        contentDescription = stringResource(id = R.string.timer_more_options),
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = stringResource(id = R.string.timer_more_options),
+                        tint = MaterialTheme.colorScheme.onBackground
+                    )
+                }
             }
             DropdownMenu(
                 expanded = showMenu,

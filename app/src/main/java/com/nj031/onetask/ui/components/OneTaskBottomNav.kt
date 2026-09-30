@@ -46,8 +46,9 @@ enum class BottomNavTab { JOURNAL, TASKS, TIMER }
  * primary color (its baked-in artwork was drawn blue, so a non-blue color theme still needs a
  * runtime recolor here) - the inactive variant's neutral gray is intentionally left untouched by
  * theming, matching every other "unselected" element elsewhere in the app. While Wallpaper 1 is
- * active, this recoloring is skipped entirely (see [wallpaper]) - the spec calls for the supplied
- * assets exactly as given, with no extra tinting/recoloring.
+ * active, both the icon set AND this recoloring are swapped out entirely (see [wallpaper]): the
+ * ic_wp1_nav_* assets are Wallpaper 1's own final, pre-colored icon set (R.drawable.ic_wp1_nav_*),
+ * shown exactly as supplied with no tinting/recoloring, never the ic_nav_* set above.
  */
 @Composable
 fun OneTaskBottomNav(
@@ -106,12 +107,17 @@ fun OneTaskBottomNav(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val isWallpaper1 = wallpaper == Wallpaper.WALLPAPER_1
             OneTaskBottomNavItem(
                 icon = {
                     val tasksSelected = activeTab == BottomNavTab.TASKS
                     Image(
                         painter = painterResource(
-                            id = if (tasksSelected) R.drawable.ic_nav_tasks_active else R.drawable.ic_nav_tasks_inactive
+                            id = if (isWallpaper1) {
+                                if (tasksSelected) R.drawable.ic_wp1_nav_tasks_active else R.drawable.ic_wp1_nav_tasks_inactive
+                            } else {
+                                if (tasksSelected) R.drawable.ic_nav_tasks_active else R.drawable.ic_nav_tasks_inactive
+                            }
                         ),
                         contentDescription = null,
                         colorFilter = if (tasksSelected && tintActiveIcon) ColorFilter.tint(MaterialTheme.colorScheme.primary) else null,
@@ -128,7 +134,11 @@ fun OneTaskBottomNav(
                     val timerSelected = activeTab == BottomNavTab.TIMER
                     Image(
                         painter = painterResource(
-                            id = if (timerSelected) R.drawable.ic_nav_timer_active else R.drawable.ic_nav_timer_inactive
+                            id = if (isWallpaper1) {
+                                if (timerSelected) R.drawable.ic_wp1_nav_timer_active else R.drawable.ic_wp1_nav_timer_inactive
+                            } else {
+                                if (timerSelected) R.drawable.ic_nav_timer_active else R.drawable.ic_nav_timer_inactive
+                            }
                         ),
                         contentDescription = null,
                         colorFilter = if (timerSelected && tintActiveIcon) ColorFilter.tint(MaterialTheme.colorScheme.primary) else null,
@@ -145,7 +155,11 @@ fun OneTaskBottomNav(
                     val notesSelected = activeTab == BottomNavTab.JOURNAL
                     Image(
                         painter = painterResource(
-                            id = if (notesSelected) R.drawable.ic_nav_notes_active else R.drawable.ic_nav_notes_inactive
+                            id = if (isWallpaper1) {
+                                if (notesSelected) R.drawable.ic_wp1_nav_notes_active else R.drawable.ic_wp1_nav_notes_inactive
+                            } else {
+                                if (notesSelected) R.drawable.ic_nav_notes_active else R.drawable.ic_nav_notes_inactive
+                            }
                         ),
                         contentDescription = null,
                         colorFilter = if (notesSelected && tintActiveIcon) ColorFilter.tint(MaterialTheme.colorScheme.primary) else null,
