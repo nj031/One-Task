@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,16 +31,13 @@ import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FabPosition
-import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -80,6 +76,7 @@ import com.nj031.onetask.data.settings.TimeFormat
 import com.nj031.onetask.data.settings.Wallpaper
 import com.nj031.onetask.ui.components.BottomNavTab
 import com.nj031.onetask.ui.components.CompactBottomSheet
+import com.nj031.onetask.ui.components.OneTaskAddButton
 import com.nj031.onetask.ui.components.OneTaskBottomNav
 import com.nj031.onetask.ui.components.ProfileAvatar
 import com.nj031.onetask.ui.components.WallpaperBackdrop
@@ -159,57 +156,15 @@ fun NotesScreen(
         floatingActionButton = {
             val fabDensity = LocalDensity.current
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 640.dp)
-                    .padding(horizontal = 20.dp)
-                    .onGloballyPositioned { coordinates ->
-                        fabHeight = with(fabDensity) { coordinates.size.height.toDp() }
-                    }
-            ) {
-                ExtendedFloatingActionButton(
-                    onClick = { onAddNoteClick(JournalNoteType.TEXT) },
-                    modifier = Modifier
-                        // Full-width, prominent horizontal bar rather than a compact floating
-                        // pill, matching the approved Wallpaper 1 "+ Add Note" reference.
-                        .fillMaxWidth()
-                        .heightIn(min = 64.dp)
-                        // Only while a wallpaper is active: gives this CTA a defined edge against
-                        // whatever wallpaper pixels happen to sit behind it - the same border
-                        // token/technique Cards elsewhere already use, without changing
-                        // containerColor's own existing opacity. Non-wallpaper themes are
-                        // unaffected.
-                        .then(
-                            if (wallpaper != Wallpaper.NONE) {
-                                Modifier.border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                            } else {
-                                Modifier
-                            }
-                        ),
-                    shape = CircleShape,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White,
-                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Add,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Text(
-                            text = stringResource(id = R.string.notes_add_button),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
-                    }
+                modifier = Modifier.onGloballyPositioned { coordinates ->
+                    fabHeight = with(fabDensity) { coordinates.size.height.toDp() }
                 }
+            ) {
+                OneTaskAddButton(
+                    onClick = { onAddNoteClick(JournalNoteType.TEXT) },
+                    contentDescription = stringResource(id = R.string.notes_add_button),
+                    wallpaper = wallpaper
+                )
             }
         },
         floatingActionButtonPosition = FabPosition.Center
