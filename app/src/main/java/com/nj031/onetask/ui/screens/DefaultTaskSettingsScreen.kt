@@ -30,11 +30,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
+import com.nj031.onetask.data.settings.Wallpaper
 import com.nj031.onetask.ui.components.OneTaskDurationPickerDialog
 import com.nj031.onetask.ui.components.durationMillisToWholeMinutes
 import com.nj031.onetask.ui.haptics.rememberHapticTick
@@ -66,7 +68,8 @@ fun DefaultTaskSettingsScreen(
     defaultPostponeIfIncomplete: Boolean,
     onDefaultTimerMinutesChange: (Int?) -> Unit,
     onDefaultPostponeIfIncompleteChange: (Boolean) -> Unit,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     var showCustomDurationPicker by remember { mutableStateOf(false) }
     val hapticTick = rememberHapticTick()
@@ -118,19 +121,22 @@ fun DefaultTaskSettingsScreen(
                     DefaultSettingChip(
                         text = stringResource(id = R.string.option_no_timer),
                         selected = !isCustomTimerSelected && defaultTimerMinutes == null,
-                        onClick = { onDefaultTimerMinutesChange(null) }
+                        onClick = { onDefaultTimerMinutesChange(null) },
+                        wallpaper = wallpaper
                     )
                     TIMER_PRESETS.forEach { minutes ->
                         DefaultSettingChip(
                             text = minutes.toString(),
                             selected = !isCustomTimerSelected && defaultTimerMinutes == minutes,
-                            onClick = { onDefaultTimerMinutesChange(minutes) }
+                            onClick = { onDefaultTimerMinutesChange(minutes) },
+                            wallpaper = wallpaper
                         )
                     }
                     DefaultSettingChip(
                         text = stringResource(id = R.string.option_custom),
                         selected = isCustomTimerSelected,
-                        onClick = { showCustomDurationPicker = true }
+                        onClick = { showCustomDurationPicker = true },
+                        wallpaper = wallpaper
                     )
                 }
             }
@@ -195,7 +201,8 @@ private fun DefaultSettingSectionLabel(text: String, topPadding: Dp = 0.dp) {
 
 /** Same pill-shaped selectable chip style AddTaskScreen's Tag/Date/Repeat/Timer rows use. */
 @Composable
-private fun DefaultSettingChip(text: String, selected: Boolean, onClick: () -> Unit) {
+private fun DefaultSettingChip(text: String, selected: Boolean, onClick: () -> Unit, wallpaper: Wallpaper = Wallpaper.NONE) {
+    val isWallpaper1 = wallpaper == Wallpaper.WALLPAPER_1
     FilterChip(
         selected = selected,
         onClick = onClick,
@@ -208,14 +215,28 @@ private fun DefaultSettingChip(text: String, selected: Boolean, onClick: () -> U
             )
         },
         shape = RoundedCornerShape(50),
-        border = null,
+        // Wallpaper 1's own approved selected/unselected pill language (standardized across every
+        // pill/chip selector in the app) needs an explicit unselected outline - every other theme
+        // keeps this chip's original borderless look.
+        border = if (isWallpaper1) {
+            FilterChipDefaults.filterChipBorder(
+                enabled = true,
+                selected = selected,
+                borderColor = MaterialTheme.colorScheme.outline,
+                selectedBorderColor = Color.Transparent,
+                borderWidth = 1.dp,
+                selectedBorderWidth = 0.dp
+            )
+        } else {
+            null
+        },
         colors = FilterChipDefaults.filterChipColors(
             containerColor = MaterialTheme.colorScheme.surface,
             // onSurface (not onBackground) - this chip's own fill is the opaque surface color,
             // not the raw background.
             labelColor = MaterialTheme.colorScheme.onSurface,
-            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-            selectedLabelColor = MaterialTheme.colorScheme.primary
+            selectedContainerColor = if (isWallpaper1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+            selectedLabelColor = if (isWallpaper1) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.primary
         )
     )
 }

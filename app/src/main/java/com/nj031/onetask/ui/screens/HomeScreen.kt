@@ -696,6 +696,7 @@ private fun TaskFilterStrip(
             text = stringResource(id = R.string.tab_all),
             selected = selectedFilter == TaskListFilter.ALL,
             onClick = { onFilterSelected(TaskListFilter.ALL) },
+            isWallpaper1 = isWallpaper1,
             icon = { tint ->
                 if (isWallpaper1) {
                     Image(painter = painterResource(id = R.drawable.ic_wp1_filter_all), contentDescription = null, modifier = Modifier.height(16.dp))
@@ -708,6 +709,7 @@ private fun TaskFilterStrip(
             text = stringResource(id = R.string.task_filter_basic),
             selected = selectedFilter == TaskListFilter.BASIC,
             onClick = { onFilterSelected(TaskListFilter.BASIC) },
+            isWallpaper1 = isWallpaper1,
             icon = { tint ->
                 if (isWallpaper1) {
                     Image(painter = painterResource(id = R.drawable.ic_wp1_filter_no_timer), contentDescription = null, modifier = Modifier.height(16.dp))
@@ -720,6 +722,7 @@ private fun TaskFilterStrip(
             text = stringResource(id = R.string.task_filter_timer),
             selected = selectedFilter == TaskListFilter.TIMER,
             onClick = { onFilterSelected(TaskListFilter.TIMER) },
+            isWallpaper1 = isWallpaper1,
             icon = { tint ->
                 if (isWallpaper1) {
                     Image(painter = painterResource(id = R.drawable.ic_wp1_filter_timer), contentDescription = null, modifier = Modifier.height(16.dp))
@@ -732,6 +735,7 @@ private fun TaskFilterStrip(
             text = stringResource(id = R.string.task_filter_category),
             selected = selectedFilter is TaskListFilter.CATEGORY,
             onClick = onCategoryFilterClick,
+            isWallpaper1 = isWallpaper1,
             icon = { tint ->
                 if (isWallpaper1) {
                     Image(painter = painterResource(id = R.drawable.ic_wp1_filter_category), contentDescription = null, modifier = Modifier.height(16.dp))
@@ -748,14 +752,32 @@ private fun FilterPill(
     text: String,
     selected: Boolean,
     onClick: () -> Unit,
+    isWallpaper1: Boolean = false,
     icon: @Composable (Color) -> Unit
 ) {
-    val contentColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+    // Wallpaper 1's own approved selected/unselected pill language (standardized across every
+    // pill/chip selector in the app - see this repo's Wallpaper 1 pill-consistency pass): selected
+    // = primary green fill + onBackground light text (no border); unselected = surface cream fill
+    // + a dark outline + onSurface dark text. Every other theme keeps its original White-on-primary
+    // / onSurfaceVariant-on-surface, borderless look exactly as before.
+    val contentColor = when {
+        selected && isWallpaper1 -> MaterialTheme.colorScheme.onBackground
+        selected -> Color.White
+        isWallpaper1 -> MaterialTheme.colorScheme.onSurface
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
+            .then(
+                if (isWallpaper1 && !selected) {
+                    Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(50))
+                } else {
+                    Modifier
+                }
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {

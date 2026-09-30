@@ -49,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -58,6 +59,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.profile.Gender
 import com.nj031.onetask.data.profile.ProfilePhotoStorage
+import com.nj031.onetask.data.settings.Wallpaper
 import com.nj031.onetask.ui.components.OneTaskDatePickerDialog
 import com.nj031.onetask.viewmodel.ProfileViewModel
 import java.time.Instant
@@ -79,7 +81,8 @@ import kotlinx.coroutines.withContext
 @Composable
 fun EditProfileScreen(
     viewModel: ProfileViewModel = viewModel(),
-    onDone: () -> Unit
+    onDone: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -283,19 +286,22 @@ fun EditProfileScreen(
                 GenderChip(
                     text = stringResource(id = R.string.profile_edit_gender_male),
                     selected = genderName == Gender.MALE.name,
-                    onClick = { genderName = if (genderName == Gender.MALE.name) null else Gender.MALE.name }
+                    onClick = { genderName = if (genderName == Gender.MALE.name) null else Gender.MALE.name },
+                    wallpaper = wallpaper
                 )
                 GenderChip(
                     text = stringResource(id = R.string.profile_edit_gender_female),
                     selected = genderName == Gender.FEMALE.name,
-                    onClick = { genderName = if (genderName == Gender.FEMALE.name) null else Gender.FEMALE.name }
+                    onClick = { genderName = if (genderName == Gender.FEMALE.name) null else Gender.FEMALE.name },
+                    wallpaper = wallpaper
                 )
                 GenderChip(
                     text = stringResource(id = R.string.profile_edit_gender_prefer_not_to_say),
                     selected = genderName == Gender.PREFER_NOT_TO_SAY.name,
                     onClick = {
                         genderName = if (genderName == Gender.PREFER_NOT_TO_SAY.name) null else Gender.PREFER_NOT_TO_SAY.name
-                    }
+                    },
+                    wallpaper = wallpaper
                 )
             }
 
@@ -429,7 +435,8 @@ private fun EditablePhoto(existingPhotoPath: String?, croppedBitmap: Bitmap?, on
 
 /** Same pill-shaped selectable chip style used for Tag/Date/Repeat rows in Add/Edit Task. */
 @Composable
-private fun GenderChip(text: String, selected: Boolean, onClick: () -> Unit) {
+private fun GenderChip(text: String, selected: Boolean, onClick: () -> Unit, wallpaper: Wallpaper = Wallpaper.NONE) {
+    val isWallpaper1 = wallpaper == Wallpaper.WALLPAPER_1
     FilterChip(
         selected = selected,
         onClick = onClick,
@@ -442,12 +449,26 @@ private fun GenderChip(text: String, selected: Boolean, onClick: () -> Unit) {
             )
         },
         shape = RoundedCornerShape(50),
-        border = null,
+        // Wallpaper 1's own approved selected/unselected pill language (standardized across every
+        // pill/chip selector in the app) needs an explicit unselected outline - every other theme
+        // keeps this chip's original borderless look.
+        border = if (isWallpaper1) {
+            FilterChipDefaults.filterChipBorder(
+                enabled = true,
+                selected = selected,
+                borderColor = MaterialTheme.colorScheme.outline,
+                selectedBorderColor = Color.Transparent,
+                borderWidth = 1.dp,
+                selectedBorderWidth = 0.dp
+            )
+        } else {
+            null
+        },
         colors = FilterChipDefaults.filterChipColors(
             containerColor = MaterialTheme.colorScheme.surface,
-            labelColor = MaterialTheme.colorScheme.onBackground,
-            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-            selectedLabelColor = MaterialTheme.colorScheme.primary
+            labelColor = if (isWallpaper1) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onBackground,
+            selectedContainerColor = if (isWallpaper1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+            selectedLabelColor = if (isWallpaper1) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.primary
         )
     )
 }

@@ -477,7 +477,8 @@ fun OneTaskNavHost(
                 viewModel = viewModel(viewModelStoreOwner = timerBackStackEntry),
                 startOnStopwatch = initialTab == "stopwatch",
                 onCloseClick = { navController.popBackStack() },
-                onBlockDistractionsClick = { navController.navigate(Screen.BlockDistractingApps.route) }
+                onBlockDistractionsClick = { navController.navigate(Screen.BlockDistractingApps.route) },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.BlockDistractingApps.route) {
@@ -541,6 +542,7 @@ fun OneTaskNavHost(
                 defaultPostponeIfIncomplete = defaultPostponeIfIncomplete,
                 weekStartDay = weekStartDay,
                 timeFormat = timeFormat,
+                wallpaper = wallpaper,
                 onDone = {
                     // See AddTaskDraftViewModel's own doc comment - only Save/Cancel actually
                     // leaving this screen clears the draft; navigating to Settings (above) does
@@ -619,7 +621,8 @@ fun OneTaskNavHost(
         composable(Screen.EditProfile.route) {
             EditProfileScreen(
                 viewModel = profileViewModel,
-                onDone = { navController.popBackStack() }
+                onDone = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.Archive.route) {
@@ -734,7 +737,8 @@ fun OneTaskNavHost(
                 defaultPostponeIfIncomplete = defaultPostponeIfIncomplete,
                 onDefaultTimerMinutesChange = generalSettingsViewModel::setDefaultTimerMinutes,
                 onDefaultPostponeIfIncompleteChange = generalSettingsViewModel::setDefaultPostponeIfIncomplete,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.CategoriesSettings.route) {
@@ -744,7 +748,8 @@ fun OneTaskNavHost(
                 onAddCustomCategory = homeViewModel::addCustomCategory,
                 onRenameCustomCategory = homeViewModel::renameCustomCategory,
                 onDeleteCustomCategory = homeViewModel::deleteCustomCategory,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.NotificationsSettings.route) {
