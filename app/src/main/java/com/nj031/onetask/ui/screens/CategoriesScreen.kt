@@ -222,7 +222,9 @@ private fun CustomCategoryRow(category: CategoryEntity, onRenameClick: () -> Uni
         Text(
             text = category.name,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground,
+            // onSurface (not onBackground) - this row sits on the Card's own opaque surface
+            // fill, not the raw background.
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f).clickable(onClick = onRenameClick)
         )
         IconButton(onClick = onDeleteClick) {
@@ -342,7 +344,9 @@ private fun CategoryChip(text: String, selected: Boolean, onClick: () -> Unit) {
         border = null,
         colors = FilterChipDefaults.filterChipColors(
             containerColor = MaterialTheme.colorScheme.surface,
-            labelColor = MaterialTheme.colorScheme.onBackground,
+            // onSurface (not onBackground) - this chip's own fill is the opaque surface color,
+            // not the raw background.
+            labelColor = MaterialTheme.colorScheme.onSurface,
             selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
             selectedLabelColor = MaterialTheme.colorScheme.primary
         )
