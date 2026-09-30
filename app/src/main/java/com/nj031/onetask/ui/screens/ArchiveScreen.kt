@@ -128,7 +128,9 @@ private fun ArchivedNoteCard(note: JournalNoteEntity, onRestoreClick: () -> Unit
                     text = note.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    // onSurface (not onBackground) - this Text sits on the Card's own opaque
+                    // surface fill, not the raw background.
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )

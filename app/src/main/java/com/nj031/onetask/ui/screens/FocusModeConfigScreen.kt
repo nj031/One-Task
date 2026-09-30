@@ -456,7 +456,9 @@ private fun FocusModeValueRow(title: String, value: String, onClick: (() -> Unit
             text = title,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground,
+            // onSurface (not onBackground) - this row sits on the Card's own opaque surface
+            // fill, not the raw background.
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
         Text(
@@ -539,7 +541,9 @@ private fun StrictModeCard(enabled: Boolean, onToggle: () -> Unit, modifier: Mod
                 text = stringResource(id = R.string.focus_mode_config_strict_mode_title),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
+                // onSurface (not onBackground) - this row's own background is the opaque
+                // surface color, not the raw background.
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = stringResource(id = R.string.focus_mode_config_strict_mode_subtitle),
@@ -595,7 +599,9 @@ private fun BlockDistractionsCard(
                         text = stringResource(id = R.string.focus_mode_config_block_distractions_title),
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        // onSurface (not onBackground) - this Text sits on the Card's own
+                        // opaque surface fill, not the raw background.
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = stringResource(id = R.string.focus_mode_config_block_distractions_subtitle),
@@ -707,7 +713,9 @@ private fun NotificationsCallsCard(
                 text = stringResource(id = R.string.focus_mode_config_notifications_calls_title),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
+                // onSurface (not onBackground) - this row's own background is the opaque
+                // surface color, not the raw background.
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = if (notificationsMode == FocusNotificationsMode.ALLOW && callsMode == FocusCallsMode.ALLOW) {
@@ -986,7 +994,9 @@ private fun BreaksPickerDialog(selectedCount: Int, onConfirm: (Int) -> Unit, onD
                     text = stringResource(id = R.string.focus_mode_config_breaks),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    // onSurface (not onBackground) - this dialog's own Surface fill is the
+                    // opaque cream card color, not the raw background.
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -999,7 +1009,8 @@ private fun BreaksPickerDialog(selectedCount: Int, onConfirm: (Int) -> Unit, onD
                         text = pendingCount.toString(),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
+                        // onSurface (not onBackground) - see the "Breaks" title above for why.
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.widthIn(min = 40.dp),
                         textAlign = TextAlign.Center
                     )
