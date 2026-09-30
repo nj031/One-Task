@@ -75,7 +75,7 @@ fun RecycleBinScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
-                RecycleBinTopBar(onBackClick = onBackClick)
+                RecycleBinTopBar(onBackClick = onBackClick, wallpaper = wallpaper)
 
                 if (notes.isEmpty()) {
                     Text(
@@ -119,7 +119,7 @@ fun RecycleBinScreen(
 }
 
 @Composable
-private fun RecycleBinTopBar(onBackClick: () -> Unit) {
+private fun RecycleBinTopBar(onBackClick: () -> Unit, wallpaper: Wallpaper = Wallpaper.NONE) {
     Box(modifier = Modifier.fillMaxWidth()) {
         IconButton(
             onClick = onBackClick,

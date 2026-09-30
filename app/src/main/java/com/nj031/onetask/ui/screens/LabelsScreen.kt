@@ -70,7 +70,7 @@ fun LabelsScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
-                LabelsTopBar(onBackClick = onBackClick)
+                LabelsTopBar(onBackClick = onBackClick, wallpaper = wallpaper)
 
                 TextField(
                     value = newLabelName,
@@ -149,7 +149,7 @@ fun LabelsScreen(
 }
 
 @Composable
-private fun LabelsTopBar(onBackClick: () -> Unit) {
+private fun LabelsTopBar(onBackClick: () -> Unit, wallpaper: Wallpaper = Wallpaper.NONE) {
     Box(modifier = Modifier.fillMaxWidth()) {
         IconButton(
             onClick = onBackClick,

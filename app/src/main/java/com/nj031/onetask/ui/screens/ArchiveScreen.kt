@@ -63,7 +63,7 @@ fun ArchiveScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
-                ArchiveTopBar(onBackClick = onBackClick)
+                ArchiveTopBar(onBackClick = onBackClick, wallpaper = wallpaper)
 
                 if (notes.isEmpty()) {
                     Text(
@@ -96,7 +96,7 @@ fun ArchiveScreen(
 }
 
 @Composable
-private fun ArchiveTopBar(onBackClick: () -> Unit) {
+private fun ArchiveTopBar(onBackClick: () -> Unit, wallpaper: Wallpaper = Wallpaper.NONE) {
     Box(modifier = Modifier.fillMaxWidth()) {
         IconButton(
             onClick = onBackClick,
