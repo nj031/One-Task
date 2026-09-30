@@ -40,11 +40,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
+import com.nj031.onetask.data.settings.Wallpaper
 import com.nj031.onetask.data.task.CategoryEntity
 import com.nj031.onetask.data.task.DefaultCategory
 import com.nj031.onetask.ui.components.categoryDisplayName
@@ -66,7 +68,8 @@ fun CategoriesScreen(
     onAddCustomCategory: (String) -> Unit,
     onRenameCustomCategory: (id: String, name: String) -> Unit,
     onDeleteCustomCategory: (String) -> Unit,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     var showAddCustomCategoryDialog by remember { mutableStateOf(false) }
     var categoryPendingRename by remember { mutableStateOf<CategoryEntity?>(null) }
@@ -117,7 +120,8 @@ fun CategoriesScreen(
                         CategoryChip(
                             text = categoryDisplayName(category.id, emptyList()),
                             selected = false,
-                            onClick = {}
+                            onClick = {},
+                            wallpaper = wallpaper
                         )
                     }
                 }
@@ -326,9 +330,14 @@ private fun CategorySectionLabel(text: String, topPadding: Dp = 0.dp) {
     )
 }
 
-/** Same pill-shaped selectable chip style AddTaskScreen's Tag/Date/Repeat/Timer rows use. */
+/** Same pill-shaped selectable chip style AddTaskScreen's Tag/Date/Repeat/Timer rows use. Always
+ * rendered unselected on this screen (the 5 default categories are display-only - see this
+ * screen's own doc comment), but kept structurally identical to its selectable siblings
+ * (DefaultSettingChip, GenderChip, AddTaskScreen's SelectionChip) for the same Wallpaper 1
+ * unselected-pill look. */
 @Composable
-private fun CategoryChip(text: String, selected: Boolean, onClick: () -> Unit) {
+private fun CategoryChip(text: String, selected: Boolean, onClick: () -> Unit, wallpaper: Wallpaper = Wallpaper.NONE) {
+    val isWallpaper1 = wallpaper == Wallpaper.WALLPAPER_1
     FilterChip(
         selected = selected,
         onClick = onClick,
@@ -341,14 +350,28 @@ private fun CategoryChip(text: String, selected: Boolean, onClick: () -> Unit) {
             )
         },
         shape = RoundedCornerShape(50),
-        border = null,
+        // Wallpaper 1's own approved selected/unselected pill language (standardized across every
+        // pill/chip selector in the app) needs an explicit unselected outline - every other theme
+        // keeps this chip's original borderless look.
+        border = if (isWallpaper1) {
+            FilterChipDefaults.filterChipBorder(
+                enabled = true,
+                selected = selected,
+                borderColor = MaterialTheme.colorScheme.outline,
+                selectedBorderColor = Color.Transparent,
+                borderWidth = 1.dp,
+                selectedBorderWidth = 0.dp
+            )
+        } else {
+            null
+        },
         colors = FilterChipDefaults.filterChipColors(
             containerColor = MaterialTheme.colorScheme.surface,
             // onSurface (not onBackground) - this chip's own fill is the opaque surface color,
             // not the raw background.
             labelColor = MaterialTheme.colorScheme.onSurface,
-            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-            selectedLabelColor = MaterialTheme.colorScheme.primary
+            selectedContainerColor = if (isWallpaper1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+            selectedLabelColor = if (isWallpaper1) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.primary
         )
     )
 }

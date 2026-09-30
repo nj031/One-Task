@@ -498,7 +498,8 @@ private fun NotesViewToggle(
         NotesViewToggleButton(
             selected = viewMode == NotesViewMode.LIST,
             contentDescription = stringResource(id = R.string.notes_view_list),
-            onClick = { onViewModeChange(NotesViewMode.LIST) }
+            onClick = { onViewModeChange(NotesViewMode.LIST) },
+            wallpaper = wallpaper
         ) { tint ->
             if (wallpaper == Wallpaper.WALLPAPER_1) {
                 Image(
@@ -516,7 +517,8 @@ private fun NotesViewToggle(
         NotesViewToggleButton(
             selected = viewMode == NotesViewMode.CARD,
             contentDescription = stringResource(id = R.string.notes_view_card),
-            onClick = { onViewModeChange(NotesViewMode.CARD) }
+            onClick = { onViewModeChange(NotesViewMode.CARD) },
+            wallpaper = wallpaper
         ) { tint ->
             if (wallpaper == Wallpaper.WALLPAPER_1) {
                 Image(
@@ -536,13 +538,32 @@ private fun NotesViewToggleButton(
     selected: Boolean,
     contentDescription: String,
     onClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE,
     icon: @Composable (tint: Color) -> Unit
 ) {
+    val isWallpaper1 = wallpaper == Wallpaper.WALLPAPER_1
     val tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .background(
+                when {
+                    selected && isWallpaper1 -> MaterialTheme.colorScheme.primary
+                    selected -> MaterialTheme.colorScheme.secondaryContainer
+                    isWallpaper1 -> MaterialTheme.colorScheme.surface
+                    else -> Color.Transparent
+                }
+            )
+            // Wallpaper 1's own approved selected/unselected pill language (standardized across
+            // every pill/chip selector in the app) - a dark outline on the unselected pill, none
+            // on the selected (green-filled) one. Every other theme is unaffected.
+            .then(
+                if (isWallpaper1 && !selected) {
+                    Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp))
+                } else {
+                    Modifier
+                }
+            )
             .clickable(onClick = onClick)
             .semantics { this.contentDescription = contentDescription }
             .padding(horizontal = 10.dp, vertical = 8.dp),

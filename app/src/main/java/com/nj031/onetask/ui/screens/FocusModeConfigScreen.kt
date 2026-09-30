@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
+import com.nj031.onetask.data.settings.Wallpaper
 import com.nj031.onetask.data.timer.FocusCallsMode
 import com.nj031.onetask.data.timer.FocusNotificationsMode
 import com.nj031.onetask.data.timer.MAX_FOCUS_BREAKS
@@ -109,7 +110,8 @@ fun FocusModeConfigScreen(
     blockedAppsViewModel: FocusBlockedAppsViewModel = viewModel(),
     startOnStopwatch: Boolean = false,
     onCloseClick: () -> Unit,
-    onBlockDistractionsClick: () -> Unit
+    onBlockDistractionsClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     // Timer entry (the Timer tab's own Focus mode button) defaults here to Timer; the Stopwatch
     // tab's separate Focus mode button passes startOnStopwatch = true so this shared screen opens
@@ -254,7 +256,8 @@ fun FocusModeConfigScreen(
                 showFocusTimePicker = false
                 showCustomDurationPicker = true
             },
-            onDismiss = { showFocusTimePicker = false }
+            onDismiss = { showFocusTimePicker = false },
+            wallpaper = wallpaper
         )
     }
 
@@ -915,7 +918,8 @@ private fun FocusTimePickerDialog(
     selectedMinutes: Int,
     onSelectPreset: (Int) -> Unit,
     onOpenCustomPicker: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val isCustomSelected = selectedMinutes !in FOCUS_TIME_PRESET_MINUTES
     Dialog(onDismissRequest = onDismiss) {
@@ -938,6 +942,7 @@ private fun FocusTimePickerDialog(
                             label = stringResource(id = R.string.timer_minutes_format, minutes),
                             selected = !isCustomSelected && selectedMinutes == minutes,
                             onClick = { onSelectPreset(minutes) },
+                            wallpaper = wallpaper,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -947,6 +952,7 @@ private fun FocusTimePickerDialog(
                         label = stringResource(id = R.string.timer_preset_custom),
                         selected = isCustomSelected,
                         onClick = onOpenCustomPicker,
+                        wallpaper = wallpaper,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -956,11 +962,29 @@ private fun FocusTimePickerDialog(
 }
 
 @Composable
-private fun FocusTimePresetPill(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun FocusTimePresetPill(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE,
+    modifier: Modifier = Modifier
+) {
+    val isWallpaper1 = wallpaper == Wallpaper.WALLPAPER_1
+    // Wallpaper 1's own approved selected/unselected pill language (standardized across every
+    // pill/chip selector in the app): selected = primary green fill + onBackground light text (no
+    // border); unselected = surface cream fill + a dark outline + onSurface dark text. Every other
+    // theme keeps its original secondaryContainer/primary/background look exactly as before.
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.background)
+            .background(
+                when {
+                    selected && isWallpaper1 -> MaterialTheme.colorScheme.primary
+                    selected -> MaterialTheme.colorScheme.secondaryContainer
+                    isWallpaper1 -> MaterialTheme.colorScheme.surface
+                    else -> MaterialTheme.colorScheme.background
+                }
+            )
             .border(
                 width = 1.dp,
                 color = if (selected) Color.Transparent else MaterialTheme.colorScheme.outline,
@@ -974,7 +998,12 @@ private fun FocusTimePresetPill(label: String, selected: Boolean, onClick: () ->
             text = label,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            color = when {
+                selected && isWallpaper1 -> MaterialTheme.colorScheme.onBackground
+                selected -> MaterialTheme.colorScheme.primary
+                isWallpaper1 -> MaterialTheme.colorScheme.onSurface
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            }
         )
     }
 }

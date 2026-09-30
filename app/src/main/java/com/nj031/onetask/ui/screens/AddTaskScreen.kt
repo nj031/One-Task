@@ -63,6 +63,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.nj031.onetask.R
 import com.nj031.onetask.data.settings.TimeFormat
+import com.nj031.onetask.data.settings.Wallpaper
 import com.nj031.onetask.data.task.CategoryEntity
 import com.nj031.onetask.data.task.Subtask
 import com.nj031.onetask.data.task.SuccessCondition
@@ -114,7 +115,8 @@ fun AddTaskScreen(
     defaultPostponeIfIncomplete: Boolean = true,
     weekStartDay: DayOfWeek = DayOfWeek.MONDAY,
     timeFormat: TimeFormat = TimeFormat.SYSTEM_DEFAULT,
-    onDone: () -> Unit
+    onDone: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val existingTaskState = produceState<TaskEntity?>(initialValue = null, key1 = taskId) {
         value = null
@@ -468,13 +470,15 @@ private fun AddTaskScreenContent(
                                 text = stringResource(id = R.string.success_condition_all),
                                 selected = selectedSuccessCondition == SuccessCondition.ALL,
                                 enabled = !successConditionLocked,
-                                onClick = { selectedSuccessCondition = SuccessCondition.ALL }
+                                onClick = { selectedSuccessCondition = SuccessCondition.ALL },
+                                wallpaper = wallpaper
                             )
                             SelectionChip(
                                 text = stringResource(id = R.string.success_condition_any_one),
                                 selected = selectedSuccessCondition == SuccessCondition.ANY_ONE,
                                 enabled = !successConditionLocked,
-                                onClick = { selectedSuccessCondition = SuccessCondition.ANY_ONE }
+                                onClick = { selectedSuccessCondition = SuccessCondition.ANY_ONE },
+                                wallpaper = wallpaper
                             )
                             SelectionChip(
                                 text = stringResource(id = R.string.success_condition_custom),
@@ -485,7 +489,8 @@ private fun AddTaskScreenContent(
                                     if (successConditionThreshold == null) {
                                         successConditionThreshold = subtasks.size
                                     }
-                                }
+                                },
+                                wallpaper = wallpaper
                             )
                         }
                     }
@@ -507,7 +512,8 @@ private fun AddTaskScreenContent(
                                 SelectionChip(
                                     text = count.toString(),
                                     selected = effectiveThreshold == count,
-                                    onClick = { successConditionThreshold = count }
+                                    onClick = { successConditionThreshold = count },
+                                    wallpaper = wallpaper
                                 )
                             }
                         }
@@ -525,19 +531,22 @@ private fun AddTaskScreenContent(
                             SelectionChip(
                                 text = stringResource(id = R.string.option_no_timer),
                                 selected = !isCustomTimerSelected && timerMinutes == null,
-                                onClick = { timerMinutes = null }
+                                onClick = { timerMinutes = null },
+                                wallpaper = wallpaper
                             )
                             listOf(TIMER_25_MIN, TIMER_45_MIN, TIMER_60_MIN).forEach { minutes ->
                                 SelectionChip(
                                     text = minutes.toString(),
                                     selected = !isCustomTimerSelected && timerMinutes == minutes,
-                                    onClick = { timerMinutes = minutes }
+                                    onClick = { timerMinutes = minutes },
+                                    wallpaper = wallpaper
                                 )
                             }
                             SelectionChip(
                                 text = stringResource(id = R.string.option_custom),
                                 selected = isCustomTimerSelected,
-                                onClick = { showCustomDurationPicker = true }
+                                onClick = { showCustomDurationPicker = true },
+                                wallpaper = wallpaper
                             )
                         }
                     }
@@ -579,17 +588,20 @@ private fun AddTaskScreenContent(
                             SelectionChip(
                                 text = stringResource(id = R.string.today),
                                 selected = selectedTaskDate == today,
-                                onClick = { selectedTaskDate = today }
+                                onClick = { selectedTaskDate = today },
+                                wallpaper = wallpaper
                             )
                             SelectionChip(
                                 text = stringResource(id = R.string.date_tomorrow),
                                 selected = selectedTaskDate == today.plusDays(1),
-                                onClick = { selectedTaskDate = today.plusDays(1) }
+                                onClick = { selectedTaskDate = today.plusDays(1) },
+                                wallpaper = wallpaper
                             )
                             SelectionChip(
                                 text = stringResource(id = R.string.option_custom),
                                 selected = selectedTaskDate != today && selectedTaskDate != today.plusDays(1),
-                                onClick = { showDatePickerSheet = true }
+                                onClick = { showDatePickerSheet = true },
+                                wallpaper = wallpaper
                             )
                         }
                     }
@@ -613,17 +625,20 @@ private fun AddTaskScreenContent(
                             SelectionChip(
                                 text = stringResource(id = R.string.repeat_none),
                                 selected = selectedRepeat == TaskRepeat.NONE,
-                                onClick = { selectedRepeat = TaskRepeat.NONE }
+                                onClick = { selectedRepeat = TaskRepeat.NONE },
+                                wallpaper = wallpaper
                             )
                             SelectionChip(
                                 text = stringResource(id = R.string.repeat_daily),
                                 selected = selectedRepeat == TaskRepeat.DAILY,
-                                onClick = { selectedRepeat = TaskRepeat.DAILY }
+                                onClick = { selectedRepeat = TaskRepeat.DAILY },
+                                wallpaper = wallpaper
                             )
                             SelectionChip(
                                 text = stringResource(id = R.string.repeat_select_days),
                                 selected = selectedRepeat == TaskRepeat.SELECT_DAYS,
-                                onClick = { selectedRepeat = TaskRepeat.SELECT_DAYS }
+                                onClick = { selectedRepeat = TaskRepeat.SELECT_DAYS },
+                                wallpaper = wallpaper
                             )
                         }
                     }
@@ -643,7 +658,8 @@ private fun AddTaskScreenContent(
                                         } else {
                                             selectedRepeatDays.add(day)
                                         }
-                                    }
+                                    },
+                                    wallpaper = wallpaper
                                 )
                             }
                         }
@@ -668,7 +684,8 @@ private fun AddTaskScreenContent(
                             SelectionChip(
                                 text = stringResource(id = R.string.reminder_none),
                                 selected = !reminderEnabled,
-                                onClick = { reminderEnabled = false }
+                                onClick = { reminderEnabled = false },
+                                wallpaper = wallpaper
                             )
                             SelectionChip(
                                 text = stringResource(id = R.string.today),
@@ -676,7 +693,8 @@ private fun AddTaskScreenContent(
                                 onClick = {
                                     reminderEnabled = true
                                     reminderDate = today
-                                }
+                                },
+                                wallpaper = wallpaper
                             )
                             SelectionChip(
                                 text = stringResource(id = R.string.date_tomorrow),
@@ -684,7 +702,8 @@ private fun AddTaskScreenContent(
                                 onClick = {
                                     reminderEnabled = true
                                     reminderDate = today.plusDays(1)
-                                }
+                                },
+                                wallpaper = wallpaper
                             )
                             SelectionChip(
                                 text = stringResource(id = R.string.reminder_custom_date),
@@ -693,7 +712,8 @@ private fun AddTaskScreenContent(
                                 onClick = {
                                     reminderEnabled = true
                                     showReminderDatePickerSheet = true
-                                }
+                                },
+                                wallpaper = wallpaper
                             )
                         }
                     }
@@ -707,7 +727,8 @@ private fun AddTaskScreenContent(
                                 text = reminderMinuteOfDay?.let { formatReminderTime(it, is24Hour) }
                                     ?: stringResource(id = R.string.reminder_select_time),
                                 selected = reminderMinuteOfDay != null,
-                                onClick = { showReminderTimeSheet = true }
+                                onClick = { showReminderTimeSheet = true },
+                                wallpaper = wallpaper
                             )
                         }
                         if (reminderIsInvalid) {
@@ -734,7 +755,8 @@ private fun AddTaskScreenContent(
                                 onClick = {
                                     selectedPriority =
                                         if (selectedPriority == TaskPriority.SMALL) TaskPriority.NONE else TaskPriority.SMALL
-                                }
+                                },
+                                wallpaper = wallpaper
                             )
                             SelectionChip(
                                 text = stringResource(id = R.string.priority_medium),
@@ -742,7 +764,8 @@ private fun AddTaskScreenContent(
                                 onClick = {
                                     selectedPriority =
                                         if (selectedPriority == TaskPriority.MEDIUM) TaskPriority.NONE else TaskPriority.MEDIUM
-                                }
+                                },
+                                wallpaper = wallpaper
                             )
                             SelectionChip(
                                 text = stringResource(id = R.string.priority_high),
@@ -750,7 +773,8 @@ private fun AddTaskScreenContent(
                                 onClick = {
                                     selectedPriority =
                                         if (selectedPriority == TaskPriority.HIGH) TaskPriority.NONE else TaskPriority.HIGH
-                                }
+                                },
+                                wallpaper = wallpaper
                             )
                         }
                     }
@@ -972,9 +996,18 @@ private fun CardRow(label: String, content: @Composable () -> Unit) {
 /** A pill-shaped selectable option used inside a [TaskSectionCard]'s chip rows - filled with the
  * theme's secondary-container tint and bold primary-colored text when selected, an outlined
  * white pill otherwise. [enabled] false renders it visibly inert (dimmed, unclickable) - used for
- * a locked Success Condition (no subtasks yet). */
+ * a locked Success Condition (no subtasks yet). Wallpaper 1's own approved selected/unselected
+ * pill language (standardized across every pill/chip selector in the app) overrides the fill/
+ * text colors when active - the border is already outline-token-based and needs no change. */
 @Composable
-private fun SelectionChip(text: String, selected: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+private fun SelectionChip(
+    text: String,
+    selected: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
+) {
+    val isWallpaper1 = wallpaper == Wallpaper.WALLPAPER_1
     FilterChip(
         selected = selected,
         enabled = enabled,
@@ -1006,9 +1039,9 @@ private fun SelectionChip(text: String, selected: Boolean, enabled: Boolean = tr
         ),
         colors = FilterChipDefaults.filterChipColors(
             containerColor = MaterialTheme.colorScheme.surface,
-            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-            selectedLabelColor = MaterialTheme.colorScheme.primary
+            labelColor = if (isWallpaper1) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            selectedContainerColor = if (isWallpaper1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+            selectedLabelColor = if (isWallpaper1) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.primary
         )
     )
 }

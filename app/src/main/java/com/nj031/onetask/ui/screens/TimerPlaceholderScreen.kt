@@ -1123,13 +1123,32 @@ private fun TimerPresetPill(
     modifier: Modifier = Modifier
 ) {
     val hapticTick = rememberHapticTick()
+    val isWallpaper1 = wallpaper == Wallpaper.WALLPAPER_1
+    // Wallpaper 1's own approved selected/unselected pill language (standardized across every
+    // pill/chip selector in the app - see this repo's Wallpaper 1 pill-consistency pass): selected
+    // = primary green fill + onBackground light text (no border); unselected = surface cream fill
+    // + a dark outline + onSurface dark text - an opaque pill in both states, replacing this
+    // control's old transparent-on-wallpaper unselected look and green-text-on-cream selected
+    // look. Every other theme keeps its original secondaryContainer/primary/outline-alpha look
+    // exactly as before.
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .background(
+                when {
+                    selected && isWallpaper1 -> MaterialTheme.colorScheme.primary
+                    selected -> MaterialTheme.colorScheme.secondaryContainer
+                    isWallpaper1 -> MaterialTheme.colorScheme.surface
+                    else -> Color.Transparent
+                }
+            )
             .border(
                 width = 1.dp,
-                color = if (selected) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                color = when {
+                    selected -> Color.Transparent
+                    isWallpaper1 -> MaterialTheme.colorScheme.outline
+                    else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
+                },
                 shape = RoundedCornerShape(50)
             )
             .clickable { hapticTick(); onClick() }
@@ -1141,13 +1160,11 @@ private fun TimerPresetPill(
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = when {
+                selected && isWallpaper1 -> MaterialTheme.colorScheme.onBackground
                 // Selected pills sit on an opaque secondaryContainer background (cream) in every
-                // theme including Wallpaper 1 - primary already reads fine there, unchanged.
+                // other theme - primary already reads fine there, unchanged.
                 selected -> MaterialTheme.colorScheme.primary
-                // Unselected pills have a transparent fill, so on Wallpaper 1 this label sits
-                // directly on the wallpaper image - onSurfaceVariant (tuned for an opaque Card)
-                // reads poorly there; a dimmed onBackground preserves the same lighter emphasis.
-                wallpaper != Wallpaper.NONE -> MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                isWallpaper1 -> MaterialTheme.colorScheme.onSurface
                 else -> MaterialTheme.colorScheme.onSurfaceVariant
             },
             textAlign = TextAlign.Center
