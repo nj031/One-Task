@@ -3,6 +3,7 @@ package com.nj031.onetask.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -60,6 +61,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -227,7 +229,8 @@ fun NotesScreen(
                     NotesViewToggle(
                         viewMode = viewMode,
                         onViewModeChange = viewModel::setViewMode,
-                        modifier = Modifier.padding(start = 8.dp)
+                        modifier = Modifier.padding(start = 8.dp),
+                        wallpaper = wallpaper
                     )
                 }
 
@@ -389,7 +392,7 @@ private fun NotesTopBar(
                 .align(Alignment.CenterStart)
                 .semantics { contentDescription = profileDescription }
         ) {
-            ProfileAvatar(photoPath = profilePhotoPath, size = 32.dp)
+            ProfileAvatar(photoPath = profilePhotoPath, size = 32.dp, wallpaper = wallpaper)
         }
 
         Text(
@@ -406,11 +409,19 @@ private fun NotesTopBar(
 
         Box(modifier = Modifier.align(Alignment.CenterEnd)) {
             IconButton(onClick = { showMenu = true }) {
-                Icon(
-                    imageVector = Icons.Filled.MoreVert,
-                    contentDescription = stringResource(id = R.string.notes_more_options),
-                    tint = MaterialTheme.colorScheme.onBackground
-                )
+                if (wallpaper == Wallpaper.WALLPAPER_1) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_wp1_more),
+                        contentDescription = stringResource(id = R.string.notes_more_options),
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = stringResource(id = R.string.notes_more_options),
+                        tint = MaterialTheme.colorScheme.onBackground
+                    )
+                }
             }
             DropdownMenu(
                 expanded = showMenu,
@@ -480,14 +491,25 @@ private fun NotesTopBar(
 private fun NotesViewToggle(
     viewMode: NotesViewMode,
     onViewModeChange: (NotesViewMode) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     Row(modifier = modifier) {
         NotesViewToggleButton(
             selected = viewMode == NotesViewMode.LIST,
             contentDescription = stringResource(id = R.string.notes_view_list),
             onClick = { onViewModeChange(NotesViewMode.LIST) }
-        ) { tint -> OneTaskListViewIcon(tint = tint, size = 20.dp) }
+        ) { tint ->
+            if (wallpaper == Wallpaper.WALLPAPER_1) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_wp1_list_view),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+            } else {
+                OneTaskListViewIcon(tint = tint, size = 20.dp)
+            }
+        }
 
         Spacer(modifier = Modifier.width(8.dp))
 
@@ -495,7 +517,17 @@ private fun NotesViewToggle(
             selected = viewMode == NotesViewMode.CARD,
             contentDescription = stringResource(id = R.string.notes_view_card),
             onClick = { onViewModeChange(NotesViewMode.CARD) }
-        ) { tint -> OneTaskCardViewIcon(tint = tint, size = 20.dp) }
+        ) { tint ->
+            if (wallpaper == Wallpaper.WALLPAPER_1) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_wp1_grid_view),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+            } else {
+                OneTaskCardViewIcon(tint = tint, size = 20.dp)
+            }
+        }
     }
 }
 

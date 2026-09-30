@@ -1,5 +1,6 @@
 package com.nj031.onetask.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,8 +34,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -92,11 +95,19 @@ fun AppearanceSettingsScreen(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.Filled.ArrowBack,
-                            contentDescription = stringResource(id = R.string.back),
-                            tint = MaterialTheme.colorScheme.onBackground
-                        )
+                        if (wallpaper == Wallpaper.WALLPAPER_1) {
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_wp1_back),
+                                contentDescription = stringResource(id = R.string.back),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.ArrowBack,
+                                contentDescription = stringResource(id = R.string.back),
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
                     }
                     Text(
                         text = stringResource(id = R.string.appearance_title),
@@ -131,7 +142,8 @@ fun AppearanceSettingsScreen(
                         // Mode - so there's no reason to also hide which one is saved).
                         enabled = wallpaper == Wallpaper.NONE,
                         onSelect = onSelectDisplayMode,
-                        modifier = Modifier.padding(12.dp)
+                        modifier = Modifier.padding(12.dp),
+                        wallpaper = wallpaper
                     )
                 }
 
@@ -220,7 +232,8 @@ private fun DisplayModeRow(
     selected: DisplayMode,
     enabled: Boolean,
     onSelect: (DisplayMode) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     Row(
         modifier = modifier.fillMaxWidth().selectableGroup(),
@@ -243,7 +256,17 @@ private fun DisplayModeRow(
             modifier = Modifier.weight(1f)
         )
         DisplayModeCard(
-            icon = { tint -> OneTaskMoonIcon(tint = tint, size = 24.dp) },
+            icon = { tint ->
+                if (wallpaper == Wallpaper.WALLPAPER_1) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_wp1_theme_night),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp).alpha(tint.alpha)
+                    )
+                } else {
+                    OneTaskMoonIcon(tint = tint, size = 24.dp)
+                }
+            },
             label = stringResource(id = R.string.appearance_display_mode_dark),
             selected = selected == DisplayMode.DARK,
             enabled = enabled,
