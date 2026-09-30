@@ -378,7 +378,10 @@ private fun AddTaskScreenContent(
                         text = stringResource(id = R.string.task_name_label),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        // onSurface (not onBackground) - this label sits on the card's own
+                        // opaque surface fill, not the raw background; only differs from
+                        // onBackground under Wallpaper 1 (see wallpaperColorScheme in Theme.kt).
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     TextField(
                         value = taskName,
@@ -408,7 +411,8 @@ private fun AddTaskScreenContent(
                             text = stringResource(id = R.string.subtasks_label),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
+                            // onSurface - see Task Name label above for why.
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         AddChipButton(
                             text = stringResource(id = R.string.add_subtask),
@@ -555,7 +559,8 @@ private fun AddTaskScreenContent(
                                 ?: stringResource(id = R.string.category_label),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
+                            // onSurface - see Task Name label above for why.
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         AddChipButton(
                             text = stringResource(id = R.string.choose_category_button),
@@ -762,7 +767,8 @@ private fun AddTaskScreenContent(
                             text = stringResource(id = R.string.postpone_if_incomplete),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
+                            // onSurface - see Task Name label above for why.
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Switch(
                             checked = postponeIfIncomplete,
@@ -953,7 +959,10 @@ private fun CardRow(label: String, content: @Composable () -> Unit) {
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
+            // onSurface (not onBackground) - this label sits on the card's own opaque surface
+            // fill, not the raw background; only differs from onBackground under Wallpaper 1
+            // (see wallpaperColorScheme in Theme.kt).
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(top = 8.dp, end = 12.dp)
         )
         Box(modifier = Modifier.weight(1f)) { content() }
@@ -984,6 +993,14 @@ private fun SelectionChip(text: String, selected: Boolean, enabled: Boolean = tr
             selected = selected,
             borderColor = MaterialTheme.colorScheme.outline,
             selectedBorderColor = Color.Transparent,
+            // Without this, a disabled chip (e.g. Success Condition while there are no
+            // subtasks yet) falls back to Material3's own default disabled border - a very
+            // low-alpha tint of onSurface - which reads as an all-but-invisible outline
+            // against Wallpaper 1's much bolder normal-state outline token. Dimming the same
+            // outline token instead keeps a disabled chip visibly outlined without inventing
+            // a new color.
+            disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+            disabledSelectedBorderColor = Color.Transparent,
             borderWidth = 1.dp,
             selectedBorderWidth = 0.dp
         ),
