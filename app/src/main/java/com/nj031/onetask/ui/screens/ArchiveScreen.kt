@@ -37,11 +37,16 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nj031.onetask.R
 import com.nj031.onetask.data.journal.JournalNoteEntity
 import com.nj031.onetask.viewmodel.JournalViewModel
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.res.painterResource
+import com.nj031.onetask.data.settings.Wallpaper
 
 @Composable
 fun ArchiveScreen(
     viewModel: JournalViewModel = viewModel(),
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val notes by viewModel.archivedNotes.collectAsState()
 
@@ -58,7 +63,7 @@ fun ArchiveScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
-                ArchiveTopBar(onBackClick = onBackClick)
+                ArchiveTopBar(onBackClick = onBackClick, wallpaper = wallpaper)
 
                 if (notes.isEmpty()) {
                     Text(
@@ -91,17 +96,25 @@ fun ArchiveScreen(
 }
 
 @Composable
-private fun ArchiveTopBar(onBackClick: () -> Unit) {
+private fun ArchiveTopBar(onBackClick: () -> Unit, wallpaper: Wallpaper = Wallpaper.NONE) {
     Box(modifier = Modifier.fillMaxWidth()) {
         IconButton(
             onClick = onBackClick,
             modifier = Modifier.align(Alignment.CenterStart)
         ) {
-            Icon(
-                imageVector = Icons.Filled.ArrowBack,
-                contentDescription = stringResource(id = R.string.back),
-                tint = MaterialTheme.colorScheme.primary
-            )
+            if (wallpaper == Wallpaper.WALLPAPER_1) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_wp1_back),
+                    contentDescription = stringResource(id = R.string.back),
+                    modifier = Modifier.size(24.dp)
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.ArrowBack,
+                    contentDescription = stringResource(id = R.string.back),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
 
         Text(

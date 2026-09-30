@@ -137,6 +137,8 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.painterResource
+import com.nj031.onetask.data.settings.Wallpaper
 
 /**
  * The single mixed-content editor for every note - a note is an ordered list of [NoteBlock]s
@@ -168,7 +170,8 @@ fun NoteEditorScreen(
     noteId: String? = null,
     noteType: JournalNoteType = JournalNoteType.TEXT,
     onDone: () -> Unit,
-    onManageLabelsClick: () -> Unit = {}
+    onManageLabelsClick: () -> Unit = {},
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     // The id a brand-new note will be created under - generated once, up front, so the eager
     // create below (see the hasContentNow LaunchedEffect) and commitOnExit's own fallback create
@@ -681,7 +684,8 @@ fun NoteEditorScreen(
                         onBackClick = { commitOnExit(); onDone() },
                         onShareClick = ::performShare,
                         onAddToLabelClick = { showLabelDialog = true },
-                        onNoteInfoClick = { showNoteInfoDialog = true }
+                        onNoteInfoClick = { showNoteInfoDialog = true },
+                        wallpaper = wallpaper
                     )
 
                     TextField(
@@ -732,7 +736,8 @@ fun NoteEditorScreen(
             ImageFocusOverlay(
                 imagePath = focusedImagePath,
                 onBack = { focusedImageBlockId = null },
-                onDelete = { deleteImageBlock(focusedImageBlock.id) }
+                onDelete = { deleteImageBlock(focusedImageBlock.id) },
+                wallpaper = wallpaper
             )
         }
     }
@@ -769,17 +774,26 @@ private fun NoteEditorTopBar(
     onBackClick: () -> Unit,
     onShareClick: () -> Unit,
     onAddToLabelClick: () -> Unit,
-    onNoteInfoClick: () -> Unit
+    onNoteInfoClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxWidth()) {
         IconButton(onClick = onBackClick, modifier = Modifier.align(Alignment.CenterStart)) {
-            Icon(
-                imageVector = Icons.Filled.ArrowBack,
-                contentDescription = stringResource(id = R.string.back),
-                tint = MaterialTheme.colorScheme.primary
-            )
+            if (wallpaper == Wallpaper.WALLPAPER_1) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_wp1_back),
+                    contentDescription = stringResource(id = R.string.back),
+                    modifier = Modifier.size(24.dp)
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.ArrowBack,
+                    contentDescription = stringResource(id = R.string.back),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
 
         Box(modifier = Modifier.align(Alignment.CenterEnd)) {
@@ -1274,7 +1288,10 @@ private fun NoteInfoDialog(
                     text = stringResource(id = R.string.note_info_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    // onSurface (not onBackground) - this dialog's own Surface fill is the
+                    // opaque cream card color, not the raw background (same reasoning as
+                    // NoteInfoRow's value color just below).
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
 
@@ -1981,7 +1998,7 @@ private fun EditableBlockRow(
  * separate navigation route, since it's a transient focus state of the same editor session, not a
  * distinct screen. */
 @Composable
-private fun ImageFocusOverlay(imagePath: String, onBack: () -> Unit, onDelete: () -> Unit) {
+private fun ImageFocusOverlay(imagePath: String, onBack: () -> Unit, onDelete: () -> Unit, wallpaper: Wallpaper = Wallpaper.NONE) {
     val bitmap = remember(imagePath) { BitmapFactory.decodeFile(imagePath)?.asImageBitmap() }
     // Top bar is its own opaque region above the image (not overlaid on top of it): previously
     // Back/Delete sat directly on top of the full-bleed image with no background of their own, so
@@ -2002,11 +2019,19 @@ private fun ImageFocusOverlay(imagePath: String, onBack: () -> Unit, onDelete: (
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.Filled.ArrowBack,
-                    contentDescription = stringResource(id = R.string.back),
-                    tint = MaterialTheme.colorScheme.onBackground
-                )
+                if (wallpaper == Wallpaper.WALLPAPER_1) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_wp1_back),
+                        contentDescription = stringResource(id = R.string.back),
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.ArrowBack,
+                        contentDescription = stringResource(id = R.string.back),
+                        tint = MaterialTheme.colorScheme.onBackground
+                    )
+                }
             }
             IconButton(onClick = onDelete) {
                 Icon(

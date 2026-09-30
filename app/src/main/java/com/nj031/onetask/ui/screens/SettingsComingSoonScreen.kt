@@ -20,6 +20,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.nj031.onetask.R
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.res.painterResource
+import com.nj031.onetask.data.settings.Wallpaper
 
 /**
  * Shared "not built yet" screen for a General Settings row whose real UI hasn't been designed
@@ -28,7 +32,7 @@ import com.nj031.onetask.R
  * separate future work. Every other General Settings row is fully functional.
  */
 @Composable
-fun SettingsComingSoonScreen(title: String, message: String, onBackClick: () -> Unit) {
+fun SettingsComingSoonScreen(title: String, message: String, onBackClick: () -> Unit, wallpaper: Wallpaper = Wallpaper.NONE) {
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             Row(
@@ -38,11 +42,19 @@ fun SettingsComingSoonScreen(title: String, message: String, onBackClick: () -> 
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.Filled.ArrowBack,
-                        contentDescription = stringResource(id = R.string.back),
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
+                    if (wallpaper == Wallpaper.WALLPAPER_1) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_wp1_back),
+                            contentDescription = stringResource(id = R.string.back),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = stringResource(id = R.string.back),
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
                 }
                 Text(
                     text = title,

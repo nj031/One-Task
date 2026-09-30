@@ -491,28 +491,32 @@ fun OneTaskNavHost(
             val configBackStackEntry = remember { navController.getBackStackEntry(Screen.FocusModeConfig.route) }
             BlockDistractingAppsScreen(
                 viewModel = viewModel(viewModelStoreOwner = configBackStackEntry),
-                onDone = { navController.popBackStack() }
+                onDone = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.TimerSettings.route) {
             SettingsComingSoonScreen(
                 title = stringResource(id = R.string.timer_menu_settings),
                 message = stringResource(id = R.string.timer_settings_placeholder),
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.TimerCustomDurationSettings.route) {
             SettingsComingSoonScreen(
                 title = stringResource(id = R.string.timer_menu_custom_duration),
                 message = stringResource(id = R.string.timer_custom_duration_settings_placeholder),
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.TimerHistory.route) {
             SettingsComingSoonScreen(
                 title = stringResource(id = R.string.timer_menu_history),
                 message = stringResource(id = R.string.timer_history_placeholder),
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(
@@ -628,19 +632,22 @@ fun OneTaskNavHost(
         composable(Screen.Archive.route) {
             ArchiveScreen(
                 viewModel = journalViewModel,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.RecycleBin.route) {
             RecycleBinScreen(
                 viewModel = journalViewModel,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.Labels.route) {
             LabelsScreen(
                 viewModel = journalViewModel,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.DataPrivacy.route) {
@@ -652,28 +659,31 @@ fun OneTaskNavHost(
             )
         }
         composable(Screen.PrivacyPolicy.route) {
-            PrivacyPolicyScreen(onBackClick = { navController.popBackStack() })
+            PrivacyPolicyScreen(onBackClick = { navController.popBackStack() }, wallpaper = wallpaper)
         }
         composable(Screen.AboutOneTask.route) {
             AboutOneTaskScreen(
                 onBackClick = { navController.popBackStack() },
                 onTermsOfServiceClick = { navController.navigate(Screen.TermsOfService.route) },
                 onPrivacyPolicyClick = { navController.navigate(Screen.PrivacyPolicy.route) },
-                onOpenSourceLicensesClick = { navController.navigate(Screen.OpenSourceLicenses.route) }
+                onOpenSourceLicensesClick = { navController.navigate(Screen.OpenSourceLicenses.route) },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.TermsOfService.route) {
             SettingsComingSoonScreen(
                 title = stringResource(id = R.string.terms_of_service_title),
                 message = stringResource(id = R.string.terms_of_service_placeholder),
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.OpenSourceLicenses.route) {
             SettingsComingSoonScreen(
                 title = stringResource(id = R.string.open_source_licenses_title),
                 message = stringResource(id = R.string.open_source_licenses_placeholder),
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.GeneralSettings.route) {
@@ -764,7 +774,8 @@ fun OneTaskNavHost(
                 onFocusSessionNotificationsChange = generalSettingsViewModel::setFocusSessionNotificationsEnabled,
                 onFocusSessionCompleteChange = generalSettingsViewModel::setFocusSessionCompleteEnabled,
                 onTaskRemindersClick = { navController.navigate(Screen.UpgradeToPro.route) },
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.WeekStartsOnSettings.route) {
@@ -790,11 +801,12 @@ fun OneTaskNavHost(
             HapticFeedbackSettingScreen(
                 enabled = hapticEnabled,
                 onEnabledChange = generalSettingsViewModel::setHapticFeedbackEnabled,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.UpgradeToPro.route) {
-            UpgradeToProScreen(onBackClick = { navController.popBackStack() })
+            UpgradeToProScreen(onBackClick = { navController.popBackStack() }, wallpaper = wallpaper)
         }
         composable(Screen.HelpFeedback.route) {
             HelpFeedbackScreen(
@@ -808,7 +820,8 @@ fun OneTaskNavHost(
                 },
                 onSendFeedbackClick = {
                     navController.navigate(Screen.FeedbackForm.createRoute(FeedbackType.FEEDBACK.backendValue))
-                }
+                },
+                wallpaper = wallpaper
             )
         }
         composable(Screen.HelpFaq.route) {
@@ -816,7 +829,8 @@ fun OneTaskNavHost(
                 onBackClick = { navController.popBackStack() },
                 onCategoryClick = { categoryId ->
                     navController.navigate(Screen.HelpFaqCategory.createRoute(categoryId))
-                }
+                },
+                wallpaper = wallpaper
             )
         }
         composable(
@@ -825,7 +839,8 @@ fun OneTaskNavHost(
         ) { backStackEntry ->
             HelpFaqCategoryScreen(
                 categoryId = backStackEntry.arguments?.getString("categoryId").orEmpty(),
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(
@@ -836,7 +851,8 @@ fun OneTaskNavHost(
             FeedbackFormScreen(
                 type = FeedbackType.fromRouteValue(typeArg),
                 onBackClick = { navController.popBackStack() },
-                onDone = { navController.popBackStack() }
+                onDone = { navController.popBackStack() },
+                wallpaper = wallpaper
             )
         }
         composable(
@@ -860,7 +876,8 @@ fun OneTaskNavHost(
                 noteType = runCatching { JournalNoteType.valueOf(noteTypeArg ?: "TEXT") }
                     .getOrDefault(JournalNoteType.TEXT),
                 onDone = { navController.popBackStack() },
-                onManageLabelsClick = { navController.navigate(Screen.Labels.route) }
+                onManageLabelsClick = { navController.navigate(Screen.Labels.route) },
+                wallpaper = wallpaper
             )
         }
     }
