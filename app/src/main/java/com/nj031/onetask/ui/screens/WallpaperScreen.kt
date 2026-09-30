@@ -56,7 +56,8 @@ private const val WALLPAPER_OPTION_COUNT = 5
 fun WallpaperScreen(
     selected: Wallpaper,
     onSelect: (Wallpaper) -> Unit,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
         Column(
@@ -88,7 +89,16 @@ fun WallpaperScreen(
             Text(
                 text = stringResource(id = R.string.appearance_wallpaper_description),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // This sits directly on the raw wallpaper background (no Card), so
+                // onSurfaceVariant (tuned for an opaque Card) reads poorly under Wallpaper 1 -
+                // fall back to the same dimmed onBackground treatment used for other
+                // raw-background secondary text elsewhere in the app. Every other theme is
+                // unaffected.
+                color = if (wallpaper != Wallpaper.NONE) {
+                    MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 modifier = Modifier.padding(start = 52.dp, top = 4.dp, bottom = 20.dp)
             )
 
