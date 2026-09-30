@@ -159,15 +159,20 @@ fun NotesScreen(
         floatingActionButton = {
             val fabDensity = LocalDensity.current
             Box(
-                modifier = Modifier.onGloballyPositioned { coordinates ->
-                    fabHeight = with(fabDensity) { coordinates.size.height.toDp() }
-                }
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 640.dp)
+                    .padding(horizontal = 20.dp)
+                    .onGloballyPositioned { coordinates ->
+                        fabHeight = with(fabDensity) { coordinates.size.height.toDp() }
+                    }
             ) {
                 ExtendedFloatingActionButton(
                     onClick = { onAddNoteClick(JournalNoteType.TEXT) },
                     modifier = Modifier
-                        // Larger than the default ExtendedFAB sizing, matching the approved
-                        // Wallpaper 1 "+ Add Note" reference's more prominent proportions.
+                        // Full-width, prominent horizontal bar rather than a compact floating
+                        // pill, matching the approved Wallpaper 1 "+ Add Note" reference.
+                        .fillMaxWidth()
                         .heightIn(min = 64.dp)
                         // Only while a wallpaper is active: gives this CTA a defined edge against
                         // whatever wallpaper pixels happen to sit behind it - the same border
@@ -186,18 +191,24 @@ fun NotesScreen(
                     contentColor = Color.White,
                     elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
-                    Text(
-                        text = stringResource(id = R.string.notes_add_button),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Text(
+                            text = stringResource(id = R.string.notes_add_button),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
                 }
             }
         },
