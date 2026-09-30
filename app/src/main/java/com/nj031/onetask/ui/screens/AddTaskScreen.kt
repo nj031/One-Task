@@ -151,6 +151,7 @@ fun AddTaskScreen(
             onAddCategoryClick = onAddCategoryClick,
             weekStartDay = weekStartDay,
             timeFormat = timeFormat,
+            wallpaper = wallpaper,
             onCancel = onDone,
             onSave = {
                 name, subtasks, timerMinutes, date, priority, reminderMinuteOfDay, reminderEpochDay,
@@ -207,6 +208,7 @@ private fun AddTaskScreenContent(
     onAddCategoryClick: () -> Unit,
     weekStartDay: DayOfWeek,
     timeFormat: TimeFormat,
+    wallpaper: Wallpaper = Wallpaper.NONE,
     onCancel: () -> Unit,
     onSave: (
         name: String,
