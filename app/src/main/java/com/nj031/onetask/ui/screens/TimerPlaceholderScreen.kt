@@ -703,7 +703,7 @@ private fun TimerModeContent(
     ) {
         Box(modifier = timerRingBackingModifier(wallpaper), contentAlignment = Alignment.Center) {
             TimerRing(remainingFraction = remainingFraction, showProgress = isActive || isOnBreak)
-            TimerCenterLabel(millis = displayMillis)
+            TimerCenterLabel(millis = displayMillis, wallpaper = wallpaper)
         }
     }
 
@@ -885,7 +885,7 @@ private fun StopwatchModeContent(
     ) {
         Box(modifier = timerRingBackingModifier(wallpaper), contentAlignment = Alignment.Center) {
             TimerRing(remainingFraction = 1f, showProgress = false)
-            TimerCenterLabel(millis = elapsedMillis)
+            TimerCenterLabel(millis = elapsedMillis, wallpaper = wallpaper)
         }
     }
 
@@ -965,12 +965,11 @@ private fun StopwatchModeContent(
 }
 
 /**
- * The 280dp ring+countdown-label composition's own modifier - only while a wallpaper is active,
- * adds the same translucent-surface-plus-border treatment Cards elsewhere already use, since the
- * countdown text previously rendered directly over the wallpaper image with nothing behind it.
- * Circular (matching the ring it backs) rather than the cards' rounded-rect, reusing the same
- * theme border/surface tokens every Card already reads - not a new color, and the ring/label
- * themselves are unchanged.
+ * The 280dp ring+countdown-label composition's own modifier. While a wallpaper is active, this
+ * deliberately stays free of any opaque or translucent fill - the wallpaper artwork must stay
+ * visible inside the ring, per the Wallpaper 1 spec's own "no background overlay" rule (see
+ * WallpaperTheme.kt). A thin outline (no fill) still gives the circle a visible edge against the
+ * artwork without blocking it.
  * Non-wallpaper themes get a plain, unmodified 280dp box, exactly as before this existed.
  */
 @Composable
@@ -979,7 +978,6 @@ private fun timerRingBackingModifier(wallpaper: Wallpaper): Modifier =
         Modifier
             .size(280.dp)
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
     } else {
         Modifier.size(280.dp)
@@ -1044,39 +1042,33 @@ private fun TimerRing(remainingFraction: Float, showProgress: Boolean, modifier:
 }
 
 @Composable
-private fun TimerCenterLabel(millis: Long) {
+private fun TimerCenterLabel(millis: Long, wallpaper: Wallpaper = Wallpaper.NONE) {
     val totalSeconds = (millis / 1000).coerceAtLeast(0)
     val hasHours = totalSeconds >= 3600
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = formatTimerDuration(millis),
-            style = MaterialTheme.typography.displaySmall,
+            // Slightly larger than the previous displaySmall, now that removing the min/sec row
+            // below leaves this as the ring's only centered content.
+            style = MaterialTheme.typography.displayMedium,
             fontWeight = FontWeight.Bold,
-            // onSurface (not onBackground): this label sits inside timerRingBackingModifier's own
-            // opaque Card-like circle while a wallpaper is active (a plain, unfilled 280dp box
-            // otherwise, where onSurface and onBackground are identical anyway).
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Row(
-            modifier = Modifier.padding(top = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (hasHours) 28.dp else 56.dp)
-        ) {
-            if (hasHours) {
-                Text(
-                    text = stringResource(id = R.string.timer_unit_hr),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            // timerRingBackingModifier no longer puts an opaque fill behind this label while a
+            // wallpaper is active - it sits directly on the wallpaper artwork there, so it needs
+            // the same on-artwork light treatment every other direct-on-wallpaper label uses
+            // (see SegmentedTab just above). Non-wallpaper themes are unaffected (onSurface there
+            // is already identical to onBackground).
+            color = if (wallpaper != Wallpaper.NONE) {
+                MaterialTheme.colorScheme.onBackground
+            } else {
+                MaterialTheme.colorScheme.onSurface
             }
+        )
+        if (hasHours) {
             Text(
-                text = stringResource(id = R.string.timer_unit_min),
+                text = stringResource(id = R.string.timer_unit_hr),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = stringResource(id = R.string.timer_unit_sec),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp)
             )
         }
     }
