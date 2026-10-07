@@ -50,6 +50,7 @@ import com.nj031.onetask.ui.screens.HapticFeedbackSettingScreen
 import com.nj031.onetask.ui.screens.HelpFaqCategoryScreen
 import com.nj031.onetask.ui.screens.HelpFaqScreen
 import com.nj031.onetask.ui.screens.HelpFeedbackScreen
+import com.nj031.onetask.ui.screens.HiddenNotesScreen
 import com.nj031.onetask.ui.screens.HomeScreen
 import com.nj031.onetask.ui.screens.LabelsScreen
 import com.nj031.onetask.ui.screens.LoginScreen
@@ -601,6 +602,7 @@ fun OneTaskNavHost(
                 onArchiveClick = { navController.navigate(Screen.Archive.route) },
                 onRecycleBinClick = { navController.navigate(Screen.RecycleBin.route) },
                 onLabelsClick = { navController.navigate(Screen.Labels.route) },
+                onHiddenNotesClick = { navController.navigate(Screen.HiddenNotes.route) },
                 timeFormat = timeFormat,
                 wallpaper = wallpaper,
                 darkTheme = darkTheme
@@ -638,6 +640,13 @@ fun OneTaskNavHost(
         }
         composable(Screen.RecycleBin.route) {
             RecycleBinScreen(
+                viewModel = journalViewModel,
+                onBackClick = { navController.popBackStack() },
+                wallpaper = wallpaper
+            )
+        }
+        composable(Screen.HiddenNotes.route) {
+            HiddenNotesScreen(
                 viewModel = journalViewModel,
                 onBackClick = { navController.popBackStack() },
                 wallpaper = wallpaper

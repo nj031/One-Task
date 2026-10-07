@@ -4,7 +4,11 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.util.UUID
 
-enum class JournalNoteStatus { ACTIVE, ARCHIVED, TRASHED }
+// HIDDEN is Phase 1 of the Hidden Notes feature: a note with this status is excluded from the
+// normal Notes list/search (see JournalRepository.observeActiveNotes/observeHiddenNotes) but is
+// otherwise a completely ordinary row - no encryption, PIN, or other protection is applied to it
+// yet (that's deferred to a later phase; see JournalRepository.hideNote/unhideNote's own comment).
+enum class JournalNoteStatus { ACTIVE, ARCHIVED, TRASHED, HIDDEN }
 
 /** A note is either a plain Text note (its [JournalNoteEntity.content] is freeform text) or a
  * Checklist note (its [JournalNoteEntity.checklistItems] holds the list of items, and

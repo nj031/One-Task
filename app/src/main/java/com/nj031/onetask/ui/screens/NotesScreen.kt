@@ -118,6 +118,7 @@ fun NotesScreen(
     onArchiveClick: () -> Unit = {},
     onRecycleBinClick: () -> Unit = {},
     onLabelsClick: () -> Unit = {},
+    onHiddenNotesClick: () -> Unit = {},
     timeFormat: TimeFormat = TimeFormat.SYSTEM_DEFAULT,
     wallpaper: Wallpaper = Wallpaper.NONE,
     darkTheme: Boolean = false
@@ -187,6 +188,7 @@ fun NotesScreen(
                     onArchiveClick = onArchiveClick,
                     onRecycleBinClick = onRecycleBinClick,
                     onLabelsClick = onLabelsClick,
+                    onHiddenNotesClick = onHiddenNotesClick,
                     wallpaper = wallpaper
                 )
 
@@ -334,6 +336,10 @@ fun NotesScreen(
                 viewModel.archiveNote(note)
                 actionMenuNote = null
             },
+            onHideClick = {
+                viewModel.hideNote(note)
+                actionMenuNote = null
+            },
             onDeleteClick = {
                 // No confirmation - deleted notes go straight to the Recycle Bin, where they can
                 // still be restored or permanently removed with its own confirmation.
@@ -352,6 +358,7 @@ private fun NotesTopBar(
     onArchiveClick: () -> Unit,
     onRecycleBinClick: () -> Unit,
     onLabelsClick: () -> Unit,
+    onHiddenNotesClick: () -> Unit,
     wallpaper: Wallpaper = Wallpaper.NONE
 ) {
     val profileDescription = stringResource(id = R.string.nav_profile)
@@ -383,7 +390,18 @@ private fun NotesTopBar(
             modifier = Modifier.align(Alignment.Center)
         )
 
-        Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+        Row(
+            modifier = Modifier.align(Alignment.CenterEnd),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onHiddenNotesClick) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_hidden_notes),
+                    contentDescription = stringResource(id = R.string.notes_hidden_notes),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Box {
             IconButton(onClick = { showMenu = true }) {
                 if (wallpaper == Wallpaper.WALLPAPER_1) {
                     Image(
@@ -459,6 +477,7 @@ private fun NotesTopBar(
                     }
                 )
             }
+        }
         }
     }
 }
@@ -817,6 +836,7 @@ private fun NoteActionSheet(
     isPinned: Boolean,
     onPinToggleClick: () -> Unit,
     onArchiveClick: () -> Unit,
+    onHideClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -842,6 +862,10 @@ private fun NoteActionSheet(
             NoteActionSheetItem(
                 text = stringResource(id = R.string.archive),
                 onClick = { dismissThen(onArchiveClick) }
+            )
+            NoteActionSheetItem(
+                text = stringResource(id = R.string.note_menu_hide_note),
+                onClick = { dismissThen(onHideClick) }
             )
             NoteActionSheetItem(
                 text = stringResource(id = R.string.delete),

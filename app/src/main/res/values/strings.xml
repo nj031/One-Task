@@ -406,6 +406,7 @@
     <string name="note_add_label_button">+ Add Label</string>
     <string name="note_menu_pin_note">Pin note</string>
     <string name="note_menu_unpin_note">Unpin note</string>
+    <string name="note_menu_hide_note">Hide note</string>
     <string name="note_menu_note_info">Note info</string>
     <string name="note_info_title">Note Info</string>
     <string name="note_info_name_label">Name</string>
@@ -437,6 +438,13 @@
     <string name="delete_permanently">Delete Permanently</string>
     <string name="delete_permanently_title">Delete this note permanently?</string>
     <string name="delete_permanently_message">This note will be permanently deleted and can\'t be recovered.</string>
+
+    <string name="notes_hidden_notes">Hidden Notes</string>
+    <string name="hidden_notes_title">Hidden Notes</string>
+    <string name="no_hidden_notes">No hidden notes.</string>
+    <string name="unhide_note">Unhide</string>
+    <string name="unhide_note_title">Unhide this note?</string>
+    <string name="unhide_note_message">This note will be moved back to your normal Notes list.</string>
 
     <string name="previous_month">Previous month</string>
     <string name="next_month">Next month</string>
