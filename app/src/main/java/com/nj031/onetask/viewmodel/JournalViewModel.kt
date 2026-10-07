@@ -59,6 +59,10 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         repository.observeTrashedNotes()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val hiddenNotes: StateFlow<List<JournalNoteEntity>> =
+        repository.observeHiddenNotes()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val labels: StateFlow<List<String>> =
         repository.observeLabels()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -203,6 +207,18 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
     fun restoreNote(note: JournalNoteEntity) {
         viewModelScope.launch {
             repository.restoreNote(note)
+        }
+    }
+
+    fun hideNote(note: JournalNoteEntity) {
+        viewModelScope.launch {
+            repository.hideNote(note)
+        }
+    }
+
+    fun unhideNote(note: JournalNoteEntity) {
+        viewModelScope.launch {
+            repository.unhideNote(note)
         }
     }
 

@@ -15,6 +15,9 @@ class JournalRepository(private val dao: JournalNoteDao) {
     fun observeTrashedNotes(): Flow<List<JournalNoteEntity>> =
         dao.getByStatus(JournalNoteStatus.TRASHED)
 
+    fun observeHiddenNotes(): Flow<List<JournalNoteEntity>> =
+        dao.getByStatus(JournalNoteStatus.HIDDEN)
+
     suspend fun getAllNotesOnce(): List<JournalNoteEntity> = dao.getAllOnce()
 
     fun observeLabels(): Flow<List<String>> = dao.getLabels()
@@ -114,6 +117,23 @@ class JournalRepository(private val dao: JournalNoteDao) {
     }
 
     suspend fun restoreNote(note: JournalNoteEntity) {
+        val updated = note.copy(status = JournalNoteStatus.ACTIVE)
+        dao.update(updated)
+        CloudBackupRepository.pushNote(updated)
+    }
+
+    /** Hide/Unhide are deliberately their own pair rather than reusing [archiveNote]/
+     * [restoreNote]'s status value - a future phase adding encryption only needs to touch these
+     * two methods (encrypt before dao.update in [hideNote], decrypt after in [unhideNote]) without
+     * reshaping the Archive/Trash status-transition pattern they'd otherwise share. Phase 1 itself
+     * does no encryption - this is a plain status change like every other transition above. */
+    suspend fun hideNote(note: JournalNoteEntity) {
+        val updated = note.copy(status = JournalNoteStatus.HIDDEN)
+        dao.update(updated)
+        CloudBackupRepository.pushNote(updated)
+    }
+
+    suspend fun unhideNote(note: JournalNoteEntity) {
         val updated = note.copy(status = JournalNoteStatus.ACTIVE)
         dao.update(updated)
         CloudBackupRepository.pushNote(updated)
