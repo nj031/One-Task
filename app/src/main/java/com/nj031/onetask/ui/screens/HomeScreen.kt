@@ -170,6 +170,11 @@ fun HomeScreen(
     // survives the underlying task object changing identity across recompositions/updates.
     var selectedTaskId by remember { mutableStateOf<String?>(null) }
     var deleteConfirmTask by remember { mutableStateOf<TaskEntity?>(null) }
+    // The task awaiting a plain "Are you sure?" confirmation before deleting - every Delete tap
+    // that isn't already covered by deleteConfirmTask (running timer) or
+    // recurringDeleteScopeTask (recurring series) goes through this instead of deleting
+    // immediately - see HomeTaskListItem's own onDelete.
+    var plainDeleteConfirmTask by remember { mutableStateOf<TaskEntity?>(null) }
     // The task currently awaiting the Delete Behavior Contract's "this occurrence"/"this &
     // future"/cancel choice - shown instead of deleting immediately whenever the tapped task is
     // part of an active recurring series (an occurrence of one, or the series' own definition row
@@ -188,11 +193,13 @@ fun HomeScreen(
     // (rather than a hardcoded size) drives the task list's bottom content padding.
     var fabHeight by remember { mutableStateOf(0.dp) }
 
-    // The single entry point every Delete tap (direct, or after confirming the running-timer
-    // sheet) goes through - see the Delete Behavior Contract. A task that's either an occurrence
-    // of an active recurring series or that series' own definition row always asks which scope
-    // (this occurrence / this & future) before touching anything; a plain task deletes
-    // immediately, exactly as before this contract existed.
+    // Reached directly for a recurring task's Delete tap, and after confirming the
+    // running-timer sheet for a mid-timer task's - see the Delete Behavior Contract. (A plain
+    // task - neither recurring nor mid-timer - never reaches this: its own "are you sure?" sheet,
+    // see plainDeleteConfirmTask, deletes it directly once confirmed.) A task that's either an
+    // occurrence of an active recurring series or that series' own definition row still asks which
+    // scope (this occurrence / this & future) before touching anything; everything else deletes
+    // immediately, since it's already been confirmed by this point.
     fun beginDelete(task: TaskEntity) {
         if (task.seriesId != null || task.repeat != TaskRepeat.NONE) {
             recurringDeleteScopeTask = task
@@ -435,6 +442,7 @@ fun HomeScreen(
                                 onEditTaskClick = onEditTaskClick,
                                 onDeleteConfirmRequired = { deleteConfirmTask = it },
                                 onBeginDelete = ::beginDelete,
+                                onPlainDeleteConfirmRequired = { plainDeleteConfirmTask = it },
                                 isDragged = isDragged,
                                 dragOffsetY = if (isDragged) dragOffsetY else 0f,
                                 onDragStart = {
@@ -520,6 +528,17 @@ fun HomeScreen(
                 deleteConfirmTask = null
             },
             onCancel = { deleteConfirmTask = null }
+        )
+    }
+
+    plainDeleteConfirmTask?.let { task ->
+        DeleteTaskConfirmationSheet(
+            onDelete = {
+                hapticTick()
+                viewModel.deleteTask(task)
+                plainDeleteConfirmTask = null
+            },
+            onCancel = { plainDeleteConfirmTask = null }
         )
     }
 
@@ -902,6 +921,7 @@ private fun HomeTaskListItem(
     onEditTaskClick: (String) -> Unit,
     onDeleteConfirmRequired: (TaskEntity) -> Unit,
     onBeginDelete: (TaskEntity) -> Unit,
+    onPlainDeleteConfirmRequired: (TaskEntity) -> Unit,
     isDragged: Boolean,
     dragOffsetY: Float,
     onDragStart: () -> Unit,
@@ -941,14 +961,17 @@ private fun HomeTaskListItem(
         },
         onDelete = {
             onDeselect()
-            // A task with a currently-running timer gets an extra confirmation step, since
-            // deleting it also silently ends the active focus session - everything else deletes
-            // (or, for a recurring task, asks which scope - see onBeginDelete) immediately,
-            // matching existing behavior.
+            // A task with a currently-running timer gets its own extra confirmation step, since
+            // deleting it also silently ends the active focus session. A recurring task's own
+            // scope sheet (this occurrence / this & future - see onBeginDelete) already doubles
+            // as its confirmation step. Everything else (a plain, non-recurring task with no
+            // running timer) gets a generic "are you sure?" confirmation before deleting.
             if (task.timerEndAtMillis != null) {
                 onDeleteConfirmRequired(task)
-            } else {
+            } else if (task.seriesId != null || task.repeat != TaskRepeat.NONE) {
                 onBeginDelete(task)
+            } else {
+                onPlainDeleteConfirmRequired(task)
             }
         },
         isDragged = isDragged,
@@ -1455,6 +1478,79 @@ private fun DeleteRunningTimerConfirmationSheet(
             )
             Text(
                 text = stringResource(id = R.string.delete_task_confirm_message),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 10.dp)
+            )
+            FilledTonalButton(
+                onClick = { dismissThen(onDelete) },
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                ),
+                modifier = Modifier
+                    .padding(top = 18.dp)
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Text(stringResource(id = R.string.delete), style = MaterialTheme.typography.bodyMedium)
+            }
+            TextButton(
+                onClick = { dismissThen(onCancel) },
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                Text(
+                    text = stringResource(id = R.string.cancel),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The plain "are you sure?" confirmation shown before deleting a task that is neither mid-timer
+ * nor part of a recurring series - see HomeScreen's own beginDelete/onPlainDeleteConfirmRequired.
+ * Mirrors [DeleteRunningTimerConfirmationSheet]'s layout/styling exactly, with a generic message
+ * instead of one naming the running focus session.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DeleteTaskConfirmationSheet(
+    onDelete: () -> Unit,
+    onCancel: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
+    fun dismissThen(action: () -> Unit) {
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            if (!sheetState.isVisible) action()
+        }
+    }
+
+    CompactBottomSheet(
+        onDismissRequest = onCancel,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = stringResource(id = R.string.delete_task_confirm_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = stringResource(id = R.string.delete_task_plain_confirm_message),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
