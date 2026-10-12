@@ -238,14 +238,21 @@ private fun CalendarDialogNavButton(
         modifier = Modifier
             .size(32.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.background)
+            // surface/onSurface (not background/primary) - this dialog's own container is already
+            // MaterialTheme.colorScheme.surface (see OneTaskCalendarDialog's Surface above), so
+            // this button's background matches it and onSurface is that surface's own paired,
+            // guaranteed-readable icon/text color - every theme (including Wallpaper 1, where
+            // background is the wallpaper's own blue, too close to primary's green for this
+            // button's icon to read clearly against) already defines this pairing for exactly
+            // this purpose.
+            .background(MaterialTheme.colorScheme.surface)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = MaterialTheme.colorScheme.primary,
+            tint = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.size(20.dp)
         )
     }
